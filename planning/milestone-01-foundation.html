@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Milestone 1 - Foundation</title>
+  <link rel="stylesheet" href="assets/planning.css">
+</head>
+<body>
+  <div class="page">
+    <aside class="sidebar">
+      <h1 class="brand">Milestone 1<br>Foundation</h1>
+      <p>Set up the smallest durable app shell.</p>
+      <nav class="nav" aria-label="Planning pages">
+        <a href="index.html">Roadmap</a>
+        <a href="milestone-01-foundation.html" aria-current="page">M1 Foundation</a>
+        <a href="milestone-02-day-view-journal.html">M2 Journal</a>
+        <a href="milestone-03-day-view-todos.html">M3 TODO Panel</a>
+        <a href="milestone-04-review-output.html">M4 Review</a>
+        <a href="milestone-05-markdown-export.html">M5 Export</a>
+        <a href="milestone-06-todo-manager.html">M6 TODO Manager</a>
+        <a href="milestone-07-polish-backup.html">M7 Polish</a>
+        <a href="ui-mockups.html">UI Mockups</a>
+        <a href="data-access-strategy.html">AI Data Access</a>
+        <a href="acceptance-matrix.html">Acceptance Matrix</a>
+        <a href="deferred-scope.html">Deferred Scope</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <header class="hero">
+        <p class="eyebrow">Milestone 1</p>
+        <h1>Foundation</h1>
+        <p class="lead">Create the Bun, SQLite, tag model, routing, rendering, and static asset base needed for every later workflow.</p>
+        <div class="meta">
+          <span class="tag done">Required first</span>
+          <span class="tag done">AC-21</span>
+          <span class="tag done">AC-22</span>
+          <span class="tag done">AC-23</span>
+        </div>
+      </header>
+
+      <section class="callout green">
+        <h2>Goal</h2>
+        <p>The app starts locally, initializes the SQLite database automatically, and renders a minimal home page without external services.</p>
+      </section>
+
+      <section>
+        <h2>Deliverables</h2>
+        <ul class="checklist">
+          <li>Initialize project files: <code>package.json</code>, lockfile, <code>.gitignore</code>, and script commands.</li>
+          <li>Create <code>src\server.ts</code> with <code>Bun.serve()</code> bound to <code>127.0.0.1</code>.</li>
+          <li>Create <code>src\db.ts</code> for SQLite connection and migration execution.</li>
+          <li>Create <code>src\schema.ts</code> with <code>journal_entries</code>, <code>todos</code>, tag tables, indexes, and <code>review_items</code> view.</li>
+          <li>Create shared query, validation, date, HTML escaping, and layout helpers.</li>
+          <li>Create <code>public\styles.css</code>, <code>public\app.js</code>, and vendored HTMX asset path.</li>
+          <li>Render a minimal Day View shell at <code>/</code>.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Planned Files</h2>
+        <table>
+          <thead><tr><th>Path</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>src\server.ts</code></td><td>HTTP entry point, routing dispatch, localhost binding.</td></tr>
+            <tr><td><code>src\db.ts</code></td><td>SQLite connection, migration runner, DB path configuration.</td></tr>
+            <tr><td><code>src\schema.ts</code></td><td>Schema SQL, tag tables, indexes, review view.</td></tr>
+            <tr><td><code>src\queries.ts</code></td><td>Initial typed query helpers shared by routes, including tag lookup helpers.</td></tr>
+            <tr><td><code>src\views\layout.ts</code></td><td>Base HTML document, nav, CSS/JS includes.</td></tr>
+            <tr><td><code>src\views\components.ts</code></td><td>Small reusable HTML fragments.</td></tr>
+            <tr><td><code>src\views\day.ts</code></td><td>Initial empty Day View shell.</td></tr>
+            <tr><td><code>src\lib\date.ts</code></td><td>Local date helper, UTC timestamp helper, date validation.</td></tr>
+            <tr><td><code>src\lib\html.ts</code></td><td>Escaping helpers for text content and attributes.</td></tr>
+            <tr><td><code>src\lib\validation.ts</code></td><td>Shared validation and tag parsing primitives.</td></tr>
+            <tr><td><code>public\styles.css</code></td><td>Base app styling.</td></tr>
+            <tr><td><code>public\app.js</code></td><td>Small global client behavior placeholder.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Implementation Steps</h2>
+        <ol class="sequence">
+          <li>Create project scaffolding and scripts, including <code>bun run dev</code> and test command.</li>
+          <li>Write date, HTML escaping, tag parsing, and validation unit tests first.</li>
+          <li>Implement date, tag, and validation helpers until unit tests pass.</li>
+          <li>Write schema/migration tests that prove tables and view exist after initialization.</li>
+          <li>Implement database connection and migration runner.</li>
+          <li>Write an integration test for home page rendering.</li>
+          <li>Implement route dispatch, layout rendering, static asset serving, and home shell.</li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Verification Gate</h2>
+        <ul>
+          <li><code>bun run dev</code> starts on <code>127.0.0.1</code>.</li>
+          <li>Visiting <code>/</code> renders the Day View shell.</li>
+          <li><code>tracker.db</code> is created and contains required tables and indexes.</li>
+          <li>Tag tables support multiple tags per journal entry and TODO.</li>
+          <li>No external network service is required.</li>
+          <li>Unit and integration tests for helper and initialization behavior pass.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Risks</h2>
+        <table>
+          <thead><tr><th>Risk</th><th>Mitigation</th></tr></thead>
+          <tbody>
+            <tr><td>Overbuilding framework abstractions.</td><td>Keep route dispatch explicit until repetition appears.</td></tr>
+            <tr><td>UTC date drift.</td><td>Use local date helper for all grouping dates from the start.</td></tr>
+            <tr><td>Schema changes become hard later.</td><td>Centralize migration SQL and keep tests around schema initialization.</td></tr>
+            <tr><td>Tags get overbuilt.</td><td>Use simple normalized tag text and join tables. Defer colors, aliases, and tag management screens.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

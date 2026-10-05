@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Deferred Scope</title>
+  <link rel="stylesheet" href="assets/planning.css">
+</head>
+<body>
+  <div class="page">
+    <aside class="sidebar">
+      <h1 class="brand">Deferred<br>Scope</h1>
+      <p>Explicit non-v1 work to keep the first build small.</p>
+      <nav class="nav" aria-label="Planning pages">
+        <a href="index.html">Roadmap</a>
+        <a href="milestone-01-foundation.html">M1 Foundation</a>
+        <a href="milestone-02-day-view-journal.html">M2 Journal</a>
+        <a href="milestone-03-day-view-todos.html">M3 TODO Panel</a>
+        <a href="milestone-04-review-output.html">M4 Review</a>
+        <a href="milestone-05-markdown-export.html">M5 Export</a>
+        <a href="milestone-06-todo-manager.html">M6 TODO Manager</a>
+        <a href="milestone-07-polish-backup.html">M7 Polish</a>
+        <a href="ui-mockups.html">UI Mockups</a>
+        <a href="data-access-strategy.html">AI Data Access</a>
+        <a href="acceptance-matrix.html">Acceptance Matrix</a>
+        <a href="deferred-scope.html" aria-current="page">Deferred Scope</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <header class="hero">
+        <p class="eyebrow">Scope Control</p>
+        <h1>Deferred Scope</h1>
+        <p class="lead">These items are useful, but they should not block v1. The first release succeeds when daily capture, tags, TODO context, review, Markdown and AI-readable export, persistence, and backup documentation work.</p>
+      </header>
+
+      <section class="callout">
+        <h2>v1.1 Candidate</h2>
+        <p>The full <code>/data</code> utility page is still optional for v1.1. Date-range AI-readable export belongs to Milestone 5 because it directly supports review preparation.</p>
+      </section>
+
+      <section>
+        <h2>Deferred Product Scope</h2>
+        <table>
+          <thead><tr><th>Item</th><th>Reason Deferred</th><th>Possible Later Milestone</th></tr></thead>
+          <tbody>
+            <tr><td><code>/data</code> raw table and export page</td><td>Utility page, not core daily workflow.</td><td>v1.1 Data Export</td></tr>
+            <tr><td>CSV exports for journal and TODOs</td><td>Date-range Markdown and JSON/JSONL cover v1 review prep.</td><td>v1.1 Data Export</td></tr>
+            <tr><td>Full all-data JSON export</td><td>V1 only needs review-range data bundles plus manual DB backup.</td><td>v1.1 Data Export</td></tr>
+            <tr><td>Automated backup script</td><td>Manual backup docs satisfy v1.</td><td>v1.1 Backup Automation</td></tr>
+            <tr><td>Restore deleted entries UI</td><td>Soft delete protects records; restore UI adds workflow complexity.</td><td>v1.2 Recovery</td></tr>
+            <tr><td>Full-text search</td><td>Not required for core capture/review loop.</td><td>v1.2 Search</td></tr>
+            <tr><td>Tag hierarchy, colors, aliases, and management page</td><td>First-class simple tags are v1; advanced tag administration is not.</td><td>v1.2 Organization</td></tr>
+            <tr><td>HTTP API beyond export endpoints</td><td>Export routes are enough for v1 agent access.</td><td>Future Local API</td></tr>
+            <tr><td>MCP server</td><td>Useful only after the schema and agent workflow prove stable.</td><td>Future Agent Integration</td></tr>
+            <tr><td>Recurring TODOs</td><td>Would turn app toward task management.</td><td>Future TODO Power-Ups</td></tr>
+            <tr><td>AI-generated summaries inside the app</td><td>V1 should expose data to AI without depending on AI.</td><td>Future Review Assist</td></tr>
+            <tr><td>Cloud sync or accounts</td><td>Conflicts with local-first v1 simplicity.</td><td>Future Sync</td></tr>
+            <tr><td>LAN access</td><td>Requires authentication and security guidance.</td><td>Future Network Access</td></tr>
+            <tr><td>Native mobile app</td><td>Responsive web is enough for v1.</td><td>Future Platform</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Non-Goals to Enforce During Implementation</h2>
+        <ul class="checklist">
+          <li>No multi-user support.</li>
+          <li>No authentication while bound to localhost.</li>
+          <li>No cloud sync.</li>
+          <li>No telemetry.</li>
+          <li>No rich attachments.</li>
+          <li>No advanced tag hierarchy, colors, aliases, or tag management page.</li>
+          <li>No project or OKR hierarchy.</li>
+          <li>No recurring TODOs.</li>
+          <li>No AI-generated summaries inside the app.</li>
+          <li>No framework migration unless Bun + server-rendered HTML proves insufficient.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Scope Change Rule</h2>
+        <p>If a deferred item becomes necessary, add a new milestone page before implementation. Do not quietly fold it into an existing milestone.</p>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

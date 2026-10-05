@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Daily Work Ledger - Export</title>
+  <link rel="stylesheet" href="stitch.css">
+</head>
+<body class="app">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <aside class="sidebar">
+    <div>
+      <div class="brand">
+        <div class="brand-mark">OL</div>
+        <h1>Obsidian Ledger</h1>
+        <p>Verified Archive</p>
+      </div>
+      <button class="btn quick-button" type="button"><span class="icon">+</span>Quick Entry</button>
+      <nav class="nav" aria-label="Mock sections">
+        <a href="stitch.dash.html"><span class="nav-token">D</span><span>Day View</span></a>
+        <a href="stitch.todo.html"><span class="nav-token">T</span><span>TODO Manager</span></a>
+        <a href="stitch.review.html"><span class="nav-token">R</span><span>Review</span></a>
+        <a class="active" aria-current="page" href="stitch.export.html"><span class="nav-token">E</span><span>Export</span></a>
+      </nav>
+    </div>
+    <p class="sidebar-foot">Export-first AI access: Markdown for humans, JSON and JSONL for agents.</p>
+  </aside>
+
+  <main id="main" class="app-main">
+    <header class="topbar">
+      <div>
+        <h2>Data Access &amp; Export</h2>
+        <p>Extract ledger records into portable, standardized formats from the same review model used by the UI.</p>
+      </div>
+      <div class="top-actions">
+        <button class="btn primary" type="button">Generate Bundle</button>
+      </div>
+    </header>
+
+    <div class="canvas export-shell">
+      <section class="panel" aria-labelledby="formats-title">
+        <div class="panel-header">
+          <div>
+            <h3 id="formats-title">Export Formats</h3>
+            <p>Exports are user-initiated. No cloud sync, telemetry, or external service is required.</p>
+          </div>
+        </div>
+
+        <div class="export-list">
+          <article class="export-item">
+            <span class="format-token">MD</span>
+            <div>
+              <h3>Markdown Archive</h3>
+              <p>Plain text review packet that keeps date headings, tags, highlights, and readable accomplishment notes.</p>
+            </div>
+            <button class="btn" type="button">Extract .MD</button>
+          </article>
+          <article class="export-item">
+            <span class="format-token">JSON</span>
+            <div>
+              <h3>Structured JSON</h3>
+              <p>Strict-schema bundle containing journal entries, TODOs, tags, review metadata, and completion dates.</p>
+            </div>
+            <button class="btn" type="button">Extract .JSON</button>
+          </article>
+          <article class="export-item">
+            <span class="format-token">JSONL</span>
+            <div>
+              <h3>JSONLines</h3>
+              <p>One source record per line for long-range AI ingestion without scraping UI text or reading SQLite directly.</p>
+            </div>
+            <button class="btn" type="button">Extract .JSONL</button>
+          </article>
+        </div>
+      </section>
+
+      <aside class="summary-stack">
+        <section class="ledger-card">
+          <h3>Parameters</h3>
+          <label>Temporal Boundary</label>
+          <div class="form-row">
+            <div class="field-grow">
+              <label for="export-from">From</label>
+              <input id="export-from" type="date" value="2023-01-01">
+            </div>
+            <div class="field-grow">
+              <label for="export-to">To</label>
+              <input id="export-to" type="date" value="2023-10-24">
+            </div>
+          </div>
+          <div class="switch-row control-gap">
+            <div>
+              <strong>Include metadata tags</strong>
+              <p>Tags act as the app's organizing primitive.</p>
+            </div>
+            <label class="switch"><input checked type="checkbox"><span>Yes</span></label>
+          </div>
+          <div class="switch-row">
+            <div>
+              <strong>Include review metadata</strong>
+              <p>Range, generated timestamp, source type, and filters used.</p>
+            </div>
+            <label class="switch"><input checked type="checkbox"><span>Yes</span></label>
+          </div>
+          <div class="switch-row">
+            <div>
+              <strong>Highlights only</strong>
+              <p>Useful for a tight review packet.</p>
+            </div>
+            <label class="switch"><input type="checkbox"><span>No</span></label>
+          </div>
+        </section>
+
+        <section class="ledger-card">
+          <h3>AI Context Preview</h3>
+          <p>Agents should receive source records, not generated claims.</p>
+          <pre>{"date":"2026-05-28","type":"journal","tags":["support","release"],"highlight":true}</pre>
+        </section>
+
+        <section class="ledger-card">
+          <h3>Data Backup</h3>
+          <p>The SQLite database is the source of truth. Create a full local backup before large edits or imports.</p>
+          <button class="btn warn" type="button">Create Full Archive</button>
+        </section>
+      </aside>
+    </div>
+  </main>
+  <script src="stitch.js"></script>
+</body>
+</html>

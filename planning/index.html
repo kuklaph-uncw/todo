@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Personal Daily Tracker Planning Roadmap</title>
+  <link rel="stylesheet" href="assets/planning.css">
+</head>
+<body>
+  <div class="page">
+    <aside class="sidebar">
+      <h1 class="brand">Daily Tracker<br>Planning</h1>
+      <p>Milestone-first implementation plan from <code>prd.md</code>.</p>
+      <nav class="nav" aria-label="Planning pages">
+        <a href="index.html" aria-current="page">Roadmap</a>
+        <a href="milestone-01-foundation.html">M1 Foundation</a>
+        <a href="milestone-02-day-view-journal.html">M2 Journal</a>
+        <a href="milestone-03-day-view-todos.html">M3 TODO Panel</a>
+        <a href="milestone-04-review-output.html">M4 Review</a>
+        <a href="milestone-05-markdown-export.html">M5 Export</a>
+        <a href="milestone-06-todo-manager.html">M6 TODO Manager</a>
+        <a href="milestone-07-polish-backup.html">M7 Polish</a>
+        <a href="ui-mockups.html">UI Mockups</a>
+        <a href="data-access-strategy.html">AI Data Access</a>
+        <a href="acceptance-matrix.html">Acceptance Matrix</a>
+        <a href="deferred-scope.html">Deferred Scope</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <header class="hero">
+        <p class="eyebrow">Planning Package</p>
+        <h1>Build the useful local tracker before anything advanced.</h1>
+        <p class="lead">This plan keeps the journal as the main artifact, adds TODOs only where they support daily review, treats tags as the organizing primitive, and includes AI-readable exports without making AI summaries part of v1.</p>
+        <div class="meta">
+          <span class="tag done">v1 scope</span>
+          <span class="tag done">tags in v1</span>
+          <span class="tag done">AI-readable export</span>
+          <span class="tag test">TDD required for code milestones</span>
+          <span class="tag done">Milestone 1 implemented</span>
+        </div>
+      </header>
+
+      <section class="callout gold">
+        <h2>Implementation Start Rule (historical)</h2>
+        <p>This callout described the pre-implementation state: "create or initialize the app project first; the current directory only contains <code>prd.md</code> and <code>planning\</code>, and it is not a Git repository." As of 2026-07-01, Milestone 1 (Foundation) and a 4-page visual shell are implemented under <code>src\</code>/<code>public\</code>/<code>tests\</code>, and the repo is a normal git repository.</p>
+      </section>
+
+      <section>
+        <h2>Milestone Sequence</h2>
+        <ol class="sequence">
+          <li><strong>Foundation.</strong> Create the Bun app shell, SQLite connection, migrations, base layout, static assets, date helpers, validation helpers, tag storage, and route skeleton.</li>
+          <li><strong>Day View Journal.</strong> Build the daily capture loop: date navigation, multiline entry creation, inline edit/delete, tags, highlights, and draft protection.</li>
+          <li><strong>Day View TODO Panel.</strong> Add lightweight TODO tracking beside the journal with tags and completion metadata that does not silently change.</li>
+          <li><strong>Review Output.</strong> Build date-range review, presets, stats, tag breakdown, highlight summary, grouped accomplishment output, and highlights-only mode.</li>
+          <li><strong>Markdown and AI Export.</strong> Add server-generated Markdown, date-range JSON/JSONL export for AI context, copy action, manual fallback, and file download.</li>
+          <li><strong>TODO Manager.</strong> Add the secondary full task management page with filters, search, tag editing, detail edits, highlight toggles, and explicit completion clearing.</li>
+          <li><strong>Polish and Backup.</strong> Add keyboard shortcuts, empty states, inline errors, confirmations, README, manual backup docs, and smoke-test checklist.</li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Milestone Overview</h2>
+        <div class="grid two">
+          <article class="milestone foundation">
+            <p class="kicker">Milestone 1</p>
+            <h3><a href="milestone-01-foundation.html">Foundation</a></h3>
+            <p>Minimal app infrastructure and persistence. No product workflow is complete until the database initializes and the home page renders.</p>
+            <div class="meta"><span class="tag done">AC-21</span><span class="tag done">AC-22</span><span class="tag done">AC-23</span></div>
+          </article>
+
+          <article class="milestone core">
+            <p class="kicker">Milestone 2</p>
+            <h3><a href="milestone-02-day-view-journal.html">Day View Journal</a></h3>
+            <p>The core habit loop: open app, type what happened, save, and later backfill or edit the day.</p>
+            <div class="meta"><span class="tag done">AC-1</span><span class="tag done">AC-2</span><span class="tag done">AC-3</span><span class="tag done">AC-4</span><span class="tag done">AC-5</span><span class="tag done">AC-6</span><span class="tag done">AC-7</span></div>
+          </article>
+
+          <article class="milestone core">
+            <p class="kicker">Milestone 3</p>
+            <h3><a href="milestone-03-day-view-todos.html">Day View TODO Panel</a></h3>
+            <p>Add TODOs only as daily context. Completion date trust is the main technical risk.</p>
+            <div class="meta"><span class="tag done">AC-8</span><span class="tag done">AC-9</span><span class="tag done">AC-10</span><span class="tag done">AC-11</span><span class="tag done">AC-12</span></div>
+          </article>
+
+          <article class="milestone review">
+            <p class="kicker">Milestone 4</p>
+            <h3><a href="milestone-04-review-output.html">Review Output</a></h3>
+            <p>The payoff surface: readable accomplishments grouped by date, with useful stats and highlight filtering.</p>
+            <div class="meta"><span class="tag done">AC-14</span><span class="tag done">AC-15</span><span class="tag done">AC-16</span><span class="tag done">AC-17</span><span class="tag done">AC-18</span></div>
+          </article>
+
+          <article class="milestone review">
+            <p class="kicker">Milestone 5</p>
+            <h3><a href="milestone-05-markdown-export.html">Markdown and AI Export</a></h3>
+            <p>Generate copy-paste-ready Markdown and AI-readable date-range exports from the same review model used by the UI.</p>
+            <div class="meta"><span class="tag done">AC-19</span><span class="tag done">AC-20</span></div>
+          </article>
+
+          <article class="milestone core">
+            <p class="kicker">Milestone 6</p>
+            <h3><a href="milestone-06-todo-manager.html">TODO Manager</a></h3>
+            <p>Secondary task management: filters, search, tag edits, detail edits, highlight toggles, and explicit completion clearing.</p>
+            <div class="meta"><span class="tag done">AC-13</span><span class="tag warn">TM-1..TM-8</span></div>
+          </article>
+
+          <article class="milestone polish">
+            <p class="kicker">Milestone 7</p>
+            <h3><a href="milestone-07-polish-backup.html">Polish and Backup</a></h3>
+            <p>Make the app comfortable enough for daily use and document manual backup and restore.</p>
+            <div class="meta"><span class="tag done">AC-24</span><span class="tag warn">A-1..A-6</span></div>
+          </article>
+
+          <article class="milestone">
+            <p class="kicker">Coverage</p>
+            <h3><a href="acceptance-matrix.html">Acceptance Matrix</a></h3>
+            <p>Trace every v1 acceptance criterion to a milestone and verification gate.</p>
+            <div class="meta"><span class="tag done">AC-1..AC-24</span></div>
+          </article>
+
+          <article class="milestone review">
+            <p class="kicker">Design</p>
+            <h3><a href="ui-mockups.html">UI Mockups</a></h3>
+            <p>Static layout proposals for Day View, Review, TODO Manager, and mobile screens.</p>
+            <div class="meta"><span class="tag test">layout reference</span></div>
+          </article>
+
+          <article class="milestone foundation">
+            <p class="kicker">Data</p>
+            <h3><a href="data-access-strategy.html">AI Data Access</a></h3>
+            <p>Decision record for SQLite source of truth plus export-first agent access.</p>
+            <div class="meta"><span class="tag done">recommended</span></div>
+          </article>
+        </div>
+      </section>
+
+      <section>
+        <h2>Global Technical Decisions</h2>
+        <table>
+          <thead>
+            <tr><th>Area</th><th>Decision</th><th>Reason</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Runtime</td><td>Bun with <code>Bun.serve()</code></td><td>Matches PRD, no separate framework or build step.</td></tr>
+            <tr><td>Database</td><td>SQLite through <code>bun:sqlite</code></td><td>Local-first storage with simple backup path.</td></tr>
+            <tr><td>Organization</td><td>First-class tags, not a single category field</td><td>Tags cover the category use case and allow multiple labels per entry or TODO.</td></tr>
+            <tr><td>Rendering</td><td>Server-rendered HTML plus HTMX fragments</td><td>Simple state model, works without heavy client app code.</td></tr>
+            <tr><td>Dates</td><td>Local <code>YYYY-MM-DD</code> for grouping; UTC ISO for audit timestamps</td><td>Prevents midnight UTC drift and protects review accuracy.</td></tr>
+            <tr><td>Deletion</td><td>Soft delete for journal entries and TODOs</td><td>Protects history and export integrity.</td></tr>
+            <tr><td>Review</td><td>Shared review query/model for UI, Markdown, and AI-readable export</td><td>Avoids divergent export behavior.</td></tr>
+            <tr><td>AI access</td><td>Export-first: date-range Markdown plus JSON/JSONL</td><td>Lets agents summarize six-month ranges without adding API or MCP surface area in v1.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Global Test Strategy</h2>
+        <div class="grid two">
+          <div class="panel">
+            <h3>Unit Tests</h3>
+            <ul>
+              <li>Local date formatting and date range preset calculations.</li>
+              <li>Multiline journal splitting and validation.</li>
+              <li>Tag parsing, normalization, deduplication, and assignment.</li>
+              <li>TODO validation and completion transition rules.</li>
+              <li>Markdown formatting and escaping rules.</li>
+              <li>AI export shape and date-range filtering.</li>
+              <li>Soft-delete query behavior.</li>
+            </ul>
+          </div>
+          <div class="panel">
+            <h3>Integration Tests</h3>
+            <ul>
+              <li>Add, edit, star, and soft-delete journal entries.</li>
+              <li>Add TODO, mark done, reopen, re-close, and preserve metadata.</li>
+              <li>Review query includes journal entries and completed TODOs.</li>
+              <li>Review query excludes soft-deleted records.</li>
+              <li>Markdown and AI-readable exports return expected content.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer">
+        Source: <code>prd.md</code>. Scope: planning artifacts only; no app implementation in this package.
+      </footer>
+    </main>
+  </div>
+</body>
+</html>

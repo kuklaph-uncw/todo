@@ -1,0 +1,384 @@
+<!-- Accomplishment Review - Work Ledger -->
+<!doctype html>
+<html
+  class="dark"
+  lang="en"
+  ><head>
+    <meta charset="utf-8" />
+    <meta
+      content="width=device-width, initial-scale=1.0"
+      name="viewport" />
+    <title>Work Ledger - Review</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;family=Source+Serif+4:wght@400;600&amp;display=swap"
+      rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+      rel="stylesheet" />
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              background: "#121414",
+              surface: "#121414",
+              "on-primary-fixed-variant": "#474646",
+              "on-tertiary-fixed-variant": "#474747",
+              "surface-container-highest": "#333535",
+              "on-tertiary-container": "#7e7d7d",
+              "surface-dim": "#121414",
+              "primary-fixed": "#e5e2e1",
+              "surface-container": "#1e2020",
+              "on-primary-container": "#7e7d7d",
+              "inverse-on-surface": "#2f3131",
+              "on-background": "#e2e2e2",
+              "on-surface": "#e2e2e2",
+              "tertiary-fixed": "#e4e2e1",
+              "surface-variant": "#333535",
+              tertiary: "#c8c6c6",
+              "on-tertiary": "#303030",
+              outline: "#8e9192",
+              "surface-tint": "#c8c6c5",
+              "on-primary-fixed": "#1c1b1b",
+              "on-secondary-fixed": "#00164f",
+              "secondary-fixed-dim": "#b6c4ff",
+              "secondary-fixed": "#dce1ff",
+              "on-secondary": "#00277e",
+              "on-secondary-container": "#a2b5ff",
+              "outline-variant": "#444748",
+              "on-secondary-fixed-variant": "#183ea2",
+              error: "#ffb4ab",
+              "surface-container-high": "#282a2b",
+              "surface-container-lowest": "#0d0e0f",
+              "primary-fixed-dim": "#c8c6c5",
+              "tertiary-fixed-dim": "#c8c6c6",
+              "inverse-primary": "#5f5e5e",
+              "surface-bright": "#38393a",
+              "primary-container": "#121212",
+              "on-error-container": "#ffdad6",
+              "on-surface-variant": "#c4c7c7",
+              "on-error": "#690005",
+              "secondary-container": "#1c40a5",
+              "on-primary": "#313030",
+              primary: "#c8c6c5",
+              "tertiary-container": "#121212",
+              "error-container": "#93000a",
+              "surface-container-low": "#1a1c1c",
+              "inverse-surface": "#e2e2e2",
+              secondary: "#b6c4ff",
+              "on-tertiary-fixed": "#1b1c1c",
+            },
+            borderRadius: {
+              DEFAULT: "0.125rem",
+              lg: "0.25rem",
+              xl: "0.5rem",
+              full: "0.75rem",
+            },
+            spacing: {
+              xs: "4px",
+              md: "16px",
+              lg: "24px",
+              margin: "32px",
+              xl: "40px",
+              gutter: "24px",
+              sm: "8px",
+              unit: "4px",
+              max_width: "1200px",
+            },
+            fontFamily: {
+              "label-sm": ["JetBrains Mono"],
+              "headline-sm": ["Inter"],
+              "headline-lg": ["Inter"],
+              "headline-md": ["Inter"],
+              "label-md": ["JetBrains Mono"],
+              "body-md": ['"Source Serif 4"'],
+              "headline-lg-mobile": ["Inter"],
+              "body-lg": ['"Source Serif 4"'],
+            },
+            fontSize: {
+              "label-sm": ["12px", { lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "500" }],
+              "headline-sm": ["18px", { lineHeight: "24px", fontWeight: "600" }],
+              "headline-lg": ["32px", { lineHeight: "40px", letterSpacing: "-0.02em", fontWeight: "600" }],
+              "headline-md": ["24px", { lineHeight: "32px", letterSpacing: "-0.01em", fontWeight: "600" }],
+              "label-md": ["14px", { lineHeight: "20px", letterSpacing: "0.02em", fontWeight: "500" }],
+              "body-md": ["16px", { lineHeight: "24px", fontWeight: "400" }],
+              "headline-lg-mobile": ["28px", { lineHeight: "36px", fontWeight: "600" }],
+              "body-lg": ["18px", { lineHeight: "28px", fontWeight: "400" }],
+            },
+          },
+        },
+      };
+    </script>
+  </head>
+  <body
+    class="bg-background text-on-background font-body-md min-h-screen flex selection:bg-primary selection:text-on-primary">
+    <!-- SideNavBar -->
+    <nav class="h-screen w-64 border-r border-outline-variant bg-surface hidden md:flex flex-col py-lg shrink-0">
+      <div class="px-lg mb-8">
+        <div class="flex items-center gap-3 mb-6">
+          <div
+            class="w-10 h-10 rounded-full bg-surface-container overflow-hidden border border-outline-variant shrink-0">
+            <img
+              alt="User profile"
+              class="w-full h-full object-cover"
+              data-alt="A minimalist, monochromatic geometric pattern representing a professional user avatar in a quiet, utilitarian technocratic style, emphasizing structure and clarity."
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuCzGwBg6e8mxFRS9pDLLlsjU9lShZ85ocQE3D1l21iO9aG-FA3A_-qS_VgxKowTbGSVFzyyeNkZjIAjuqmu9GEZDBKfxTmUU3r2v3gyUSOumZBZrKElf1sPY3OunXzS8BlVEwcG9mKpjgkbuddFIEjQzVvgEeeh56sMZQYO7rJV_ckkOkhZLrTfhdJZd4yhAiPBQnzHeNmjevRvtRQSZJTZ8wqcWHr67B9rBnelBnZ3oHpkcpfkaPU7LY5ssffy4p4fhU34nD0oysM" />
+          </div>
+          <div>
+            <h2 class="text-headline-sm font-headline-sm text-primary font-bold">Work Ledger</h2>
+            <p class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-widest"
+              >Verified Archive</p
+            >
+          </div>
+        </div>
+        <button
+          class="w-full py-2 px-4 border border-primary text-primary hover:bg-surface-container-high transition-all duration-200 ease-in-out rounded flex items-center justify-center gap-2 font-label-md text-label-md">
+          <span class="material-symbols-outlined text-lg">add</span> Quick Entry
+        </button>
+      </div>
+      <ul class="flex-1 px-4 space-y-1">
+        <li>
+          <a
+            class="flex items-center gap-3 py-2 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface pl-4 transition-colors duration-200 ease-in-out rounded"
+            href="#">
+            <span class="material-symbols-outlined">event_note</span>
+            <span class="text-label-md font-label-md">Day View</span>
+          </a>
+        </li>
+        <li>
+          <a
+            class="flex items-center gap-3 py-2 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface pl-4 transition-colors duration-200 ease-in-out rounded"
+            href="#">
+            <span class="material-symbols-outlined">format_list_bulleted</span>
+            <span class="text-label-md font-label-md">TODO Manager</span>
+          </a>
+        </li>
+        <li>
+          <a
+            class="flex items-center gap-3 py-2 text-primary font-bold border-l-2 border-primary pl-3 bg-surface-container-low transition-all duration-200 ease-in-out rounded-r"
+            href="#">
+            <span
+              class="material-symbols-outlined"
+              style="font-variation-settings: &quot;FILL&quot; 1"
+              >assessment</span
+            >
+            <span class="text-label-md font-label-md">Review</span>
+          </a>
+        </li>
+        <li>
+          <a
+            class="flex items-center gap-3 py-2 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface pl-4 transition-colors duration-200 ease-in-out rounded"
+            href="#">
+            <span class="material-symbols-outlined">ios_share</span>
+            <span class="text-label-md font-label-md">Export</span>
+          </a>
+        </li>
+      </ul>
+      <div class="px-4 mt-auto">
+        <a
+          class="flex items-center gap-3 py-2 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface pl-4 transition-colors duration-200 ease-in-out rounded"
+          href="#">
+          <span class="material-symbols-outlined">settings</span>
+          <span class="text-label-md font-label-md">Settings</span>
+        </a>
+      </div>
+    </nav>
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col h-screen overflow-hidden">
+      <!-- Selection Header -->
+      <header
+        class="h-20 border-b border-outline-variant bg-surface flex items-center justify-between px-margin shrink-0">
+        <div class="flex items-center gap-4">
+          <h1 class="text-headline-md font-headline-md text-on-surface">Generate Accomplishment Report</h1>
+        </div>
+        <div class="flex items-center gap-4">
+          <div class="relative flex items-center">
+            <span class="material-symbols-outlined absolute left-3 text-on-surface-variant pointer-events-none text-sm"
+              >calendar_month</span
+            >
+            <select
+              class="pl-10 pr-8 py-2 bg-surface-container border-b border-outline hover:border-primary focus:border-primary focus:ring-0 text-label-md font-label-md text-on-surface appearance-none outline-none transition-colors w-48">
+              <option>Last Quarter (Q3)</option>
+              <option>This Quarter (Q4)</option>
+              <option>Last Month</option>
+              <option>Year to Date</option>
+              <option>Custom Range...</option>
+            </select>
+            <span class="material-symbols-outlined absolute right-3 text-on-surface-variant pointer-events-none text-sm"
+              >arrow_drop_down</span
+            >
+          </div>
+          <button
+            class="bg-primary text-on-primary-fixed border border-primary px-4 py-2 text-label-md font-label-md rounded-sm hover:opacity-90 transition-opacity flex items-center gap-2">
+            <span class="material-symbols-outlined text-sm">autorenew</span>
+            Generate Report
+          </button>
+        </div>
+      </header>
+      <!-- Canvas Area -->
+      <div class="flex-1 overflow-y-auto p-margin bg-background flex justify-center">
+        <div class="w-full max-w-4xl flex flex-col gap-8">
+          <!-- Action Bar above document -->
+          <div
+            class="flex justify-between items-center bg-surface-container p-4 border border-outline-variant rounded-sm">
+            <span class="text-label-sm font-label-sm text-on-surface-variant uppercase tracking-wider"
+              >Preview Mode</span
+            >
+            <div class="flex gap-2">
+              <button
+                class="px-3 py-1.5 border border-outline-variant text-on-surface hover:bg-surface-variant transition-colors text-label-md font-label-md rounded flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm">content_copy</span> Copy to Clipboard
+              </button>
+              <button
+                class="px-3 py-1.5 border border-outline-variant text-on-surface hover:bg-surface-variant transition-colors text-label-md font-label-md rounded flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm">picture_as_pdf</span> Save as PDF
+              </button>
+              <button
+                class="px-3 py-1.5 border border-outline-variant text-on-surface hover:bg-surface-variant transition-colors text-label-md font-label-md rounded flex items-center gap-2">
+                <span class="material-symbols-outlined text-sm">markdown</span> Export to Markdown
+              </button>
+            </div>
+          </div>
+          <!-- The Document Preview (Forced Light Mode for physical feel) -->
+          <article
+            class="doc-preview p-12 rounded-sm border border-outline-variant font-body-lg bg-surface text-on-surface">
+            <!-- Doc Header -->
+            <header class="mb-12 border-b border-outline-variant pb-6">
+              <h1 class="text-3xl font-headline-lg font-bold mb-2">Performance Review Evidence</h1>
+              <div class="flex justify-between text-label-md font-label-md text-on-surface-variant">
+                <span>Date Range: July 1, 2023 - September 30, 2023 (Q3)</span>
+                <span>Generated: Oct 5, 2023</span>
+              </div>
+            </header>
+            <!-- Summary Stats -->
+            <section class="mb-10 p-6 bg-surface-container-low border border-outline-variant">
+              <h2 class="text-label-sm font-label-sm uppercase tracking-widest text-on-surface-variant mb-4 font-bold"
+                >Quarterly Summary</h2
+              >
+              <div class="grid grid-cols-3 gap-6">
+                <div>
+                  <div class="text-4xl font-headline-lg font-bold">142</div>
+                  <div class="text-label-md font-label-md text-on-surface-variant mt-1">Total Entries Logged</div>
+                </div>
+                <div>
+                  <div class="text-4xl font-headline-lg font-bold">87</div>
+                  <div class="text-label-md font-label-md text-on-surface-variant mt-1">Tasks Completed</div>
+                </div>
+                <div>
+                  <div class="text-label-md font-label-md text-on-surface-variant mt-1 mb-2">Key Areas Focus</div>
+                  <div class="flex flex-wrap gap-2">
+                    <span
+                      class="px-2 py-1 bg-surface-container-high text-xs font-label-sm rounded-sm font-mono text-on-surface"
+                      >#infrastructure</span
+                    >
+                    <span
+                      class="px-2 py-1 bg-surface-container-high text-xs font-label-sm rounded-sm font-mono text-on-surface"
+                      >#deployment</span
+                    >
+                    <span
+                      class="px-2 py-1 bg-surface-container-high text-xs font-label-sm rounded-sm font-mono text-on-surface"
+                      >#mentorship</span
+                    >
+                  </div>
+                </div>
+              </div>
+            </section>
+            <!-- Chronological Content -->
+            <div class="space-y-10">
+              <!-- Month Block -->
+              <div>
+                <h2 class="text-2xl font-headline-md font-semibold border-b border-outline-variant pb-2 mb-6"
+                  >September 2023</h2
+                >
+                <div class="space-y-6">
+                  <!-- Entry -->
+                  <div class="flex gap-4">
+                    <div class="w-24 shrink-0 text-sm font-label-md text-on-surface-variant pt-1">Sep 28</div>
+                    <div class="flex-1">
+                      <div class="flex items-start gap-2 mb-1">
+                        <div class="w-1 h-5 bg-teal-500 shrink-0 mt-1"></div>
+                        <!-- Starred Indicator -->
+                        <h3 class="font-bold text-lg">Resolved critical production database latency</h3>
+                      </div>
+                      <p class="text-on-surface-variant mb-2 leading-relaxed"
+                        >Identified inefficient query patterns causing sporadic 5s spikes during peak load. Implemented
+                        connection pooling adjustments and rewrote primary aggregation queries, reducing P99 latency by
+                        40%.</p
+                      >
+                      <div class="flex gap-2">
+                        <span
+                          class="px-2 py-0.5 bg-surface-container border border-outline-variant text-xs font-label-sm font-mono text-on-surface-variant rounded-sm"
+                          >#database</span
+                        >
+                        <span
+                          class="px-2 py-0.5 bg-surface-container border border-outline-variant text-xs font-label-sm font-mono text-on-surface-variant rounded-sm"
+                          >#performance</span
+                        >
+                      </div>
+                    </div>
+                  </div>
+                  <div class="rule"></div>
+                  <!-- Entry -->
+                  <div class="flex gap-4">
+                    <div class="w-24 shrink-0 text-sm font-label-md text-on-surface-variant pt-1">Sep 15</div>
+                    <div class="flex-1">
+                      <div class="flex items-center gap-2 mb-1">
+                        <span class="material-symbols-outlined text-sm text-primary">check_circle</span>
+                        <h3 class="font-semibold text-on-surface">Completed Q3 Security Audit Prep</h3>
+                      </div>
+                      <p class="text-on-surface-variant text-sm"
+                        >Compiled access logs and verified IAM roles across all staging environments ahead of external
+                        audit.</p
+                      >
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <!-- Month Block -->
+              <div>
+                <h2 class="text-2xl font-headline-md font-semibold border-b border-outline-variant pb-2 mb-6"
+                  >August 2023</h2
+                >
+                <div class="space-y-6">
+                  <!-- Entry -->
+                  <div class="flex gap-4">
+                    <div class="w-24 shrink-0 text-sm font-label-md text-on-surface-variant pt-1">Aug 12</div>
+                    <div class="flex-1">
+                      <div class="flex items-start gap-2 mb-1">
+                        <div class="w-1 h-5 bg-teal-500 shrink-0 mt-1"></div>
+                        <!-- Starred Indicator -->
+                        <h3 class="font-bold text-lg">Led architecture review for V2 API</h3>
+                      </div>
+                      <p class="text-on-surface-variant mb-2 leading-relaxed"
+                        >Presented proposed microservices architecture to the engineering steering committee. Secured
+                        approval for phased migration plan starting in Q4. Addressed concerns regarding state management
+                        and service discovery.</p
+                      >
+                      <div class="flex gap-2">
+                        <span
+                          class="px-2 py-0.5 bg-surface-container border border-outline-variant text-xs font-label-sm font-mono text-on-surface-variant rounded-sm"
+                          >#architecture</span
+                        >
+                        <span
+                          class="px-2 py-0.5 bg-surface-container border border-outline-variant text-xs font-label-sm font-mono text-on-surface-variant rounded-sm"
+                          >#leadership</span
+                        >
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+          <div class="h-16"></div>
+          <!-- Bottom padding spacer -->
+        </div>
+      </div>
+    </main>
+  </body></html
+>

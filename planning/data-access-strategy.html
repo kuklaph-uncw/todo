@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI Data Access Strategy</title>
+  <link rel="stylesheet" href="assets/planning.css">
+</head>
+<body>
+  <div class="page">
+    <aside class="sidebar">
+      <h1 class="brand">AI Data<br>Access</h1>
+      <p>How agents should consume tracker data.</p>
+      <nav class="nav" aria-label="Planning pages">
+        <a href="index.html">Roadmap</a>
+        <a href="milestone-01-foundation.html">M1 Foundation</a>
+        <a href="milestone-02-day-view-journal.html">M2 Journal</a>
+        <a href="milestone-03-day-view-todos.html">M3 TODO Panel</a>
+        <a href="milestone-04-review-output.html">M4 Review</a>
+        <a href="milestone-05-markdown-export.html">M5 Export</a>
+        <a href="milestone-06-todo-manager.html">M6 TODO Manager</a>
+        <a href="milestone-07-polish-backup.html">M7 Polish</a>
+        <a href="ui-mockups.html">UI Mockups</a>
+        <a href="data-access-strategy.html" aria-current="page">AI Data Access</a>
+        <a href="acceptance-matrix.html">Acceptance Matrix</a>
+        <a href="deferred-scope.html">Deferred Scope</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <header class="hero">
+        <p class="eyebrow">Decision Record</p>
+        <h1>Keep SQLite. Add AI-readable exports.</h1>
+        <p class="lead">SQLite should remain the source of truth. The app should expose review-range Markdown, JSON, and JSONL exports so an agent can summarize six months of work without scraping UI or connecting directly to the database.</p>
+        <div class="meta">
+          <span class="tag done">recommended</span>
+          <span class="tag done">v1 export</span>
+          <span class="tag defer">API deferred</span>
+          <span class="tag defer">MCP deferred</span>
+        </div>
+      </header>
+
+      <section class="callout green">
+        <h2>Recommendation</h2>
+        <p>Use SQLite for durability, querying, soft delete, TODO state, tag joins, and completion metadata. Add date-range exports in Milestone 5: Markdown for humans, JSON for structured agent context, and JSONL for long-range ingestion.</p>
+      </section>
+
+      <section>
+        <h2>Options Considered</h2>
+        <div class="decision-grid">
+          <article class="decision-card">
+            <p class="kicker">Option A</p>
+            <h3>Markdown Files as Storage</h3>
+            <p>Human-readable and easy for agents to consume, but brittle for TODO status transitions, completion metadata, tags, soft deletes, and date-range queries.</p>
+            <p><strong>Verdict:</strong> Not recommended as the primary store.</p>
+          </article>
+
+          <article class="decision-card recommended">
+            <p class="kicker">Option B</p>
+            <h3>SQLite Plus Exports</h3>
+            <p>Best fit for local-first durability and review queries. Exports give agents clean input without compromising the app model.</p>
+            <p><strong>Verdict:</strong> Recommended for v1.</p>
+          </article>
+
+          <article class="decision-card">
+            <p class="kicker">Option C</p>
+            <h3>Local API Endpoints</h3>
+            <p>Useful if agents regularly call the running app, but it adds route surface, versioning decisions, and security questions before the need is proven.</p>
+            <p><strong>Verdict:</strong> Defer beyond export endpoints.</p>
+          </article>
+
+          <article class="decision-card">
+            <p class="kicker">Option D</p>
+            <h3>MCP Server</h3>
+            <p>Powerful for direct tool-style agent access, but premature until the schema and export format stabilize through real use.</p>
+            <p><strong>Verdict:</strong> Future integration.</p>
+          </article>
+        </div>
+      </section>
+
+      <section>
+        <h2>v1 Data Access Contract</h2>
+        <table>
+          <thead><tr><th>Use Case</th><th>Route</th><th>Format</th><th>Consumer</th></tr></thead>
+          <tbody>
+            <tr><td>Paste into review draft</td><td><code>/review/export.md</code></td><td>Markdown</td><td>Human</td></tr>
+            <tr><td>Feed date range to an AI agent</td><td><code>/review/export.json</code></td><td>Structured JSON bundle</td><td>Agent</td></tr>
+            <tr><td>Feed large range incrementally</td><td><code>/review/export.jsonl</code></td><td>One item per line</td><td>Agent</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>AI Export Principles</h2>
+        <ul class="checklist">
+          <li>Exports are date-range scoped by default.</li>
+          <li>Exports include journal entries and completed TODOs from the same review model as the UI.</li>
+          <li>Exports include tags, highlight flags, priority, time spent, completion date, and source type.</li>
+          <li>Exports exclude soft-deleted records.</li>
+          <li>Exports include metadata: range, generated timestamp, app version if available, and filters used.</li>
+          <li>Exports are deterministic so two identical range requests produce equivalent content except generated timestamp.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Why Not Direct Database Access?</h2>
+        <p>Agents can read SQLite when given file access, but that couples review workflows to internal schema details. Export routes preserve the database as an implementation detail and give agents a stable contract built for summarization.</p>
+      </section>
+
+      <section>
+        <h2>Deferred Integration Layers</h2>
+        <table>
+          <thead><tr><th>Layer</th><th>Add When</th><th>Notes</th></tr></thead>
+          <tbody>
+            <tr><td>Full local API</td><td>Another tool needs live CRUD or repeated automated reads.</td><td>Keep localhost-only and document security posture before adding write endpoints.</td></tr>
+            <tr><td>MCP server</td><td>The tracker becomes a recurring agent tool rather than occasional export input.</td><td>Expose read-only resources first: review ranges, tags, and summaries.</td></tr>
+            <tr><td>In-app AI summary</td><td>The export workflow proves useful and the desired summary shape is known.</td><td>Keep capture/export useful without AI dependency.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

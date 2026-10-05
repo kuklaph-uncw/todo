@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Daily Work Ledger - TODO Manager</title>
+  <link rel="stylesheet" href="stitch.css">
+</head>
+<body class="app">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <aside class="sidebar">
+    <div>
+      <div class="brand">
+        <div class="brand-mark">OL</div>
+        <h1>Obsidian Ledger</h1>
+        <p>Verified Archive</p>
+      </div>
+      <button class="btn quick-button" type="button"><span class="icon">+</span>Quick Entry</button>
+      <nav class="nav" aria-label="Mock sections">
+        <a href="stitch.dash.html"><span class="nav-token">D</span><span>Day View</span></a>
+        <a class="active" aria-current="page" href="stitch.todo.html"><span class="nav-token">T</span><span>TODO Manager</span></a>
+        <a href="stitch.review.html"><span class="nav-token">R</span><span>Review</span></a>
+        <a href="stitch.export.html"><span class="nav-token">E</span><span>Export</span></a>
+      </nav>
+    </div>
+    <p class="sidebar-foot">Tasks stay lightweight. Completion dates become review evidence and should not drift silently.</p>
+  </aside>
+
+  <main id="main" class="app-main">
+    <header class="topbar">
+      <div>
+        <h2>TODO Manager</h2>
+        <p>Global task registry across all ledger entries.</p>
+      </div>
+      <div class="top-actions">
+        <button class="btn primary" type="button"><span class="icon">+</span>New TODO</button>
+        <button class="btn" type="button">Export CSV</button>
+      </div>
+    </header>
+
+    <div class="canvas">
+      <section class="filters" aria-label="Task filters">
+        <div>
+          <label for="task-search">Search</label>
+          <input id="task-search" type="search" value="review">
+        </div>
+        <div>
+          <label for="status-filter">Status</label>
+          <select id="status-filter">
+            <option>Status: All</option>
+            <option>Open</option>
+            <option>In Progress</option>
+            <option>Blocked</option>
+            <option>Done</option>
+          </select>
+        </div>
+        <div>
+          <label for="priority-filter">Priority</label>
+          <select id="priority-filter">
+            <option>Priority: Any</option>
+            <option>High</option>
+            <option>Med</option>
+            <option>Low</option>
+          </select>
+        </div>
+        <div>
+          <label for="tag-filter">Tag</label>
+          <input id="tag-filter" type="text" value="review">
+        </div>
+        <div class="filter-action">
+          <button class="btn" type="button">Clear</button>
+        </div>
+      </section>
+
+      <section class="task-table" aria-label="TODO table">
+        <div class="task-row header">
+          <span>Done</span><span>Task Entry</span><span>Tags</span><span>Due / Added</span><span>Priority</span><span></span>
+        </div>
+        <article class="task-row important">
+          <div><button class="btn" type="button" aria-label="Mark task done">O</button></div>
+          <div><strong>#4092 Finalize migration schema</strong><p>Document rollout procedure for the secondary database cluster and preserve completion evidence.</p></div>
+          <div class="tag-row"><span class="tag">#db-ops</span><span class="tag">#p0</span></div>
+          <div class="status high">Yesterday</div>
+          <div class="status high">High</div>
+          <div><button class="btn" type="button" aria-label="Task actions">...</button></div>
+        </article>
+        <article class="task-row">
+          <div><button class="btn" type="button" aria-label="Mark task done">O</button></div>
+          <div><strong>#4105 Review component token PR</strong><p>Review pull request #882 from the frontend team regarding updated component token logic.</p></div>
+          <div class="tag-row"><span class="tag">#review</span></div>
+          <div class="status active">Today</div>
+          <div class="status">Med</div>
+          <div><button class="btn" type="button" aria-label="Task actions">...</button></div>
+        </article>
+        <article class="task-row done">
+          <div><button class="btn" type="button" aria-label="Task completed">X</button></div>
+          <div><strong>#4099 Draft weekly architecture update</strong><p>Completion date is frozen on Oct 14 for review history.</p></div>
+          <div class="tag-row"><span class="tag green">#admin</span></div>
+          <div class="status">Done Oct 14</div>
+          <div class="status">Low</div>
+          <div><button class="btn" type="button" aria-label="Task actions">...</button></div>
+        </article>
+        <article class="task-row">
+          <div><button class="btn" type="button" aria-label="Mark task done">O</button></div>
+          <div><strong>#4112 Investigate staging memory leak</strong><p>Profile heavy-load behavior and check for unclosed connections before the deployment freeze.</p></div>
+          <div class="tag-row"><span class="tag">#bug</span><span class="tag">#backend</span></div>
+          <div class="status">Oct 16</div>
+          <div class="status">Med</div>
+          <div><button class="btn" type="button" aria-label="Task actions">...</button></div>
+        </article>
+      </section>
+    </div>
+  </main>
+  <script src="stitch.js"></script>
+</body>
+</html>

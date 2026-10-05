@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Milestone 3 - Day View TODO Panel</title>
+  <link rel="stylesheet" href="assets/planning.css">
+</head>
+<body>
+  <div class="page">
+    <aside class="sidebar">
+      <h1 class="brand">Milestone 3<br>TODO Panel</h1>
+      <p>Task context without project management weight.</p>
+      <nav class="nav" aria-label="Planning pages">
+        <a href="index.html">Roadmap</a>
+        <a href="milestone-01-foundation.html">M1 Foundation</a>
+        <a href="milestone-02-day-view-journal.html">M2 Journal</a>
+        <a href="milestone-03-day-view-todos.html" aria-current="page">M3 TODO Panel</a>
+        <a href="milestone-04-review-output.html">M4 Review</a>
+        <a href="milestone-05-markdown-export.html">M5 Export</a>
+        <a href="milestone-06-todo-manager.html">M6 TODO Manager</a>
+        <a href="milestone-07-polish-backup.html">M7 Polish</a>
+        <a href="ui-mockups.html">UI Mockups</a>
+        <a href="data-access-strategy.html">AI Data Access</a>
+        <a href="acceptance-matrix.html">Acceptance Matrix</a>
+        <a href="deferred-scope.html">Deferred Scope</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <header class="hero">
+        <p class="eyebrow">Milestone 3</p>
+        <h1>Day View TODO Panel</h1>
+        <p class="lead">Add lightweight TODOs to the daily screen, with tags for organization and completion metadata treated as historical evidence.</p>
+        <div class="meta">
+          <span class="tag done">AC-8</span>
+          <span class="tag done">AC-9</span>
+          <span class="tag done">AC-10</span>
+          <span class="tag done">AC-11</span>
+          <span class="tag done">AC-12</span>
+        </div>
+      </header>
+
+      <section class="callout">
+        <h2>Goal</h2>
+        <p>The Day View shows active work and completed TODOs for the selected date without letting TODOs dominate the journal-first workflow.</p>
+        <p>Layout reference: <a href="ui-mockups.html">Day View TODO mockup</a>.</p>
+      </section>
+
+      <section>
+        <h2>Scope</h2>
+        <div class="grid two">
+          <div class="panel">
+            <h3>Included</h3>
+            <ul>
+              <li>Quick add TODO from Day View.</li>
+              <li>Default status <code>Open</code>, optional tags, no priority.</li>
+              <li>Sections for In Progress, Open, Blocked, and Completed on selected date.</li>
+              <li>Status updates to Open, In Progress, Blocked, Done, and Cancelled.</li>
+              <li>Edit task, priority, tags, and notes from Day View.</li>
+              <li>Soft delete TODOs.</li>
+              <li>Day summary counts include completed TODOs and highlights.</li>
+            </ul>
+          </div>
+          <div class="panel">
+            <h3>Excluded</h3>
+            <ul>
+              <li>Full TODO filters and search. That belongs to Milestone 6.</li>
+              <li>Explicit completion metadata clearing. That belongs to Milestone 6.</li>
+              <li>Recurring TODOs.</li>
+              <li>Project hierarchy or OKRs.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Completion Metadata Rules</h2>
+        <table>
+          <thead><tr><th>Action</th><th>Expected Metadata Behavior</th></tr></thead>
+          <tbody>
+            <tr><td>Create TODO as Open</td><td><code>completed_at</code> and <code>completed_on</code> remain null.</td></tr>
+            <tr><td>First mark Done</td><td>Set <code>completed_at</code> to current UTC ISO timestamp and <code>completed_on</code> to current local date.</td></tr>
+            <tr><td>Reopen completed TODO</td><td>Preserve completion metadata.</td></tr>
+            <tr><td>Re-close reopened TODO</td><td>Preserve original completion metadata.</td></tr>
+            <tr><td>Mark Cancelled</td><td>Do not set completion metadata. Preserve existing metadata if already completed.</td></tr>
+            <tr><td>Soft delete</td><td>Set <code>deleted_at</code>; hide from normal views and review output.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Planned Files</h2>
+        <table>
+          <thead><tr><th>Path</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>src\routes\todos.ts</code></td><td>Create, update, delete, and highlight TODOs.</td></tr>
+            <tr><td><code>src\routes\day.ts</code></td><td>Load active TODO sections and completed-on-selected-date section.</td></tr>
+            <tr><td><code>src\views\day.ts</code></td><td>TODO panel forms, grouped lists, day summary.</td></tr>
+            <tr><td><code>src\views\components.ts</code></td><td>TODO row, status controls, confirmation affordances.</td></tr>
+            <tr><td><code>src\queries.ts</code></td><td>TODO queries, tag assignment, status transition helpers, summary query.</td></tr>
+            <tr><td><code>src\lib\validation.ts</code></td><td>Task, priority, status, tag, and notes validation.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>TDD Plan</h2>
+        <ol class="sequence">
+          <li>RED: unit tests for valid statuses, valid priorities, required task, tag parsing, and task trimming.</li>
+          <li>GREEN: implement TODO validation helpers.</li>
+          <li>RED: unit tests for first-done, reopen, re-close, cancel, and create-as-done transition logic.</li>
+          <li>GREEN: implement transition helper and query update behavior.</li>
+          <li>RED: integration tests for add TODO, update status, mark done, reopen without overwriting completion date, and show completed TODO on selected date.</li>
+          <li>GREEN: implement TODO routes, Day View TODO panel, and summary counts.</li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Done Gate</h2>
+        <ul>
+          <li>User can add a TODO with only a task title.</li>
+          <li>Optional TODO tags can be added, edited, normalized, and displayed.</li>
+          <li>Open, In Progress, and Blocked items appear in the correct sections.</li>
+          <li>Done TODOs appear under the date they were first completed.</li>
+          <li>Reopening and re-closing a TODO does not change original completion date.</li>
+          <li>Cancelled TODOs do not appear as completed accomplishments unless they already had completion metadata.</li>
+          <li>Day summary reflects journal entries, completed TODOs, highlights, and logged time.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

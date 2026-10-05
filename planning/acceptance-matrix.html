@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Acceptance Matrix</title>
+  <link rel="stylesheet" href="assets/planning.css">
+</head>
+<body>
+  <div class="page">
+    <aside class="sidebar">
+      <h1 class="brand">Acceptance<br>Matrix</h1>
+      <p>Every v1 criterion mapped to a milestone and verification gate.</p>
+      <nav class="nav" aria-label="Planning pages">
+        <a href="index.html">Roadmap</a>
+        <a href="milestone-01-foundation.html">M1 Foundation</a>
+        <a href="milestone-02-day-view-journal.html">M2 Journal</a>
+        <a href="milestone-03-day-view-todos.html">M3 TODO Panel</a>
+        <a href="milestone-04-review-output.html">M4 Review</a>
+        <a href="milestone-05-markdown-export.html">M5 Export</a>
+        <a href="milestone-06-todo-manager.html">M6 TODO Manager</a>
+        <a href="milestone-07-polish-backup.html">M7 Polish</a>
+        <a href="ui-mockups.html">UI Mockups</a>
+        <a href="data-access-strategy.html">AI Data Access</a>
+        <a href="acceptance-matrix.html" aria-current="page">Acceptance Matrix</a>
+        <a href="deferred-scope.html">Deferred Scope</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <header class="hero">
+        <p class="eyebrow">Traceability</p>
+        <h1>Acceptance Matrix</h1>
+        <p class="lead">This page is the planning check that v1 scope is accounted for before implementation starts.</p>
+      </header>
+
+      <section>
+        <h2>Daily Capture</h2>
+        <table>
+          <thead><tr><th>ID</th><th>Acceptance Criterion</th><th>Milestone</th><th>Verification</th></tr></thead>
+          <tbody>
+            <tr><td>AC-1</td><td>User can add a journal entry for today in under 10 seconds.</td><td>M2</td><td>Manual timing check plus integration add-entry test.</td></tr>
+            <tr><td>AC-2</td><td>User can paste multiple lines and save them as separate entries.</td><td>M2</td><td>Unit split test and integration multiline create test.</td></tr>
+            <tr><td>AC-3</td><td>User can add entries for a previous date.</td><td>M2</td><td>Integration backfill test with <code>?date=YYYY-MM-DD</code>.</td></tr>
+            <tr><td>AC-4</td><td>User can edit journal entries.</td><td>M2</td><td>Integration update test and inline fragment rendering check.</td></tr>
+            <tr><td>AC-5</td><td>User can delete journal entries.</td><td>M2</td><td>Soft delete integration test and hidden-from-view assertion.</td></tr>
+            <tr><td>AC-6</td><td>User can star important entries.</td><td>M2</td><td>Highlight toggle integration test.</td></tr>
+            <tr><td>AC-7</td><td>Draft journal text survives page reload before submission.</td><td>M2</td><td>Client behavior test or browser smoke check.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>TODOs</h2>
+        <table>
+          <thead><tr><th>ID</th><th>Acceptance Criterion</th><th>Milestone</th><th>Verification</th></tr></thead>
+          <tbody>
+            <tr><td>AC-8</td><td>User can add a TODO with only a task title.</td><td>M3</td><td>Integration create test verifies defaults.</td></tr>
+            <tr><td>AC-9</td><td>User can update TODO status.</td><td>M3</td><td>Status transition integration tests.</td></tr>
+            <tr><td>AC-10</td><td>User can mark a TODO done.</td><td>M3</td><td>Done transition test verifies completion fields.</td></tr>
+            <tr><td>AC-11</td><td>Completed TODO appears on the correct completion date.</td><td>M3/M4</td><td>Day panel and review query tests.</td></tr>
+            <tr><td>AC-12</td><td>Reopening and re-closing a TODO does not overwrite completion metadata.</td><td>M3</td><td>Transition unit and integration tests.</td></tr>
+            <tr><td>AC-13</td><td>User can explicitly clear completion metadata with confirmation.</td><td>M6</td><td>Clear-completion route test and UI confirmation check.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Review</h2>
+        <table>
+          <thead><tr><th>ID</th><th>Acceptance Criterion</th><th>Milestone</th><th>Verification</th></tr></thead>
+          <tbody>
+            <tr><td>AC-14</td><td>User can select a custom date range.</td><td>M4</td><td>Range parser and review page integration tests.</td></tr>
+            <tr><td>AC-15</td><td>Review includes journal entries in range.</td><td>M4</td><td>Review query integration test.</td></tr>
+            <tr><td>AC-16</td><td>Review includes completed TODOs in range.</td><td>M4</td><td>Review query integration test.</td></tr>
+            <tr><td>AC-17</td><td>Review groups items by date.</td><td>M4</td><td>Rendering/grouping test.</td></tr>
+            <tr><td>AC-18</td><td>User can filter to highlights only.</td><td>M4</td><td>Highlights-only query and rendering tests.</td></tr>
+            <tr><td>AC-19</td><td>User can copy Markdown.</td><td>M5</td><td>Copy UI behavior and fallback check.</td></tr>
+            <tr><td>AC-20</td><td>User can download Markdown.</td><td>M5</td><td>Export route integration test.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Local-First</h2>
+        <table>
+          <thead><tr><th>ID</th><th>Acceptance Criterion</th><th>Milestone</th><th>Verification</th></tr></thead>
+          <tbody>
+            <tr><td>AC-21</td><td>App runs locally with <code>bun run dev</code>.</td><td>M1</td><td>Start command and home page smoke check.</td></tr>
+            <tr><td>AC-22</td><td>Data persists in SQLite after restart.</td><td>M1/M7</td><td>DB integration tests and smoke test restart check.</td></tr>
+            <tr><td>AC-23</td><td>App does not require an external service.</td><td>M1</td><td>Architecture review and offline local start check.</td></tr>
+            <tr><td>AC-24</td><td>Database file can be manually backed up and restored.</td><td>M7</td><td>README instructions and manual restore check.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Planning Additions</h2>
+        <table>
+          <thead><tr><th>ID</th><th>Acceptance Criterion</th><th>Milestone</th><th>Verification</th></tr></thead>
+          <tbody>
+            <tr><td>PX-1</td><td>User can add, edit, and view simple tags on journal entries.</td><td>M2</td><td>Tag parsing unit tests and journal edit integration test.</td></tr>
+            <tr><td>PX-2</td><td>User can add, edit, and view simple tags on TODOs.</td><td>M3/M6</td><td>TODO create/edit integration tests and manager filter tests.</td></tr>
+            <tr><td>PX-3</td><td>Review output includes tag breakdown and optional tag filtering.</td><td>M4</td><td>Review query and rendering tests.</td></tr>
+            <tr><td>PX-4</td><td>User can export review-range data as JSON and JSONL for AI-assisted summarization.</td><td>M5</td><td>Export route tests verify metadata, stats, tags, items, filters, and response headers.</td></tr>
+            <tr><td>PX-5</td><td>SQLite remains the source of truth; Markdown files are not used as primary storage.</td><td>M1</td><td>Schema initialization and persistence tests.</td></tr>
+          </tbody>
+        </table>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

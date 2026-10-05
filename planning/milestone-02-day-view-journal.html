@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Milestone 2 - Day View Journal</title>
+  <link rel="stylesheet" href="assets/planning.css">
+</head>
+<body>
+  <div class="page">
+    <aside class="sidebar">
+      <h1 class="brand">Milestone 2<br>Journal</h1>
+      <p>The core capture habit loop.</p>
+      <nav class="nav" aria-label="Planning pages">
+        <a href="index.html">Roadmap</a>
+        <a href="milestone-01-foundation.html">M1 Foundation</a>
+        <a href="milestone-02-day-view-journal.html" aria-current="page">M2 Journal</a>
+        <a href="milestone-03-day-view-todos.html">M3 TODO Panel</a>
+        <a href="milestone-04-review-output.html">M4 Review</a>
+        <a href="milestone-05-markdown-export.html">M5 Export</a>
+        <a href="milestone-06-todo-manager.html">M6 TODO Manager</a>
+        <a href="milestone-07-polish-backup.html">M7 Polish</a>
+        <a href="ui-mockups.html">UI Mockups</a>
+        <a href="data-access-strategy.html">AI Data Access</a>
+        <a href="acceptance-matrix.html">Acceptance Matrix</a>
+        <a href="deferred-scope.html">Deferred Scope</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <header class="hero">
+        <p class="eyebrow">Milestone 2</p>
+        <h1>Day View Journal</h1>
+        <p class="lead">Build the fast freeform daily logging workflow with optional tags before the app grows into task management.</p>
+        <div class="meta">
+          <span class="tag done">AC-1</span>
+          <span class="tag done">AC-2</span>
+          <span class="tag done">AC-3</span>
+          <span class="tag done">AC-4</span>
+          <span class="tag done">AC-5</span>
+          <span class="tag done">AC-6</span>
+          <span class="tag done">AC-7</span>
+        </div>
+      </header>
+
+      <section class="callout">
+        <h2>Goal</h2>
+        <p>The user can open the home page, choose a date, add one or many journal entries, edit them, delete them, star them, and keep unsent draft text across reloads.</p>
+        <p>Layout reference: <a href="ui-mockups.html">Day View mockups</a>.</p>
+      </section>
+
+      <section>
+        <h2>Scope</h2>
+        <div class="grid two">
+          <div class="panel">
+            <h3>Included</h3>
+            <ul>
+              <li><code>GET /?date=YYYY-MM-DD</code> with default today.</li>
+              <li>Today, previous day, next day, and date picker controls.</li>
+              <li>Textarea quick capture with optional tags and time details.</li>
+              <li>Multiline create: split non-empty trimmed lines.</li>
+              <li>Inline edit for content, tags, time spent, and highlight flag.</li>
+              <li>Soft delete and hidden deleted entries.</li>
+              <li>Draft storage in <code>localStorage</code>, scoped by selected date.</li>
+            </ul>
+          </div>
+          <div class="panel">
+            <h3>Excluded</h3>
+            <ul>
+              <li>Saving a wrapped paragraph as one entry.</li>
+              <li>Restore deleted entry UI.</li>
+              <li>Tag hierarchy, tag colors, aliases, or tag management screens.</li>
+              <li>TODO functionality, except reserved page space if needed.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Planned Files</h2>
+        <table>
+          <thead><tr><th>Path</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>src\routes\day.ts</code></td><td>Render selected day and date navigation.</td></tr>
+            <tr><td><code>src\routes\journal.ts</code></td><td>Create, update, delete, and highlight journal entries.</td></tr>
+            <tr><td><code>src\views\day.ts</code></td><td>Day layout, journal form, list, summary area.</td></tr>
+            <tr><td><code>src\views\components.ts</code></td><td>Form fields, inline error fragments, entry row fragment.</td></tr>
+            <tr><td><code>src\queries.ts</code></td><td>Journal query, tag assignment, and mutation helpers.</td></tr>
+            <tr><td><code>src\lib\validation.ts</code></td><td>Journal content, date, tag, time, and boolean validation.</td></tr>
+            <tr><td><code>public\app.js</code></td><td>Draft protection and Cmd/Ctrl+Enter submit helper.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Route Contracts</h2>
+        <table>
+          <thead><tr><th>Route</th><th>Behavior</th><th>Response</th></tr></thead>
+          <tbody>
+            <tr><td><code>GET /</code></td><td>Render selected date or today.</td><td>Full page.</td></tr>
+            <tr><td><code>POST /journal</code></td><td>Create one or more entries.</td><td>Updated journal list fragment or full page fallback.</td></tr>
+            <tr><td><code>PATCH /journal/:id</code></td><td>Update content, tags, time, or highlight.</td><td>Updated entry fragment.</td></tr>
+            <tr><td><code>PATCH /journal/:id/highlight</code></td><td>Toggle highlight.</td><td>Updated entry fragment.</td></tr>
+            <tr><td><code>DELETE /journal/:id</code></td><td>Soft delete entry.</td><td>Updated journal list or empty response.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>TDD Plan</h2>
+        <ol class="sequence">
+          <li>RED: unit tests for multiline splitting, empty entry rejection, date validation, tag parsing, and non-negative time validation.</li>
+          <li>GREEN: implement validation and split helpers.</li>
+          <li>RED: integration tests for add single entry, add multiline entries, backfill previous day, edit, star, and soft delete.</li>
+          <li>GREEN: implement journal routes, queries, and fragments.</li>
+          <li>RED: browser-level or DOM-focused test for draft save, restore, and clear after successful submit.</li>
+          <li>GREEN: implement minimal <code>public\app.js</code> draft behavior.</li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Done Gate</h2>
+        <ul>
+          <li>A simple entry can be added from the Day View in under 10 seconds.</li>
+          <li>Three pasted lines create three entries in creation order.</li>
+          <li>Optional tags can be added, edited, normalized, and shown on entries.</li>
+          <li>Past dates can be selected and edited.</li>
+          <li>Empty entries and negative time values show inline errors.</li>
+          <li>Deleted entries do not appear in normal day views.</li>
+          <li>Draft text survives reload and clears only after a successful save.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

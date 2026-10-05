@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Daily Work Ledger - Review</title>
+  <link rel="stylesheet" href="stitch.css">
+</head>
+<body class="app">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <aside class="sidebar">
+    <div>
+      <div class="brand">
+        <div class="brand-mark">OL</div>
+        <h1>Obsidian Ledger</h1>
+        <p>Verified Archive</p>
+      </div>
+      <button class="btn quick-button" type="button"><span class="icon">+</span>Quick Entry</button>
+      <nav class="nav" aria-label="Mock sections">
+        <a href="stitch.dash.html"><span class="nav-token">D</span><span>Day View</span></a>
+        <a href="stitch.todo.html"><span class="nav-token">T</span><span>TODO Manager</span></a>
+        <a class="active" aria-current="page" href="stitch.review.html"><span class="nav-token">R</span><span>Review</span></a>
+        <a href="stitch.export.html"><span class="nav-token">E</span><span>Export</span></a>
+      </nav>
+    </div>
+    <p class="sidebar-foot">The payoff surface: a readable accomplishment document, not a data dashboard.</p>
+  </aside>
+
+  <main id="main" class="app-main">
+    <header class="topbar">
+      <div>
+        <h2>Generate Accomplishment Report</h2>
+        <p>Select a period and generate copy-ready evidence grouped by date.</p>
+      </div>
+      <div class="top-actions">
+        <select aria-label="Review period">
+          <option>Last Quarter (Q3)</option>
+          <option>This Quarter (Q4)</option>
+          <option>Last Month</option>
+          <option>Year to Date</option>
+          <option>Custom Range</option>
+        </select>
+        <button class="btn primary" type="button">Generate Report</button>
+      </div>
+    </header>
+
+    <div class="review-canvas">
+      <section class="panel" aria-label="Review controls">
+        <div class="grid-3">
+          <div>
+            <label for="range-preset">Range preset</label>
+            <select id="range-preset">
+              <option>Last 6 Months</option>
+              <option>This Quarter</option>
+              <option>Year to Date</option>
+              <option>Custom</option>
+            </select>
+          </div>
+          <div>
+            <label for="review-from">From</label>
+            <input id="review-from" type="date" value="2026-01-01">
+          </div>
+          <div>
+            <label for="review-to">To</label>
+            <input id="review-to" type="date" value="2026-06-24">
+          </div>
+        </div>
+        <div class="toolbar control-gap" data-segmented>
+          <button class="btn primary" aria-pressed="true" type="button">All items</button>
+          <button class="btn" aria-pressed="false" type="button">Highlights only</button>
+          <button class="btn" aria-pressed="false" type="button">Newest first</button>
+        </div>
+        <div id="copy-status" class="copy-status" aria-live="polite"></div>
+      </section>
+
+      <div class="action-bar" aria-label="Report actions">
+        <span class="status">Preview Mode</span>
+        <div class="toolbar">
+          <button class="btn" data-copy="#review-markdown" data-copy-status="#copy-status" type="button">Copy</button>
+          <button class="btn" type="button">Save PDF</button>
+          <button class="btn primary" type="button">Export Markdown</button>
+        </div>
+      </div>
+
+      <article class="doc-sheet" aria-labelledby="report-title">
+        <header>
+          <h1 id="report-title">Performance Review Evidence</h1>
+          <div class="doc-meta">
+            <span>Date Range: July 1, 2023 - September 30, 2023 (Q3)</span>
+            <span>Generated: Oct 5, 2023</span>
+          </div>
+        </header>
+
+        <section class="summary-box">
+          <h2>Quarterly Summary</h2>
+          <div class="stats-grid">
+            <div class="metric"><strong>142</strong><span>entries logged</span></div>
+            <div class="metric"><strong>87</strong><span>tasks completed</span></div>
+            <div class="metric"><strong>3</strong><span>top focus tags</span></div>
+          </div>
+          <div class="tag-row"><span class="tag">#infrastructure</span><span class="tag">#deployment</span><span class="tag">#mentorship</span></div>
+        </section>
+
+        <section class="doc-month">
+          <h2>September 2023</h2>
+          <div class="doc-entry highlight">
+            <div class="doc-date">Sep 28</div>
+            <div>
+              <h3>Resolved critical production database latency</h3>
+              <p>Identified inefficient query patterns causing sporadic 5s spikes during peak load. Adjusted connection pooling and rewrote primary aggregation queries, reducing P99 latency by 40%.</p>
+              <div class="tag-row"><span class="tag">#database</span><span class="tag">#performance</span></div>
+            </div>
+          </div>
+          <div class="doc-entry">
+            <div class="doc-date">Sep 15</div>
+            <div>
+              <h3>Completed Q3 security audit prep</h3>
+              <p>Compiled access logs and verified IAM roles across all staging environments ahead of the external audit.</p>
+              <div class="tag-row"><span class="tag">#security</span><span class="tag">#audit</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="doc-month">
+          <h2>August 2023</h2>
+          <div class="doc-entry highlight">
+            <div class="doc-date">Aug 12</div>
+            <div>
+              <h3>Led architecture review for V2 API</h3>
+              <p>Presented proposed service architecture to the engineering steering committee and secured approval for a phased migration plan.</p>
+              <div class="tag-row"><span class="tag">#architecture</span><span class="tag">#leadership</span></div>
+            </div>
+          </div>
+        </section>
+      </article>
+
+      <textarea id="review-markdown" aria-label="Generated Markdown" hidden># Performance Review Evidence: 2023-07-01 to 2023-09-30
+
+## Highlights
+- 2023-09-28 - Resolved critical production database latency. #database #performance
+- 2023-08-12 - Led architecture review for V2 API. #architecture #leadership
+
+## Daily Evidence
+- 2023-09-15 - Completed Q3 security audit prep.</textarea>
+    </div>
+  </main>
+  <script src="stitch.js"></script>
+</body>
+</html>

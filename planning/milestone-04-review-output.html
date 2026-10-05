@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Milestone 4 - Review Output</title>
+  <link rel="stylesheet" href="assets/planning.css">
+</head>
+<body>
+  <div class="page">
+    <aside class="sidebar">
+      <h1 class="brand">Milestone 4<br>Review</h1>
+      <p>The payoff surface for performance review prep.</p>
+      <nav class="nav" aria-label="Planning pages">
+        <a href="index.html">Roadmap</a>
+        <a href="milestone-01-foundation.html">M1 Foundation</a>
+        <a href="milestone-02-day-view-journal.html">M2 Journal</a>
+        <a href="milestone-03-day-view-todos.html">M3 TODO Panel</a>
+        <a href="milestone-04-review-output.html" aria-current="page">M4 Review</a>
+        <a href="milestone-05-markdown-export.html">M5 Export</a>
+        <a href="milestone-06-todo-manager.html">M6 TODO Manager</a>
+        <a href="milestone-07-polish-backup.html">M7 Polish</a>
+        <a href="ui-mockups.html">UI Mockups</a>
+        <a href="data-access-strategy.html">AI Data Access</a>
+        <a href="acceptance-matrix.html">Acceptance Matrix</a>
+        <a href="deferred-scope.html">Deferred Scope</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <header class="hero">
+        <p class="eyebrow">Milestone 4</p>
+        <h1>Review Output</h1>
+        <p class="lead">Turn stored journal entries and completed TODOs into a readable accomplishment document grouped by date, with tags available for filtering and summarizing.</p>
+        <div class="meta">
+          <span class="tag done">AC-14</span>
+          <span class="tag done">AC-15</span>
+          <span class="tag done">AC-16</span>
+          <span class="tag done">AC-17</span>
+          <span class="tag done">AC-18</span>
+        </div>
+      </header>
+
+      <section class="callout green">
+        <h2>Goal</h2>
+        <p>The user can select a date range and see a clean accomplishment report with summary counts, highlights, journal entries, and completed TODOs.</p>
+        <p>Layout reference: <a href="ui-mockups.html">Review page mockup</a>.</p>
+      </section>
+
+      <section>
+        <h2>Review Page Order</h2>
+        <ol class="sequence">
+          <li>Date range controls with presets and custom start/end dates.</li>
+          <li>Copy/export action area reserved for Milestone 5 behavior.</li>
+          <li>Highlight summary.</li>
+          <li>Generated accomplishment document grouped by date.</li>
+          <li>Supporting stats and tag breakdown.</li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Date Range Presets</h2>
+        <table>
+          <thead><tr><th>Preset</th><th>Rule</th></tr></thead>
+          <tbody>
+            <tr><td>This Week</td><td>Current local week.</td></tr>
+            <tr><td>This Month</td><td>First day through last day of current local month, clamped to today if preferred by UI.</td></tr>
+            <tr><td>This Quarter</td><td>Current local quarter.</td></tr>
+            <tr><td>Last 6 Months</td><td>Rolling six-month range ending today.</td></tr>
+            <tr><td>Year to Date</td><td>January 1 through today.</td></tr>
+            <tr><td>Custom</td><td>User-selected inclusive start and end dates.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Output Model</h2>
+        <table>
+          <thead><tr><th>Item Source</th><th>Date Field</th><th>Content Field</th><th>Included When</th></tr></thead>
+          <tbody>
+            <tr><td>Journal entry</td><td><code>entry_date</code></td><td><code>content</code></td><td>Entry is not soft-deleted and date is in range.</td></tr>
+            <tr><td>Completed TODO</td><td><code>completed_on</code></td><td><code>task</code></td><td>TODO has completion date, is not soft-deleted, and date is in range.</td></tr>
+          </tbody>
+        </table>
+        <p>Tags are loaded with each review item and used for tag breakdown counts. Tag filtering is useful enough for v1 if it remains simple: one optional tag filter in the review controls.</p>
+      </section>
+
+      <section>
+        <h2>Planned Files</h2>
+        <table>
+          <thead><tr><th>Path</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>src\routes\review.ts</code></td><td>Review page, range parsing, highlights-only handling, sort handling.</td></tr>
+            <tr><td><code>src\views\review.ts</code></td><td>Review controls, highlight summary, daily grouped output, stats.</td></tr>
+            <tr><td><code>src\queries.ts</code></td><td>Review item query, stats query, tag breakdown query.</td></tr>
+            <tr><td><code>src\lib\date.ts</code></td><td>Date range preset calculations and custom range validation.</td></tr>
+            <tr><td><code>src\views\components.ts</code></td><td>Shared date controls and empty state fragments.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>TDD Plan</h2>
+        <ol class="sequence">
+          <li>RED: unit tests for all date range presets and invalid custom ranges.</li>
+          <li>GREEN: implement preset and range helpers.</li>
+          <li>RED: integration tests for review query including journal entries and completed TODOs, excluding deleted records, hiding empty dates, filtering by tag, and filtering highlights only.</li>
+          <li>GREEN: implement review query helpers and grouping.</li>
+          <li>RED: rendering tests for date groups, highlights section, stats counts, tag breakdown, and sort order.</li>
+          <li>GREEN: implement review route and view.</li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Done Gate</h2>
+        <ul>
+          <li>Custom date range returns expected journal entries and completed TODOs.</li>
+          <li>Items are grouped by non-empty date only.</li>
+          <li>Highlights-only mode excludes unstarred journal entries and TODOs.</li>
+          <li>Optional tag filter limits review output to matching tagged entries and TODOs.</li>
+          <li>Oldest-first and newest-first ordering work.</li>
+          <li>Stats include journal count, completed TODO count, highlights, active logging days, time logged, and tag counts.</li>
+          <li>Review page reads like a document, not an analytics dashboard.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

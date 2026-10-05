@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Milestone 7 - Polish and Backup</title>
+  <link rel="stylesheet" href="assets/planning.css">
+</head>
+<body>
+  <div class="page">
+    <aside class="sidebar">
+      <h1 class="brand">Milestone 7<br>Polish</h1>
+      <p>Make v1 comfortable and documented.</p>
+      <nav class="nav" aria-label="Planning pages">
+        <a href="index.html">Roadmap</a>
+        <a href="milestone-01-foundation.html">M1 Foundation</a>
+        <a href="milestone-02-day-view-journal.html">M2 Journal</a>
+        <a href="milestone-03-day-view-todos.html">M3 TODO Panel</a>
+        <a href="milestone-04-review-output.html">M4 Review</a>
+        <a href="milestone-05-markdown-export.html">M5 Export</a>
+        <a href="milestone-06-todo-manager.html">M6 TODO Manager</a>
+        <a href="milestone-07-polish-backup.html" aria-current="page">M7 Polish</a>
+        <a href="ui-mockups.html">UI Mockups</a>
+        <a href="data-access-strategy.html">AI Data Access</a>
+        <a href="acceptance-matrix.html">Acceptance Matrix</a>
+        <a href="deferred-scope.html">Deferred Scope</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <header class="hero">
+        <p class="eyebrow">Milestone 7</p>
+        <h1>Polish and Backup</h1>
+        <p class="lead">Close gaps that determine whether the app is pleasant and trustworthy enough for real daily use.</p>
+        <div class="meta">
+          <span class="tag done">AC-24</span>
+          <span class="tag warn">A-1..A-6</span>
+        </div>
+      </header>
+
+      <section class="callout gold">
+        <h2>Goal</h2>
+        <p>The app is keyboard-friendly, accessible, readable on narrow screens, clear in empty/error states, and documented for local backup and restore.</p>
+      </section>
+
+      <section>
+        <h2>Scope</h2>
+        <div class="grid two">
+          <div class="panel">
+            <h3>Included</h3>
+            <ul>
+              <li>Keyboard shortcuts: Cmd/Ctrl+Enter for journal and TODO submit, <code>/</code> for TODO search.</li>
+              <li>Visible focus states and real button elements.</li>
+              <li>Labels for all inputs.</li>
+              <li>Delete and clear-completion confirmations.</li>
+              <li>Responsive layout checks for narrow screens.</li>
+              <li>Inline validation errors for HTMX and non-HTMX fallback paths.</li>
+              <li>README with run, backup, restore, and privacy notes.</li>
+              <li>Manual smoke test checklist.</li>
+            </ul>
+          </div>
+          <div class="panel">
+            <h3>Excluded</h3>
+            <ul>
+              <li>Automated backup script. Future enhancement.</li>
+              <li>LAN access and authentication.</li>
+              <li>Print stylesheet unless it becomes needed during use.</li>
+              <li>Advanced shortcuts such as <code>g t</code>, <code>g r</code>, and <code>n</code>.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Documentation Requirements</h2>
+        <table>
+          <thead><tr><th>Document</th><th>Must Include</th></tr></thead>
+          <tbody>
+            <tr><td><code>README.md</code></td><td>Install, run, local-only behavior, database path, no telemetry, backup, restore, smoke test.</td></tr>
+            <tr><td><code>.gitignore</code></td><td><code>tracker.db</code>, SQLite sidecar files, local environment files.</td></tr>
+            <tr><td>In-app help text</td><td>Minimal labels and empty states only. Avoid instructional clutter.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Backup Plan</h2>
+        <pre><code># Backup
+Copy tracker.db to a dated backup path.
+
+# Restore
+Stop the server, replace tracker.db with the backup copy, restart the app.</code></pre>
+        <p>The PRD shows Unix-style commands. If this remains Windows-first, include PowerShell equivalents in the README during this milestone.</p>
+      </section>
+
+      <section>
+        <h2>TDD and Verification Plan</h2>
+        <ol class="sequence">
+          <li>RED: tests for fallback error rendering in journal, TODO, and review forms where practical.</li>
+          <li>GREEN: standardize inline error fragments and normal-page fallback errors.</li>
+          <li>RED: client behavior tests or manual-script checklist for shortcut behavior.</li>
+          <li>GREEN: implement minimal shortcut behavior without complex client state.</li>
+          <li>VERIFY: manual responsive and accessibility pass on all pages.</li>
+          <li>VERIFY: run the full smoke test from the PRD and record any failures.</li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Smoke Test</h2>
+        <ul class="checklist">
+          <li>Start the app.</li>
+          <li>Add three journal entries for today using multiline capture.</li>
+          <li>Add one journal entry for yesterday.</li>
+          <li>Add three TODOs.</li>
+          <li>Mark two TODOs done.</li>
+          <li>Star one journal entry.</li>
+          <li>Confirm today's summary counts are correct.</li>
+          <li>Open review for this week.</li>
+          <li>Confirm entries and completed TODOs appear on the correct dates.</li>
+          <li>Copy Markdown.</li>
+          <li>Download Markdown.</li>
+          <li>Restart the server.</li>
+          <li>Confirm data persisted.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Done Gate</h2>
+        <ul>
+          <li>All v1 acceptance criteria pass.</li>
+          <li>README documents manual backup and restore.</li>
+          <li>Database file is excluded from source control.</li>
+          <li>Core actions are usable by keyboard.</li>
+          <li>Pages work on narrow screens.</li>
+          <li>Destructive actions require confirmation.</li>
+          <li>Manual smoke test is complete.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

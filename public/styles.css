@@ -1,0 +1,2107 @@
+/*
+ * Work Ledger
+ * - Brass means value: only starred work and the review payoff use it.
+ * - Serif is your words. Mono is the record (dates, times, tags, counts). Sans is the app.
+ * - Ruled lines and a margin column instead of boxes.
+ */
+
+:root {
+  color-scheme: dark;
+
+  --bg: #141311;
+  --bg-sunk: #100f0d;
+  --surface: #1b1a17;
+  --surface-2: #24221e;
+  --line: #2b2925;
+  --line-strong: #3e3b35;
+  --ink: #ece6da;
+  --ink-2: #bfb7a8;
+  --ink-3: #928a7b;
+  --brass: #d8aa5e;
+  --brass-wash: rgb(216 170 94 / 0.09);
+  --sage: #9cb78a;
+  --rose: #e69582;
+
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "Cascadia Mono", "Cascadia Code", ui-monospace, "SF Mono", Consolas, monospace;
+
+  --margin-w: 4.5rem;
+  --gap: 1.5rem;
+  --radius: 6px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 15px/1.5 var(--sans);
+  -webkit-text-size-adjust: 100%;
+  /* Short and long pages keep the same width, so content doesn't jump sideways. */
+  scrollbar-gutter: stable;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+ol,
+ul,
+dl,
+dd,
+figure {
+  margin: 0;
+}
+
+ol,
+ul {
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+code,
+kbd {
+  font-family: var(--mono);
+  font-size: 0.8em;
+}
+
+code {
+  color: var(--ink-2);
+  background: var(--surface-2);
+  padding: 0.05em 0.35em;
+  border-radius: 3px;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.5em;
+  padding: 0.05em 0.4em;
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  color: var(--ink-2);
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* Component display rules (.btn is inline-flex) must not beat the hidden attribute. */
+[hidden] {
+  display: none !important;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.skip-link {
+  position: absolute;
+  left: 1rem;
+  top: -3rem;
+  z-index: 10;
+  padding: 0.5rem 0.9rem;
+  background: var(--ink);
+  color: var(--bg);
+  border-radius: var(--radius);
+}
+
+.skip-link:focus {
+  top: 1rem;
+}
+
+.muted {
+  color: var(--ink-3);
+}
+
+.count {
+  font: 500 0.75rem var(--mono);
+  color: var(--ink-3);
+  margin-left: 0.35rem;
+}
+
+/* ---- Shell ------------------------------------------------------------- */
+
+.shell {
+  display: grid;
+  grid-template-columns: 13.5rem minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.rail {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  padding: 1.75rem 1rem 1.25rem;
+  border-right: 1px solid var(--line);
+  background: var(--bg-sunk);
+}
+
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0 0.5rem;
+  font: italic 500 1.2rem/1 var(--serif);
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.wordmark-rule {
+  width: 3px;
+  height: 1.35rem;
+  background: var(--brass);
+  border-radius: 2px;
+}
+
+.nav {
+  display: grid;
+  gap: 2px;
+}
+
+.nav a {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: var(--radius);
+  color: var(--ink-2);
+  text-decoration: none;
+}
+
+.nav a:hover {
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.nav a[aria-current="page"] {
+  background: var(--surface-2);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.nav-count {
+  font: 500 0.75rem var(--mono);
+  color: var(--ink-3);
+}
+
+.nav-keys {
+  margin-left: auto;
+  border: 0;
+  padding: 0;
+  color: var(--ink-3);
+  opacity: 0;
+  font-size: 0.7rem;
+}
+
+.nav a:hover .nav-keys,
+.nav a:focus-visible .nav-keys {
+  opacity: 1;
+}
+
+.rail-foot {
+  margin-top: auto;
+  display: grid;
+  gap: 0.3rem;
+  padding: 0 0.5rem;
+  font-size: 0.8rem;
+  color: var(--ink-3);
+}
+
+.rail-label {
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.vault-path {
+  font: 0.72rem/1.4 var(--mono);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.link-button {
+  justify-self: start;
+  margin-top: 0.5rem;
+  padding: 0.2rem 0;
+  border: 0;
+  background: none;
+  color: var(--ink-3);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  color: var(--ink);
+}
+
+.rail-foot a.link-button {
+  margin-top: 0;
+  text-decoration: none;
+}
+
+.install-link {
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+main {
+  min-width: 0;
+  outline: none;
+}
+
+/* ---- Controls ---------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 2.1rem;
+  padding: 0.35rem 0.85rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.btn:hover {
+  background: var(--surface-2);
+}
+
+.btn.primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+}
+
+.btn.primary:hover {
+  background: #fffaf0;
+}
+
+.btn.ghost {
+  border-color: transparent;
+  color: var(--ink-2);
+}
+
+.btn.ghost:hover {
+  color: var(--ink);
+}
+
+.btn.danger,
+.icon-btn.danger:hover {
+  color: var(--rose);
+}
+
+.btn.block {
+  width: 100%;
+}
+
+.icon {
+  flex: none;
+}
+
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+  list-style: none;
+}
+
+.icon-btn::-webkit-details-marker {
+  display: none;
+}
+
+.icon-btn:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.star-btn.is-on {
+  color: var(--brass);
+}
+
+.inline-form {
+  display: contents;
+}
+
+.field {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.field > span,
+.goal-picker legend {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.field.grow {
+  flex: 1 1 14rem;
+}
+
+.field-short {
+  max-width: 11rem;
+}
+
+.field-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.field-hint {
+  font-size: 0.8rem;
+  color: var(--ink-3);
+}
+
+.field-hint a {
+  color: var(--ink-2);
+}
+
+input:not([type="checkbox"]),
+select,
+textarea {
+  width: 100%;
+  min-height: 2.1rem;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--bg-sunk);
+  color: var(--ink);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--ink-3);
+  opacity: 1;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--ink-2);
+  box-shadow: 0 0 0 1px var(--ink-2);
+}
+
+input[type="date"] {
+  font-family: var(--mono);
+  font-size: 0.85rem;
+}
+
+input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--brass);
+}
+
+select {
+  padding-right: 1.75rem;
+}
+
+textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.check-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 1.75rem;
+  font-size: 0.875rem;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+/* One goal per line. */
+.goal-picker {
+  display: grid;
+  justify-items: start;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.goal-picker legend {
+  width: 100%;
+  margin-bottom: 0.15rem;
+  padding: 0;
+}
+
+.notice {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.9rem;
+  border-left: 3px solid var(--rose);
+  background: rgb(230 149 130 / 0.08);
+  color: var(--ink);
+}
+
+.notice.ok {
+  border-left-color: var(--sage);
+  background: rgb(156 183 138 / 0.08);
+}
+
+.empty {
+  padding: 1.25rem 0;
+}
+
+.empty-title {
+  font: italic 1.05rem var(--serif);
+  color: var(--ink-2);
+}
+
+.empty-hint {
+  margin-top: 0.25rem;
+  font-size: 0.875rem;
+  color: var(--ink-3);
+  max-width: 34rem;
+}
+
+.empty-hint a {
+  color: var(--ink-2);
+}
+
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) + 2px);
+  background: var(--bg-sunk);
+}
+
+.seg {
+  padding: 0.3rem 0.75rem;
+  border-radius: var(--radius);
+  color: var(--ink-2);
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+.seg:hover {
+  color: var(--ink);
+}
+
+.seg[aria-current] {
+  background: var(--surface-2);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.quiet-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--ink-3);
+  text-decoration: none;
+}
+
+.quiet-link:hover {
+  color: var(--ink);
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* Metadata: tags fill, goals outline, both mono. */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+}
+
+.tag,
+.goal-link,
+.duration,
+.priority {
+  font: 500 0.72rem/1.6 var(--mono);
+  white-space: nowrap;
+}
+
+.tag {
+  padding: 0 0.35rem;
+  border-radius: 3px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+
+.goal-link {
+  padding: 0 0.4rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  color: var(--ink-2);
+  text-decoration: none;
+}
+
+.goal-link::before {
+  content: "◇ ";
+  color: var(--ink-3);
+}
+
+a.goal-link:hover {
+  border-color: var(--ink-3);
+  color: var(--ink);
+}
+
+.goal-link.unknown {
+  border-style: dashed;
+  color: var(--ink-3);
+}
+
+.duration {
+  color: var(--ink-3);
+}
+
+.priority {
+  color: var(--ink-3);
+}
+
+.priority.p-high {
+  color: var(--rose);
+}
+
+.priority.p-medium {
+  color: var(--ink-2);
+}
+
+/* Inline tags inside serif text shouldn't jump out of the sentence. */
+.entry-text .tag,
+.sheet-text .tag,
+.todo-task .tag {
+  font-size: 0.78em;
+  vertical-align: 0.08em;
+}
+
+/* ---- Page frame -------------------------------------------------------- */
+
+/* Grows with wide windows, then centers so leftover space is split evenly. */
+.page {
+  max-width: 96rem;
+  margin-inline: auto;
+  padding: 2.25rem 2.5rem 4rem;
+}
+
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem 2rem;
+  margin-bottom: 1.75rem;
+}
+
+.page-head h1 {
+  font: 500 2.1rem/1.15 var(--serif);
+  letter-spacing: -0.01em;
+}
+
+.page-sub {
+  margin-top: 0.4rem;
+  color: var(--ink-3);
+  max-width: 40rem;
+}
+
+.kicker {
+  margin-bottom: 0.3rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.kicker a {
+  color: inherit;
+}
+
+.kicker.is-away {
+  color: var(--ink-2);
+}
+
+.section-title {
+  display: flex;
+  align-items: baseline;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.side-panel {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
+}
+
+.stack-form {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.stack-form .btn {
+  justify-self: start;
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  padding: 0.9rem 0 1.1rem;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 1.5rem;
+}
+
+.filter-bar .field {
+  flex: 0 1 9rem;
+}
+
+.filter-bar .field.grow {
+  flex: 1 1 14rem;
+}
+
+.filter-actions,
+.toggles {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  min-height: 2.1rem;
+}
+
+/* ---- The ledger (shared by Today, goal evidence) ----------------------- */
+
+/* A single margin rule runs down the page, like a ruled notebook. */
+.ruled {
+  background: linear-gradient(var(--line-strong), var(--line-strong)) no-repeat;
+  background-size: 1px 100%;
+  background-position: calc(var(--margin-w) + var(--gap) / 2) 0;
+}
+
+.ruled > .empty,
+.ruled .section-title {
+  margin-left: calc(var(--margin-w) + var(--gap));
+}
+
+.entry {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--margin-w) minmax(0, 1fr) auto;
+  column-gap: var(--gap);
+  align-items: start;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.entry:last-child {
+  border-bottom: 0;
+}
+
+/* Starred work: the margin rule turns brass beside it. */
+.entry.is-starred::before {
+  content: "";
+  position: absolute;
+  top: 0.7rem;
+  bottom: 0.7rem;
+  left: calc(var(--margin-w) + var(--gap) / 2 - 1px);
+  width: 3px;
+  border-radius: 2px;
+  background: var(--brass);
+}
+
+.entry.is-new {
+  animation: settle 1.6s ease-out;
+}
+
+@keyframes settle {
+  from {
+    background-color: var(--brass-wash);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+
+.margin {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+  padding-top: 0.2rem;
+  font: 0.78rem var(--mono);
+  color: var(--ink-3);
+  text-align: right;
+}
+
+.entry-text {
+  font: 1.08rem/1.55 var(--serif);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.entry.is-todo .entry-text {
+  color: var(--ink-2);
+}
+
+.done-mark {
+  display: inline-grid;
+  color: var(--sage);
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.entry:not(:hover):not(:focus-within) .row-actions .icon-btn:not(.is-on) {
+  color: #6f685c;
+}
+
+/* ---- Today ------------------------------------------------------------- */
+
+.today {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 21rem;
+  min-height: 100vh;
+}
+
+.ledger {
+  padding: 2.25rem 2.5rem 5rem;
+  max-width: 54rem;
+  width: 100%;
+  justify-self: center;
+}
+
+.day-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.day-head h1 {
+  font: 500 2.35rem/1.1 var(--serif);
+  letter-spacing: -0.015em;
+}
+
+.day-head .weekday {
+  font-style: italic;
+  color: var(--ink-2);
+}
+
+.day-head .year {
+  font: 400 1rem var(--mono);
+  color: var(--ink-3);
+  letter-spacing: 0;
+  vertical-align: 0.45em;
+}
+
+.day-summary {
+  margin-top: 0.4rem;
+  font: 0.82rem var(--mono);
+  color: var(--ink-3);
+}
+
+.day-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.date-jump {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.date-jump input {
+  width: 9.5rem;
+}
+
+.week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.week-day {
+  display: grid;
+  justify-items: center;
+  gap: 0.1rem;
+  padding: 0.45rem 0 0.5rem;
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--ink-3);
+}
+
+.week-day:hover {
+  background: var(--surface);
+  color: var(--ink-2);
+}
+
+.week-day[aria-current="date"] {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.week-day .dow {
+  font-size: 0.72rem;
+}
+
+.week-day .num {
+  font: 500 1rem var(--mono);
+}
+
+.week-day.is-future {
+  opacity: 0.55;
+}
+
+.week-day.is-today .dow {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.ticks {
+  display: flex;
+  gap: 2px;
+  height: 0.6rem;
+  align-items: flex-end;
+}
+
+.ticks i {
+  width: 3px;
+  height: 100%;
+  border-radius: 1px;
+  background: var(--ink-3);
+}
+
+.week-day[aria-current="date"] .ticks i {
+  background: var(--ink-2);
+}
+
+.capture {
+  border-bottom: 1px solid var(--line-strong);
+  padding-top: 0.25rem;
+  padding-bottom: 1rem;
+}
+
+.capture-mark {
+  padding-top: 0.5rem;
+  font-size: 0.72rem;
+  color: var(--ink-3);
+}
+
+/* Grows with what you type (and a wrapped placeholder) instead of scrolling inside. */
+.capture textarea {
+  field-sizing: content;
+  min-height: 4.5rem;
+  max-height: 60vh;
+  padding: 0.6rem 0.75rem;
+  font: 1.08rem/1.55 var(--serif);
+  background: var(--surface);
+  border-color: var(--line-strong);
+}
+
+.capture-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-top: 0.6rem;
+}
+
+.capture-more {
+  flex: 1 1 16rem;
+}
+
+.capture-more > summary,
+.add-more > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.1rem;
+  font-size: 0.85rem;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.capture-more > summary:hover,
+.add-more > summary:hover {
+  color: var(--ink);
+}
+
+.capture-more[open] > summary {
+  color: var(--ink-2);
+}
+
+.capture-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.85rem 1rem;
+  margin: 0.4rem 0 0.6rem;
+}
+
+.capture-fields .field:first-child {
+  flex: 1 1 12rem;
+}
+
+.capture-fields .goal-picker {
+  flex-basis: 100%;
+}
+
+.star-check .icon {
+  color: var(--brass);
+}
+
+.key-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  min-height: 2.1rem;
+  font-size: 0.8rem;
+  color: var(--ink-3);
+}
+
+.edit-form {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.edit-form textarea {
+  font: 1.05rem/1.5 var(--serif);
+}
+
+.edit-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.closed {
+  margin-top: 2rem;
+}
+
+.closed .section-title {
+  padding-bottom: 0.25rem;
+}
+
+/* Todo tray */
+
+.tray {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  /* Full height so its divider runs the length of the window. */
+  min-height: 100vh;
+  max-height: 100vh;
+  overflow-y: auto;
+  padding: 2.25rem 1.5rem 2rem;
+  border-left: 1px solid var(--line);
+}
+
+.tray-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.tray-head h2 {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.todo-add {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1.5rem;
+}
+
+.todo-add select {
+  width: auto;
+  flex: none;
+}
+
+.todo-group + .todo-group {
+  margin-top: 1.4rem;
+}
+
+.todo-group h3 {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.todo-group.g-blocked h3 {
+  color: var(--rose);
+}
+
+.todo {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: start;
+  padding: 0.45rem 0;
+}
+
+.todo + .todo {
+  border-top: 1px solid var(--line);
+}
+
+.check-btn {
+  display: grid;
+  place-items: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0.15rem 0 0;
+  padding: 0;
+  border: 1.5px solid var(--ink-3);
+  border-radius: 4px;
+  background: transparent;
+  color: transparent;
+  cursor: pointer;
+}
+
+/* 24px pointer target without a heavy-looking box. */
+.check-btn::after {
+  content: "";
+  position: absolute;
+  inset: -0.3rem;
+}
+
+.check-btn {
+  position: relative;
+}
+
+.check-btn:hover {
+  border-color: var(--sage);
+  color: var(--sage);
+}
+
+.check-btn.is-done {
+  background: var(--sage);
+  border-color: var(--sage);
+  color: var(--bg);
+}
+
+.check-btn .icon {
+  width: 0.85rem;
+  height: 0.85rem;
+  stroke-width: 2.6;
+}
+
+.s-in-progress .check-btn {
+  border-color: var(--ink-2);
+  background: linear-gradient(90deg, var(--ink-3) 50%, transparent 50%);
+}
+
+.s-blocked .check-btn {
+  border-color: var(--rose);
+}
+
+.todo-task {
+  font-size: 0.92rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.star-inline {
+  display: inline-grid;
+  vertical-align: -0.15em;
+  margin-right: 0.3rem;
+  color: var(--brass);
+}
+
+.star-inline .icon {
+  width: 0.85rem;
+  height: 0.85rem;
+}
+
+.todo-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.5rem;
+  margin-top: 0.15rem;
+}
+
+.todo-meta .chips {
+  display: contents;
+}
+
+.menu {
+  position: relative;
+}
+
+.menu > summary {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.menu-panel {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 5;
+  display: grid;
+  min-width: 11rem;
+  padding: 0.3rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 0.45);
+}
+
+.menu-item {
+  display: block;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--ink);
+  font-size: 0.85rem;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.menu-item:hover {
+  background: var(--line);
+}
+
+.tray-note {
+  margin-top: 1.5rem;
+  font-size: 0.78rem;
+  color: var(--ink-3);
+}
+
+/* ---- Todos page -------------------------------------------------------- */
+
+.todo-add.wide {
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.todo-add.wide > input {
+  flex: 1 1 20rem;
+}
+.add-more {
+  flex-basis: 100%;
+}
+
+.add-more .goal-picker {
+  margin: 0.25rem 0 0.5rem;
+}
+
+.todo-section {
+  margin-bottom: 2rem;
+}
+
+.todo-section > .section-title,
+.todo-section > summary {
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.todo-section > summary {
+  display: block;
+  cursor: pointer;
+  list-style: none;
+}
+
+.todo-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+.todo-section > summary .section-title::before {
+  content: "▸";
+  margin-right: 0.45rem;
+  color: var(--ink-3);
+  font-size: 0.8em;
+}
+
+.todo-section[open] > summary .section-title::before {
+  content: "▾";
+}
+
+.todo-section.g-s-blocked .section-title {
+  color: var(--rose);
+}
+
+.todo-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 9rem auto;
+  gap: 0.35rem 0.9rem;
+  align-items: start;
+  padding: 0.7rem 0 0.7rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.todo-row.is-starred::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.6rem;
+  bottom: 0.6rem;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--brass);
+}
+
+.todo-row .todo-task {
+  font: 1.02rem/1.45 var(--serif);
+}
+
+.todo-row.s-done .todo-task,
+.todo-row.s-cancelled .todo-task {
+  color: var(--ink-3);
+}
+
+.todo-row.s-cancelled .todo-task {
+  text-decoration: line-through;
+}
+
+.todo-notes {
+  margin-top: 0.2rem;
+  font-size: 0.85rem;
+  color: var(--ink-3);
+}
+
+.todo-facts {
+  display: grid;
+  gap: 0.1rem;
+  justify-items: start;
+  padding-top: 0.2rem;
+}
+
+.dates {
+  display: grid;
+  font: 0.72rem var(--mono);
+  color: var(--ink-3);
+}
+
+.done-date {
+  color: var(--sage);
+}
+
+.status-select {
+  width: auto;
+  min-height: 1.9rem;
+  padding: 0.2rem 1.6rem 0.2rem 0.5rem;
+  font-size: 0.8rem;
+  background-color: transparent;
+}
+
+.todo-row:not(:hover):not(:focus-within) .row-actions .icon-btn:not(.is-on) {
+  color: #6f685c;
+}
+
+.todo-edit {
+  grid-column: 2 / -1;
+  display: grid;
+  gap: 1rem;
+  margin: 0.5rem 0 0.25rem;
+  padding: 1rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.todo-edit .field-row .field {
+  flex: 1 1 10rem;
+}
+
+.completion-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.85rem;
+  color: var(--ink-2);
+}
+
+/* ---- Goals ------------------------------------------------------------- */
+
+.goals-layout,
+.goal-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 22rem;
+  gap: 3rem;
+  align-items: start;
+}
+
+.goal-list {
+  display: grid;
+}
+
+.goal-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.25rem 1rem;
+  padding: 1.1rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.goal-item:first-child {
+  border-top: 1px solid var(--line);
+}
+
+.goal-title {
+  font: 500 1.3rem/1.3 var(--serif);
+  text-decoration: none;
+}
+
+.goal-title:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+.goal-status {
+  font: 500 0.72rem var(--mono);
+  color: var(--ink-3);
+  align-self: center;
+}
+
+.goal-item > .goal-status {
+  justify-self: end;
+}
+
+.goal-status.st-achieved,
+.st-achieved > .goal-status {
+  color: var(--sage);
+}
+
+.st-dropped > .goal-title {
+  color: var(--ink-3);
+}
+
+.goal-summary {
+  grid-column: 1 / -1;
+  color: var(--ink-2);
+  max-width: 44rem;
+}
+
+.goal-evidence {
+  font: 0.78rem var(--mono);
+  color: var(--ink-3);
+}
+
+.goal-slug {
+  justify-self: end;
+  font-size: 0.72rem;
+  background: none;
+  color: var(--ink-3);
+}
+
+.goal-evidence-feed .section-title {
+  margin-bottom: 0.75rem;
+}
+
+.month + .month {
+  margin-top: 1.5rem;
+}
+
+.month-title {
+  display: flex;
+  align-items: baseline;
+  margin-left: calc(var(--margin-w) + var(--gap));
+  margin-bottom: 0.25rem;
+  font: italic 1rem var(--serif);
+  color: var(--ink-2);
+}
+
+.goal-evidence-feed .ledger-list {
+  background: linear-gradient(var(--line-strong), var(--line-strong)) no-repeat;
+  background-size: 1px 100%;
+  background-position: calc(var(--margin-w) + var(--gap) / 2) 0;
+}
+
+.goal-evidence-feed .margin {
+  flex-direction: row;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.goal-evidence-feed .empty {
+  margin-left: calc(var(--margin-w) + var(--gap));
+}
+
+.goal-open-todos {
+  margin: -0.25rem 0 0.75rem;
+  font-size: 0.875rem;
+  color: var(--ink-3);
+}
+
+.goal-open-todos a {
+  color: var(--ink-2);
+}
+
+/* Checkbox, title, and the goal's link beneath the title. */
+.goal-picker .check-label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0 0.45rem;
+}
+
+.goal-picker .slug {
+  grid-column: 2;
+  font: 0.7rem/1.3 var(--mono);
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+
+.goal-statement {
+  display: grid;
+  gap: 1rem;
+  justify-items: start;
+}
+
+.prose {
+  display: grid;
+  gap: 0.75rem;
+  font: 1rem/1.6 var(--serif);
+  color: var(--ink-2);
+  white-space: normal;
+}
+
+.goal-edit textarea {
+  font: 0.95rem/1.55 var(--serif);
+}
+
+/* ---- Review ------------------------------------------------------------ */
+
+.review-controls {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.review-controls .segmented {
+  justify-self: start;
+}
+
+.review-controls .filter-bar .field {
+  flex-basis: 8.5rem;
+}
+
+.review-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18rem;
+  gap: 2.5rem;
+  align-items: start;
+}
+
+/* The one raised surface: the document you take into your review. */
+.sheet {
+  padding: 2.5rem 3rem 3rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.sheet-head {
+  padding-bottom: 1.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.sheet-head h2 {
+  font: 500 2rem/1.15 var(--serif);
+  letter-spacing: -0.01em;
+}
+
+.sheet-range {
+  margin-top: 0.3rem;
+  font: italic 1.1rem var(--serif);
+  color: var(--ink-2);
+}
+
+.sheet-summary {
+  margin-top: 0.75rem;
+  font: 0.8rem var(--mono);
+  color: var(--ink-3);
+}
+
+.sheet-filters {
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--brass);
+}
+
+.sheet-filters a {
+  color: var(--ink-2);
+}
+
+.sheet-date {
+  margin: 0;
+  font: inherit;
+  color: inherit;
+}
+
+/* Weekday over date, so it fits the margin without an odd wrap. */
+.sheet-date span {
+  display: block;
+  white-space: nowrap;
+}
+
+.sheet-section + .sheet-section {
+  margin-top: 2.25rem;
+}
+
+.sheet-heading {
+  margin-bottom: 0.75rem;
+  font: 600 1.15rem var(--serif);
+}
+
+.sheet-section.is-highlights .sheet-heading {
+  color: var(--brass);
+}
+
+.sheet-goal {
+  display: flex;
+  align-items: baseline;
+  margin: 1.1rem 0 0.4rem;
+  font: italic 1rem var(--serif);
+  color: var(--ink-2);
+}
+
+.sheet-goal a {
+  text-decoration: none;
+}
+
+.sheet-goal a:hover {
+  text-decoration: underline;
+}
+
+.sheet-items {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.sheet-item {
+  position: relative;
+  padding-left: 1rem;
+  font: 1.02rem/1.55 var(--serif);
+}
+
+.sheet-item::before {
+  content: "";
+  position: absolute;
+  left: 0.1rem;
+  top: 0.72em;
+  width: 0.3rem;
+  height: 1px;
+  background: var(--ink-3);
+}
+
+.sheet-item.is-starred::before {
+  top: 0.2em;
+  bottom: 0.2em;
+  width: 3px;
+  height: auto;
+  left: 0;
+  border-radius: 2px;
+  background: var(--brass);
+}
+
+.sheet-item .done-mark {
+  vertical-align: -0.15em;
+  margin-right: 0.3rem;
+}
+
+.sheet-item .done-mark .icon {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.sheet-item .priority {
+  margin-left: 0.5rem;
+}
+
+.sheet-item .chips {
+  display: inline-flex;
+  margin: 0 0 0 0.5rem;
+  vertical-align: 0.1em;
+}
+
+.item-date {
+  display: inline-block;
+  min-width: 3.6rem;
+  margin-right: 0.5rem;
+  font: 0.78rem var(--mono);
+  color: var(--ink-3);
+}
+
+.sheet-month {
+  margin: 1.5rem 0 0.25rem calc(var(--margin-w) + var(--gap));
+  font: italic 1rem var(--serif);
+  color: var(--ink-2);
+}
+
+.sheet-month:first-of-type {
+  margin-top: 0.25rem;
+}
+
+.sheet-day {
+  display: grid;
+  grid-template-columns: var(--margin-w) minmax(0, 1fr);
+  column-gap: var(--gap);
+  padding: 0.55rem 0;
+  background: linear-gradient(var(--line-strong), var(--line-strong)) no-repeat;
+  background-size: 1px 100%;
+  background-position: calc(var(--margin-w) + var(--gap) / 2) 0;
+}
+
+.sheet-day .margin {
+  padding-top: 0.3rem;
+}
+
+.review-side {
+  position: sticky;
+  top: 1.5rem;
+  display: grid;
+  gap: 1.75rem;
+}
+
+.review-side .section-title {
+  margin-bottom: 0.6rem;
+}
+
+.export-panel {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.copy-status {
+  min-height: 1.2em;
+  font-size: 0.8rem;
+  color: var(--sage);
+}
+
+.download-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+}
+
+.tally {
+  display: grid;
+  gap: 1px;
+}
+
+.tally li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.85rem;
+}
+
+.tally a {
+  color: var(--ink-2);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.tally a:hover,
+.tally a[aria-current] {
+  color: var(--ink);
+}
+
+.tally a[aria-current]::after {
+  content: " ×";
+  color: var(--ink-3);
+}
+
+.md-source > summary {
+  font-size: 0.85rem;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.md-source textarea {
+  margin-top: 0.5rem;
+  font: 0.75rem/1.5 var(--mono);
+}
+
+/* ---- Welcome (first run) ----------------------------------------------- */
+
+.welcome {
+  max-width: 44rem;
+}
+
+.welcome-step {
+  display: grid;
+  gap: 0.6rem;
+  padding: 1.4rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.welcome-step h2 {
+  font: 500 1.25rem var(--serif);
+}
+
+.welcome-step p {
+  color: var(--ink-2);
+}
+
+.welcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.install-status {
+  font-size: 0.875rem;
+  color: var(--ink-2);
+}
+
+.install-manual > summary {
+  font-size: 0.875rem;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.install-manual ol {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+  padding-left: 1.25rem;
+  list-style: decimal;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+}
+
+.welcome .vault-path {
+  font-size: 0.85rem;
+}
+
+.welcome-skip {
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+/* ---- Shortcuts dialog -------------------------------------------------- */
+
+.shortcuts {
+  width: min(28rem, calc(100vw - 2rem));
+  padding: 1.5rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.shortcuts::backdrop {
+  background: rgb(0 0 0 / 0.55);
+}
+
+.shortcuts h2 {
+  margin-bottom: 1rem;
+  font: 500 1.25rem var(--serif);
+}
+
+.shortcuts dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1.25rem;
+  font-size: 0.9rem;
+}
+
+.shortcuts dd {
+  color: var(--ink-2);
+}
+
+/* ---- Narrow screens ---------------------------------------------------- */
+
+@media (max-width: 1180px) {
+  .today {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tray {
+    position: static;
+    min-height: 0;
+    max-height: none;
+    max-width: 54rem;
+    width: 100%;
+    justify-self: center;
+    padding: 1.5rem 2.5rem 3rem;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .review-layout,
+  .goals-layout,
+  .goal-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .review-side {
+    position: static;
+  }
+
+  /* Narrow: show the goal's description/edit and the export actions before long feeds. */
+  .goal-layout > .side-panel,
+  .review-layout > .review-side {
+    order: -1;
+  }
+}
+
+@media (max-width: 860px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rail {
+    position: static;
+    height: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem 1.25rem;
+    padding: 0.75rem 1rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .nav {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .nav-keys {
+    display: none;
+  }
+
+  /* Keep setup, install and quit reachable: a wrapped row instead of hidden. */
+  .rail-foot {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 1rem;
+    margin-top: 0;
+    padding: 0;
+  }
+
+  .rail-foot .rail-label,
+  .rail-foot .rail-note {
+    display: none;
+  }
+
+  .rail-foot .vault-path {
+    flex-basis: 100%;
+  }
+
+  .rail-foot .link-button {
+    margin-top: 0;
+  }
+
+  .page,
+  .ledger,
+  .tray {
+    padding-left: 1.25rem;
+    padding-right: 1.25rem;
+  }
+
+  .todo-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .todo-facts,
+  .todo-row > .row-actions {
+    grid-column: 2;
+  }
+
+  .todo-facts {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .dates {
+    display: flex;
+    gap: 0.75rem;
+  }
+
+  .sheet {
+    padding: 1.5rem 1.25rem 2rem;
+  }
+}
+
+@media (max-width: 560px) {
+  :root {
+    --margin-w: 2.75rem;
+    --gap: 1rem;
+  }
+
+  .entry {
+    grid-template-columns: var(--margin-w) minmax(0, 1fr);
+  }
+
+  .entry > .row-actions {
+    grid-column: 2;
+    justify-content: flex-end;
+  }
+
+  .day-head h1 {
+    font-size: 1.85rem;
+  }
+
+  .key-hint {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ---- Print: the review becomes a plain document ------------------------ */
+
+@media print {
+  html {
+    background: #fff;
+    color: #111;
+  }
+
+  .rail,
+  .page-head,
+  .review-controls,
+  .review-side,
+  .skip-link {
+    display: none !important;
+  }
+
+  .shell,
+  .review-layout {
+    display: block;
+  }
+
+  .page {
+    padding: 0;
+    max-width: none;
+  }
+
+  .sheet {
+    border: 0;
+    padding: 0;
+    background: none;
+  }
+
+  .sheet,
+  .sheet * {
+    color: #111 !important;
+  }
+
+  .tag,
+  .goal-link {
+    background: none;
+    border: 0;
+  }
+
+  /* Browsers skip backgrounds when printing, so draw the markers with borders. */
+  .sheet-item::before {
+    background: none;
+    border-top: 1px solid #111;
+  }
+
+  .sheet-item.is-starred::before {
+    background: none;
+    border-top: 0;
+    border-left: 3px solid #111;
+  }
+
+  .sheet-heading,
+  .sheet-month,
+  .sheet-goal {
+    break-after: avoid;
+  }
+
+  .sheet-filters a {
+    display: none;
+  }
+
+  .sheet-day {
+    break-inside: avoid;
+    background: none;
+  }
+}

@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Milestone 5 - Markdown and AI Export</title>
+  <link rel="stylesheet" href="assets/planning.css">
+</head>
+<body>
+  <div class="page">
+    <aside class="sidebar">
+      <h1 class="brand">Milestone 5<br>Export</h1>
+      <p>Copy-paste-ready and AI-ready review output.</p>
+      <nav class="nav" aria-label="Planning pages">
+        <a href="index.html">Roadmap</a>
+        <a href="milestone-01-foundation.html">M1 Foundation</a>
+        <a href="milestone-02-day-view-journal.html">M2 Journal</a>
+        <a href="milestone-03-day-view-todos.html">M3 TODO Panel</a>
+        <a href="milestone-04-review-output.html">M4 Review</a>
+        <a href="milestone-05-markdown-export.html" aria-current="page">M5 Export</a>
+        <a href="milestone-06-todo-manager.html">M6 TODO Manager</a>
+        <a href="milestone-07-polish-backup.html">M7 Polish</a>
+        <a href="ui-mockups.html">UI Mockups</a>
+        <a href="data-access-strategy.html">AI Data Access</a>
+        <a href="acceptance-matrix.html">Acceptance Matrix</a>
+        <a href="deferred-scope.html">Deferred Scope</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <header class="hero">
+        <p class="eyebrow">Milestone 5</p>
+        <h1>Markdown and AI Export</h1>
+        <p class="lead">Generate the same accomplishment document as Markdown for humans and structured JSON/JSONL for AI-assisted review prep.</p>
+        <div class="meta">
+          <span class="tag done">AC-19</span>
+          <span class="tag done">AC-20</span>
+        </div>
+      </header>
+
+      <section class="callout green">
+        <h2>Goal</h2>
+        <p>The review page can copy Markdown, download a <code>.md</code> file, and export a date-range data bundle that an agent can read without scraping the database directly.</p>
+      </section>
+
+      <section>
+        <h2>Export Contract</h2>
+        <table>
+          <thead><tr><th>Route</th><th>Parameters</th><th>Response</th></tr></thead>
+          <tbody>
+            <tr><td><code>GET /review/export.md</code></td><td><code>from</code>, <code>to</code>, optional <code>sort=asc|desc</code>, optional <code>highlightsOnly=1</code></td><td><code>text/markdown</code> attachment or inline download response.</td></tr>
+            <tr><td><code>GET /review/export.json</code></td><td><code>from</code>, <code>to</code>, optional <code>sort=asc|desc</code>, optional <code>highlightsOnly=1</code>, optional <code>tag</code></td><td>Structured review bundle with items, tags, stats, and metadata.</td></tr>
+            <tr><td><code>GET /review/export.jsonl</code></td><td>Same filters as JSON export.</td><td>One review item per line for large-range agent ingestion.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Markdown Shape</h2>
+        <pre><code># Accomplishments: 2026-01-01 to 2026-03-31
+
+## Summary
+
+- Journal entries: 42
+- TODOs completed: 18
+- Highlights: 9
+- Active logging days: 37
+- Time logged: 64h 30m
+- Tags: accessibility, support, testing
+
+## Highlights
+
+- 2026-01-08 - Resolved flaky billing integration test.
+
+## Daily Accomplishments
+
+### 2026-01-08
+
+#### Journal
+
+- Resolved flaky billing integration test.
+
+#### Completed TODOs
+
+- [High] Write incident follow-up notes</code></pre>
+      </section>
+
+      <section>
+        <h2>AI Export Shape</h2>
+        <pre><code>{
+  "range": { "from": "2026-01-01", "to": "2026-03-31" },
+  "generated_at": "2026-05-28T22:15:00.000Z",
+  "stats": {
+    "journal_entries": 42,
+    "completed_todos": 18,
+    "highlights": 9,
+    "active_logging_days": 37,
+    "time_logged_minutes": 3870,
+    "tags": { "accessibility": 8, "testing": 6 }
+  },
+  "items": [
+    {
+      "date": "2026-01-08",
+      "type": "journal",
+      "content": "Resolved flaky billing integration test.",
+      "tags": ["testing"],
+      "is_highlight": true,
+      "time_spent_minutes": 45
+    }
+  ]
+}</code></pre>
+      </section>
+
+      <section>
+        <h2>Planned Files</h2>
+        <table>
+          <thead><tr><th>Path</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>src\lib\markdown.ts</code></td><td>Format review model as Markdown.</td></tr>
+            <tr><td><code>src\lib\ai-export.ts</code></td><td>Format review model as JSON and JSONL.</td></tr>
+            <tr><td><code>src\routes\review.ts</code></td><td>Export route and review page copy support.</td></tr>
+            <tr><td><code>src\views\review.ts</code></td><td>Copy button, hidden/visible textarea, manual fallback.</td></tr>
+            <tr><td><code>public\app.js</code></td><td>Clipboard copy with fallback selection behavior.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>TDD Plan</h2>
+        <ol class="sequence">
+          <li>RED: unit tests for Markdown formatter with summary, highlights, daily journal groups, TODO priorities, tags, omitted empty sections, and time formatting.</li>
+          <li>GREEN: implement Markdown formatter from the review model without database access.</li>
+          <li>RED: unit tests for JSON and JSONL AI export shape, tag arrays, stats, and stable date-range metadata.</li>
+          <li>GREEN: implement AI export formatters from the same review model.</li>
+          <li>RED: integration tests for <code>/review/export.md</code>, <code>/review/export.json</code>, and <code>/review/export.jsonl</code> response headers, date range filtering, tag filtering, highlights-only mode, and sort order.</li>
+          <li>GREEN: implement export routes using the same review query as the page.</li>
+          <li>RED: UI test for copy button fallback markup presence.</li>
+          <li>GREEN: implement copy button and clipboard fallback.</li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Done Gate</h2>
+        <ul>
+          <li>Markdown export content matches the review page model.</li>
+          <li>JSON and JSONL exports include range metadata, stats, tags, and normalized review items.</li>
+          <li>AI-readable exports support date range, highlight, sort, and tag filters.</li>
+          <li>Highlights-only export excludes unstarred items.</li>
+          <li>Downloaded file has a useful filename based on date range.</li>
+          <li>Copy button uses <code>navigator.clipboard.writeText</code> when available.</li>
+          <li>Manual fallback allows selecting/copying the generated Markdown.</li>
+          <li>Output can be pasted into a performance review draft without extra formatting.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

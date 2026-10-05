@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Milestone 6 - TODO Manager</title>
+  <link rel="stylesheet" href="assets/planning.css">
+</head>
+<body>
+  <div class="page">
+    <aside class="sidebar">
+      <h1 class="brand">Milestone 6<br>TODO Manager</h1>
+      <p>Secondary task management surface.</p>
+      <nav class="nav" aria-label="Planning pages">
+        <a href="index.html">Roadmap</a>
+        <a href="milestone-01-foundation.html">M1 Foundation</a>
+        <a href="milestone-02-day-view-journal.html">M2 Journal</a>
+        <a href="milestone-03-day-view-todos.html">M3 TODO Panel</a>
+        <a href="milestone-04-review-output.html">M4 Review</a>
+        <a href="milestone-05-markdown-export.html">M5 Export</a>
+        <a href="milestone-06-todo-manager.html" aria-current="page">M6 TODO Manager</a>
+        <a href="milestone-07-polish-backup.html">M7 Polish</a>
+        <a href="ui-mockups.html">UI Mockups</a>
+        <a href="data-access-strategy.html">AI Data Access</a>
+        <a href="acceptance-matrix.html">Acceptance Matrix</a>
+        <a href="deferred-scope.html">Deferred Scope</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <header class="hero">
+        <p class="eyebrow">Milestone 6</p>
+        <h1>TODO Manager</h1>
+        <p class="lead">Add a full task list view after the daily journal, TODO context, review, and export workflows already work.</p>
+        <div class="meta">
+          <span class="tag done">AC-13</span>
+          <span class="tag warn">TM-1..TM-8</span>
+        </div>
+      </header>
+
+      <section class="callout">
+        <h2>Goal</h2>
+        <p>The user can manage all active and historical TODOs from <code>/todos</code> with filters, search, detail edits, highlights, soft delete, and explicit completion clearing.</p>
+        <p>Layout reference: <a href="ui-mockups.html">TODO Manager mockup</a>.</p>
+      </section>
+
+      <section>
+        <h2>Scope</h2>
+        <div class="grid two">
+          <div class="panel">
+            <h3>Included</h3>
+            <ul>
+              <li>View all non-deleted TODOs.</li>
+              <li>Filter by status, tag, and priority.</li>
+              <li>Search task and notes.</li>
+              <li>Create, edit, highlight, and soft delete TODOs.</li>
+              <li>Explicitly clear completion metadata with confirmation.</li>
+              <li>Default sort by status group, priority, and most recently updated.</li>
+            </ul>
+          </div>
+          <div class="panel">
+            <h3>Excluded</h3>
+            <ul>
+              <li>Recurring TODOs.</li>
+              <li>Kanban board or drag-and-drop.</li>
+              <li>Tag hierarchy, tag colors, aliases, or tag management screens.</li>
+              <li>Project hierarchy.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Default Sort</h2>
+        <table>
+          <thead><tr><th>Sort Layer</th><th>Order</th></tr></thead>
+          <tbody>
+            <tr><td>Status group</td><td>In Progress, Open, Blocked, Done, Cancelled.</td></tr>
+            <tr><td>Priority</td><td>High, Medium, Low, None.</td></tr>
+            <tr><td>Updated time</td><td>Most recently updated first.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Planned Files</h2>
+        <table>
+          <thead><tr><th>Path</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>src\routes\todos.ts</code></td><td>TODO manager page, filters, tag search, clear-completion action.</td></tr>
+            <tr><td><code>src\views\todos.ts</code></td><td>Manager page, table/list, filter form, edit form.</td></tr>
+            <tr><td><code>src\queries.ts</code></td><td>Filter/search query helpers and explicit completion clear mutation.</td></tr>
+            <tr><td><code>src\views\components.ts</code></td><td>Shared TODO row, status labels, priority labels, confirmations.</td></tr>
+            <tr><td><code>public\app.js</code></td><td>Focus search on <code>/</code> key when on TODO manager.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>TDD Plan</h2>
+        <ol class="sequence">
+          <li>RED: query tests for status, tag, priority, and search filtering.</li>
+          <li>GREEN: implement filter/search query builder using parameterized SQL.</li>
+          <li>RED: tests for default sort order.</li>
+          <li>GREEN: implement sort expression and rendering order.</li>
+          <li>RED: integration test for explicit clear completion metadata with confirmation route.</li>
+          <li>GREEN: implement clear-completion route and fragment/page response.</li>
+          <li>RED: rendering tests for filters, search field, edit details, highlight toggle, and delete confirmation attributes.</li>
+          <li>GREEN: implement TODO manager view.</li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Done Gate</h2>
+        <ul>
+          <li><code>/todos</code> lists all non-deleted TODOs.</li>
+          <li>Status, tag, priority, and search filters can combine.</li>
+          <li>Editing task, notes, priority, tags, status, and highlight works.</li>
+          <li>Clear-completion requires confirmation and sets both completion fields to null.</li>
+          <li>Clearing completion removes the TODO from review output until marked done again.</li>
+          <li><code>/</code> focuses the search field on the TODO Manager page.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

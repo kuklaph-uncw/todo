@@ -1,0 +1,9 @@
+node_modules/
+vault/
+demo-vault/
+dist/
+tmp/
+tracker.db
+*.db-wal
+*.db-shm
+*.db-journal

@@ -1,0 +1,9 @@
+<!-- Every edge sits on a 4-unit grid so the icon stays sharp at 16/32/48/64 px. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="12" fill="#2a2723"/>
+  <rect x="16" y="8" width="32" height="48" rx="4" fill="#ece6da"/>
+  <rect x="20" y="24" width="12" height="4" rx="1" fill="#5f5b54"/>
+  <rect x="20" y="32" width="20" height="4" rx="1" fill="#5f5b54"/>
+  <rect x="20" y="40" width="16" height="4" rx="1" fill="#5f5b54"/>
+  <path d="M36 4h8v24l-4-4-4 4z" fill="#d8aa5e"/>
+</svg>

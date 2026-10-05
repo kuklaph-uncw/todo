@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Daily Work Ledger - Day View</title>
+  <link rel="stylesheet" href="stitch.css">
+</head>
+<body class="app">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <aside class="sidebar">
+    <div>
+      <div class="brand">
+        <div class="brand-mark">OL</div>
+        <h1>Obsidian Ledger</h1>
+        <p>Verified Archive</p>
+      </div>
+      <button class="btn quick-button" data-quick-entry type="button"><span class="icon">+</span>Quick Entry</button>
+      <nav class="nav" aria-label="Mock sections">
+        <a class="active" aria-current="page" href="stitch.dash.html"><span class="nav-token">D</span><span>Day View</span></a>
+        <a href="stitch.todo.html"><span class="nav-token">T</span><span>TODO Manager</span></a>
+        <a href="stitch.review.html"><span class="nav-token">R</span><span>Review</span></a>
+        <a href="stitch.export.html"><span class="nav-token">E</span><span>Export</span></a>
+      </nav>
+    </div>
+    <p class="sidebar-foot">Local SQLite ledger. Tags, highlights, and completion evidence remain portable.</p>
+  </aside>
+
+  <main id="main" class="app-main">
+    <div class="canvas day-shell">
+      <section class="ledger-pane" aria-labelledby="day-title">
+        <header class="date-header">
+          <div>
+            <h1 id="day-title">Monday, Oct 23, 2023</h1>
+            <p>Daily Work Ledger</p>
+          </div>
+          <div class="date-nav">
+            <button class="btn" type="button" aria-label="Previous day">&lt;</button>
+            <button class="btn primary" type="button">Today</button>
+            <button class="btn" type="button" aria-label="Next day">&gt;</button>
+          </div>
+        </header>
+
+        <section class="capture-card" aria-label="New ledger entry">
+          <label for="journal-entry">New Entry</label>
+          <textarea id="journal-entry" data-quick-entry-target placeholder="Log activity, notes, or observations..."></textarea>
+          <div class="capture-tools">
+            <div class="toolbar" aria-label="Entry metadata">
+              <button class="btn" type="button"><span class="icon">#</span>Tag</button>
+              <button class="btn" type="button">Attach</button>
+              <button class="btn" type="button">Highlight</button>
+            </div>
+            <button class="btn primary" type="button">Commit</button>
+          </div>
+        </section>
+
+        <div class="entry-list" aria-label="Journal entries">
+          <article class="entry">
+            <div class="entry-time">09:15</div>
+            <div>
+              <p>Completed initial review of the new authentication flow. Identified three edge cases regarding session expiry that need to be addressed before launch. Created tickets AUTH-401 through AUTH-403.</p>
+              <div class="tag-row"><span class="tag">#engineering</span><span class="tag">#review</span></div>
+            </div>
+            <button class="btn" type="button" aria-label="Entry actions">...</button>
+          </article>
+          <article class="entry highlight">
+            <div class="entry-time">11:30</div>
+            <div>
+              <p>Sync with product team regarding Q4 roadmap. Aligned on priority of mobile responsiveness improvements over new feature development for the next sprint.</p>
+              <div class="tag-row"><span class="tag">#meeting</span><span class="tag">#planning</span></div>
+            </div>
+            <button class="btn" type="button" aria-label="Entry actions">...</button>
+          </article>
+          <article class="entry">
+            <div class="entry-time">14:05</div>
+            <div>
+              <p>Deployed hotfix v1.4.2 to production to resolve the dashboard loading regression. Monitored error rates for 45 minutes post-deploy with no recurrence.</p>
+              <div class="tag-row"><span class="tag">#deployment</span><span class="tag gold">highlight</span></div>
+            </div>
+            <button class="btn" type="button" aria-label="Entry actions">...</button>
+          </article>
+        </div>
+      </section>
+
+      <aside class="focus-rail" aria-label="Day TODOs and summary">
+        <section class="ledger-card">
+          <div class="panel-header">
+            <div>
+              <h3>Today's Focus</h3>
+              <p>3 / 5 complete</p>
+            </div>
+            <span class="tag green">3 of 5</span>
+          </div>
+          <label for="task-entry">Add TODO</label>
+          <input id="task-entry" type="text" value="Review mobile nav designs">
+          <div class="task-list">
+            <label class="task-card">
+              <input type="checkbox">
+              <span><strong>Review mobile nav designs</strong><p>#design - high</p></span>
+            </label>
+            <label class="task-card">
+              <input type="checkbox">
+              <span><strong>Prepare sprint demo notes</strong><p>#planning - medium</p></span>
+            </label>
+            <label class="task-card done">
+              <input checked type="checkbox">
+              <span><strong>Deploy hotfix v1.4.2</strong><p>Completed 2:55 PM</p></span>
+            </label>
+          </div>
+        </section>
+
+        <section class="ledger-card">
+          <h3>Ledger Index</h3>
+          <div class="stats-grid single">
+            <div class="metric"><strong>3</strong><span>entries</span></div>
+            <div class="metric"><strong>5</strong><span>tags</span></div>
+            <div class="metric"><strong>1</strong><span>highlight</span></div>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </main>
+  <script src="stitch.js"></script>
+</body>
+</html>
