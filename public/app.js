@@ -24,8 +24,6 @@
       if (localStorage.getItem(key) === "1") details.open = true;
       details.addEventListener("toggle", () => localStorage.setItem(key, details.open ? "1" : "0"));
     });
-
-    syncInstallUi(root);
   }
 
   // ---- Post a form, then swap in the page it redirects to ----------------
@@ -184,46 +182,6 @@
     document.querySelectorAll("details.menu[open]").forEach((menu) => {
       if (!menu.contains(target)) menu.removeAttribute("open");
     });
-  });
-
-  // ---- Install as an app (sidebar and welcome page) -----------------------
-
-  let installPrompt = null;
-  const standalone = matchMedia("(display-mode: standalone)").matches;
-  const installStatus = (text) => announce(document.querySelector("[data-install-status]"), text);
-
-  function syncInstallUi(root) {
-    root.querySelectorAll("[data-install]").forEach((button) => (button.hidden = !installPrompt));
-    // The manual steps are open until the browser offers its own install prompt.
-    root.querySelectorAll("[data-install-manual]").forEach((details) => (details.open = !installPrompt && !standalone));
-    if (!("onbeforeinstallprompt" in window)) {
-      root.querySelectorAll("[data-install-unsupported]").forEach((note) => note.removeAttribute("hidden"));
-    }
-    if (standalone && root.querySelector("[data-install-status]")) installStatus("You're already using the installed app.");
-  }
-
-  // The browser fires this only when the app can be installed (not when it already is).
-  window.addEventListener("beforeinstallprompt", (event) => {
-    event.preventDefault();
-    installPrompt = event;
-    syncInstallUi(document);
-  });
-
-  window.addEventListener("appinstalled", () => {
-    installStatus("Installed. Opening Work Ledger…");
-    // The browser moves this tab into the new app window: show the app, not this page.
-    location.assign("/");
-  });
-
-  document.addEventListener("click", async (event) => {
-    const button = event.target instanceof Element ? event.target.closest("[data-install]") : null;
-    if (!button || !installPrompt) return;
-    installPrompt.prompt();
-    const { outcome } = await installPrompt.userChoice;
-    // A prompt can only be used once; the browser fires a fresh event if it can ask again.
-    installPrompt = null;
-    syncInstallUi(document);
-    if (outcome !== "accepted") installStatus("No problem. You can install it any time from Welcome & setup in the sidebar.");
   });
 
   // ---- Keyboard -----------------------------------------------------------

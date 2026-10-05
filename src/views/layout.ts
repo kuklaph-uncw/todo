@@ -16,8 +16,6 @@ export interface LayoutOptions {
   vaultPath: string;
   /** Open + in-progress + blocked todos, shown beside the nav item. */
   openTodos?: number;
-  /** The packaged app runs in the background, so it needs a visible way to stop. */
-  canQuit?: boolean;
 }
 
 const SHORTCUTS: [string, string][] = [
@@ -49,7 +47,6 @@ export function renderLayout(options: LayoutOptions): string {
   <meta name="color-scheme" content="dark">
   <title>${escapeHtml(options.title)} · Work Ledger</title>
   <meta name="theme-color" content="#141311">
-  <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
   <script src="/app.js" defer></script>
@@ -64,14 +61,7 @@ export function renderLayout(options: LayoutOptions): string {
         <p class="rail-label">Vault</p>
         <p class="vault-path" title="${escapeHtml(options.vaultPath)}">${escapeHtml(options.vaultPath)}</p>
         <p class="rail-note">Plain Markdown files. Back up by copying the folder.</p>
-        <button type="button" class="link-button install-link" data-install hidden>Install as an app</button>
-        <a class="link-button" href="/welcome">Welcome &amp; setup</a>
         <button type="button" class="link-button" data-open-shortcuts>Keyboard shortcuts <kbd>?</kbd></button>
-        ${
-          options.canQuit
-            ? `<form method="post" action="/quit" data-confirm="Quit Work Ledger? It stops running in the background. Start WorkLedger.exe to use it again."><button type="submit" class="link-button">Quit Work Ledger</button></form>`
-            : ""
-        }
       </div>
     </header>
     <main id="main" tabindex="-1">${options.main}</main>

@@ -1,23 +1,24 @@
-# Daily Work Ledger — PRD / Implementation Handoff
+# Work Ledger: Product Requirements
 
 **Author:** [you]
-**Date:** 2026-05-27
-**Status:** Draft v1
-**Target stack:** Bun + SQLite + server-rendered HTML + HTMX
-**Product type:** Personal, local-first web app
+**Date:** 2026-10-05
+**Status:** v1 built. This document describes the product as it exists, plus open items.
+**Stack:** Electron desktop app, Markdown files on disk, server-rendered HTML, a small progressive-enhancement script
+**Product type:** Personal, private desktop app (Windows)
 
 ---
 
 ## 1. Summary
 
-Daily Work Ledger is a lightweight local web app for recording daily work, preserving lightweight TODO context, and producing review evidence.
+Work Ledger is a private desktop app for recording daily work, keeping lightweight TODOs, tracking review-cycle goals, and producing review evidence.
 
-The app has two related purposes:
+The app has three related purposes:
 
-1. **Daily accomplishment logging** — a fast, freeform way to capture what actually happened during the day.
-2. **Lightweight TODO tracking** — a simple structured list for things that need to be remembered or completed.
+1. **Daily accomplishment logging.** A fast, freeform way to capture what actually happened during the day.
+2. **Lightweight TODO tracking.** A simple list for things that need to be remembered or completed.
+3. **Goal tracking.** The goals a review cycle is measured against, with the work linked to each one.
 
-The primary use case is performance review preparation. Over weeks or months, the user can build a reliable record of meaningful work and later generate a clean, copy-paste-ready summary for any date range.
+The primary use case is performance review preparation. Over weeks or months, the user builds a reliable record of meaningful work and later generates a clean, copy-paste-ready summary for any date range or goal.
 
 The app should feel closer to a private work ledger than a project management tool or generic TODO app.
 
@@ -29,7 +30,7 @@ Performance reviews require recalling meaningful work over long periods of time.
 
 The user needs a low-friction system that answers:
 
-> “What did I accomplish during this period?”
+> "What did I accomplish during this period, and how does it map to my goals?"
 
 The system should make daily capture easy enough to become a habit and make historical review fast enough that preparing a review does not require manual reconstruction.
 
@@ -37,34 +38,37 @@ The system should make daily capture easy enough to become a habit and make hist
 
 ## 3. Product Goals
 
-| Goal                | Description                                                                            |
-| ------------------- | -------------------------------------------------------------------------------------- |
-| Fast capture        | Add a daily accomplishment in under 10 seconds.                                        |
-| Freeform journaling | Let the user describe work naturally, without forcing everything into rigid fields.    |
-| Lightweight TODOs   | Support simple TODO tracking without turning the app into project management software. |
-| Review-ready output | Generate a readable Markdown summary for a selected date range.                        |
-| AI-readable export  | Export review-range JSON and JSONL so an agent can summarize long periods of work.     |
-| Local-first         | Run on the user’s machine with data stored in a local SQLite file.                     |
-| Durable history     | Completion dates and historical entries should be trustworthy over time.               |
-| Low maintenance     | Use a simple stack with no required build step or cloud service.                       |
-| Keyboard-friendly   | Common actions should be quick from the keyboard.                                      |
+| Goal                | Description                                                                                  |
+| ------------------- | -------------------------------------------------------------------------------------------- |
+| Fast capture        | Add a daily accomplishment in under 10 seconds.                                              |
+| Freeform journaling | Let the user describe work naturally, without forcing everything into rigid fields.          |
+| Lightweight TODOs   | Support simple TODO tracking without turning the app into project management software.       |
+| Goal evidence       | Link work to the goals of a review cycle, so each goal collects its own evidence.             |
+| Review-ready output | Generate a readable document for a selected date range, as Markdown or formatted text.        |
+| AI-readable export  | Export review-range JSON and JSONL so an agent can summarize long periods of work.           |
+| Local and readable  | Store data as plain Markdown files in a local folder that a person can read and edit.        |
+| Durable history     | Completion dates and historical entries should be trustworthy over time.                     |
+| Low maintenance     | Use a simple stack with no cloud service. The only build step packages the desktop app.       |
+| Keyboard-friendly   | Common actions should be quick from the keyboard.                                            |
 
 ---
 
-## 4. Non-Goals for v1
+## 4. Non-Goals
 
-| Non-goal                | Reason                                            |
-| ----------------------- | ------------------------------------------------- |
-| Multi-user support      | This is a personal tool.                          |
-| Authentication          | Not needed while bound to localhost.              |
-| Native mobile app       | Responsive web is enough for v1.                  |
-| Cloud sync              | Local-first simplicity is more important.         |
-| Notifications/reminders | The app is for capture and review, not reminders. |
-| Rich attachments        | Text is the core medium.                          |
-| Advanced tag management | Simple first-class tags are enough for v1.        |
-| In-app AI summaries     | Capture and export should work without AI.        |
-| Project/OKR hierarchy   | Too heavy for v1.                                 |
-| Recurring TODOs         | Useful later, not needed initially.               |
+| Non-goal                    | Reason                                                                              |
+| --------------------------- | ----------------------------------------------------------------------------------- |
+| Multi-user support          | This is a personal tool.                                                            |
+| Authentication              | Not needed. The desktop app has no network port and one user.                       |
+| Mobile or other platforms   | Windows desktop only. The layout adapts to narrow windows, but there is no mobile app. |
+| Cloud sync                  | The notes folder is local. The app never uploads or syncs it.                       |
+| Notifications/reminders     | The app is for capture and review, not reminders.                                   |
+| Rich attachments            | Text is the core medium.                                                            |
+| Advanced tag management     | Simple `#tags` are enough.                                                          |
+| In-app AI summaries         | Capture and export work without AI. Exports are shaped for an outside AI tool.      |
+| Project/OKR hierarchy       | Goals are one flat list per review cycle. No projects, key results, or nesting.     |
+| Recurring TODOs             | Useful later, not needed now.                                                       |
+| Obsidian dependency         | The files read well in Obsidian, but the app needs neither Obsidian nor its plugins. |
+| Code signing, auto-update   | The build is unsigned. The app never checks for updates.                            |
 
 ---
 
@@ -105,7 +109,7 @@ Examples of meaningful journal entries:
 
 The user should be able to write a plain sentence and move on.
 
-Metadata like tags, time spent, and highlight status should be useful but not required.
+Metadata like tags, goal links, time spent, and highlight status should be useful but not required. Tags and goal links can be typed straight into the sentence.
 
 ---
 
@@ -113,29 +117,35 @@ Metadata like tags, time spent, and highlight status should be useful but not re
 
 The review page should prioritize readable output over analytics.
 
-The main artifact is a clean accomplishment summary that can be copied into a review document. Stats are useful, but secondary.
+The main artifact is a clean accomplishment summary that can be pasted into a review document. Stats are useful, but secondary.
 
 ---
 
 ### 5.5 Dates Must Be Trustworthy
 
-If a TODO was completed on a date, that date should not silently change because the TODO was edited later.
+If a TODO was completed on a date, that date should not silently change because the TODO was edited or reopened later.
 
-Completion metadata should be frozen once set, unless explicitly cleared by the user.
+Completion dates are frozen once set, unless explicitly cleared by the user.
 
 ---
 
 ### 5.6 Local and Private by Default
 
-The app should run on `127.0.0.1`, store data locally, and require no external services.
+The app runs as a desktop window on the user's machine, stores data in a local folder, and requires no external services. It opens no network port and makes no network calls.
 
 No telemetry. No cloud dependency. No account.
 
 ---
 
+### 5.7 The Files Are the Truth
+
+The notes folder (the "vault") is the source of truth. Everything the app writes is a Markdown line or file that reads naturally in a text editor or Obsidian. Hand edits made outside the app should survive, and backing up means copying the folder.
+
+---
+
 ## 6. Primary User
 
-**User:** One person using the app locally to track work and prepare performance reviews.
+**User:** One person using the app on their own computer to track work and prepare performance reviews.
 
 The app is intentionally optimized for a single-user workflow.
 
@@ -145,23 +155,23 @@ The app is intentionally optimized for a single-user workflow.
 
 ### 7.1 Daily Capture
 
-The user opens the app, types one or more accomplishments, saves them, and leaves.
+The user opens the app, types one or more accomplishments, saves them, and closes the window.
 
 Example input:
 
 ```txt
-Reviewed API migration proposal
-Helped Alex debug staging auth issue
+Reviewed API migration proposal #review
+Helped Alex debug staging auth issue [[improve-reliability]]
 Cleaned up flaky billing test
 ```
 
-The app saves these as daily journal entries for the selected date.
+Each line becomes its own journal entry for the selected date. Entries logged for today get the current clock time.
 
 ---
 
 ### 7.2 Backfill a Previous Day
 
-The user can switch to a previous date and add entries for that day.
+The user can switch to a previous date and add entries for that day. The page says "Filling in a past day" so it is clear which day is being edited.
 
 This matters because daily logging will not always happen in real time.
 
@@ -171,555 +181,423 @@ This matters because daily logging will not always happen in real time.
 
 The user can add simple TODOs, update status, and mark items done.
 
-When a TODO is marked done, it becomes part of that day’s review context.
+When a TODO is marked done, it becomes part of that day's review evidence. Checking one off while viewing a past day dates it to that day.
 
 ---
 
 ### 7.4 End-of-Day Review
 
-The user can review the selected day, add missed accomplishments, mark TODOs done, and optionally star important entries.
+The user can review the selected day, add missed accomplishments, mark TODOs done, and star important entries.
 
 ---
 
-### 7.5 Performance Review Prep
+### 7.5 Goal Tracking
 
-The user selects a date range and gets a readable accomplishment report containing:
+At the start of a review cycle, the user adds the goals they agreed on. While logging, they tick a goal or type its `[[goal-link]]`. Each goal page collects the linked entries and completed TODOs as evidence. At review time, the user writes their self-assessment in the goal's description and opens a review filtered to that goal.
 
-- Journal entries.
-- Completed TODOs.
-- Highlighted accomplishments.
-- Summary counts.
-- Optional time totals.
-- Markdown export.
+---
+
+### 7.6 Performance Review Prep
+
+The user picks a period and gets a readable accomplishment document containing:
+
+- Highlights (starred work).
+- Work grouped by goal.
+- Journal entries and completed TODOs, day by day.
+- Summary counts, time totals, and tag counts.
+
+They copy it as formatted text, download Markdown, JSON or JSONL, or print it to PDF.
+
+---
+
+### 7.7 Working with the Files Directly
+
+The user can open the vault in any editor or Obsidian, read it, and add or change lines by hand. The app re-reads the files on every page load, so hand edits show up immediately.
 
 ---
 
 ## 8. Information Architecture
 
-| Route              | Page              | Purpose                                                   |
-| ------------------ | ----------------- | --------------------------------------------------------- |
-| `/`                | Day View          | Main daily capture surface.                               |
-| `/todos`           | TODO Manager      | Full task list with filters and search.                   |
-| `/review`          | Review            | Generate date-range accomplishment summaries.             |
-| `/review/export.*` | Review Export     | Export review-range Markdown, JSON, and JSONL.            |
-| `/data`            | Data Utility      | Optional future raw data page, not required for v1.       |
+| Route                                | Page        | Purpose                                                     |
+| ------------------------------------ | ----------- | ----------------------------------------------------------- |
+| `/`                                  | Today       | Day view. Main daily capture surface. `?date=` for any day. |
+| `/todos`                             | Todos       | Full task list with filters and search.                     |
+| `/goals`                             | Goals       | Goals for one review cycle, with evidence counts.           |
+| `/goals/:slug`                       | Goal        | One goal's description, status, and evidence feed.          |
+| `/review`                            | Review      | Date-range accomplishment document, filters, exports.       |
+| `/review/export.{md,json,jsonl}`     | Downloads   | Review export in Markdown, JSON, or JSONL.                  |
 
-The Day View is the main page.
+Every page shares a left rail with:
 
-The TODO Manager supports the workflow but should not dominate the product.
+- Nav links (Today, Todos, Goals, Review) with their `g` shortcut. Todos shows the count of open, in-progress and blocked TODOs.
+- The vault path, with the note "Plain Markdown files. Back up by copying the folder."
+- A "Keyboard shortcuts" button that opens the shortcut list.
+
+Today is the main page. Todos and Goals support the workflow but should not dominate it.
 
 ---
 
 ## 9. Page Requirements
 
-## 9.1 `/` — Day View
+### 9.1 `/` Today
 
-The Day View is the default landing page.
+The default landing page. It answers:
 
-### URL
+> "What happened on this day, and what am I working on?"
 
-```txt
-/
-```
+**URL.** `/` shows today. `/?date=2026-05-27` shows a specific date. An invalid date falls back to today. `/` always means the current day, so a window left open overnight moves to the new day on the next load.
 
-Defaults to today.
-
-```txt
-/?date=2026-05-27
-```
-
-Shows a specific date.
-
-### Purpose
-
-The Day View should answer:
-
-> “What happened on this day, and what am I working on?”
-
-### Layout
-
-Desktop:
+**Layout.** Wide windows show the ledger (journal) on the left and the TODO tray on the right. Below 1180px the tray stacks under the ledger. Below 860px the rail becomes a top bar.
 
 ```txt
 ┌───────────────────────────────┬───────────────────────────────┐
-│ Journal                       │ TODOs                         │
-│                               │                               │
-│ Quick capture                 │ Quick add TODO                │
-│ Entries for selected date     │ Open / In Progress / Blocked  │
-│ Completed TODOs for date      │                               │
+│ Day header, day nav           │ Todos                         │
+│ Week strip                    │ Quick add                     │
+│ Capture form                  │ In progress / Open / Blocked  │
+│ Entries for the day           │                               │
+│ Todos closed this day         │                               │
 └───────────────────────────────┴───────────────────────────────┘
 ```
 
-Mobile:
+**Day header.**
 
-```txt
-Journal
-TODOs
-Day summary
-```
+- Kicker: "Today", or "Filling in a past day · Back to today", or "A future day · Back to today".
+- Title: weekday, month, day, year.
+- Summary line (see 9.4).
 
-### Day Navigation
+**Day navigation.**
 
-The user should be able to move between dates.
+- Previous day and next day buttons (`[` and `]`).
+- Date picker. With the script it jumps after a short pause; without it, a "Go" button submits.
+- The nav "Today" link and the kicker's "Back to today" link return to today.
 
-Required controls:
-
-- Today
-- Previous day
-- Next day
-- Date picker
-
-If the selected date is not today, the page should clearly show that.
-
-Example:
-
-```txt
-Viewing Wednesday, May 20, 2026
-```
+**Week strip.** Monday to Sunday of the selected week. Each day links to itself and shows one tick per item (entries plus TODOs completed that day, up to 6). Today and future days are marked.
 
 ---
 
-## 9.2 Day View — Journal
+### 9.2 Today: Journal
 
-### Requirements
+| ID   | Requirement                                                                                                  |
+| ---- | ------------------------------------------------------------------------------------------------------------ |
+| J-1  | User can add one or more entries for the selected date. Each non-blank line becomes one entry.               |
+| J-2  | Pasted list markers (`- `, `* `, `• `, `[x] `) are dropped from the start of each line.                       |
+| J-3  | User can edit an entry inline (`?edit=<id>`): its text, trailing `#tags` and `[[links]]`, and time spent.     |
+| J-4  | User can delete an entry after confirming. The deleted line is appended to `.trash/deleted.md`.               |
+| J-5  | User can star or unstar an entry as a highlight.                                                              |
+| J-6  | User can add tags in a Tags field (comma or space separated) or type `#tag` in the text.                      |
+| J-7  | User can link goals with "Counts toward" checkboxes (active goals only) or type `[[goal-slug]]` in the text.   |
+| J-8  | User can enter time spent: `45m`, `1h`, `1h 30m`, `90 minutes`, `1.5h`.                                        |
+| J-9  | Entries display in file order. New entries go right after the day's last entry.                              |
+| J-10 | Empty capture is rejected with a message. Typed tags, time, star and goals are put back.                     |
+| J-11 | Past and future dates are editable. Entries added to today get an `HH:MM` clock time; other days get none.    |
+| J-12 | On today, the capture form sends no date, so the server uses the real current day.                           |
 
-| ID  | Requirement                                                     |
-| --- | --------------------------------------------------------------- |
-| J-1 | User can add one or more journal entries for the selected date. |
-| J-2 | User can edit an existing journal entry inline.                 |
-| J-3 | User can delete a journal entry.                                |
-| J-4 | User can star or unstar an entry as a highlight.                |
-| J-5 | User can optionally assign one or more tags.                    |
-| J-6 | User can optionally enter time spent.                           |
-| J-7 | Entries display in creation order by default.                   |
-| J-8 | Empty entries are rejected.                                     |
-| J-9 | Past dates are editable.                                        |
+**Quick capture.** A textarea ("What did you get done? One line per entry. Add #tags right in the text.") and an "Add to ledger" button. A collapsible "Tags, time, goal, star" panel holds the optional fields. They apply to every line added. The panel remembers whether it was left open.
 
-### Quick Capture
+**Draft protection.** Unsent capture text is saved in `localStorage` (key `draft:today` on today, `draft:YYYY-MM-DD` on other days). It restores after a reload and clears after a successful save.
 
-The main journal input should be a textarea.
-
-Default visible fields:
-
-```txt
-[ What did you do?                              ]
-[ Add ]
-```
-
-Optional fields are hidden behind a details section:
-
-```txt
-Details: tags, time spent
-```
-
-### Multiline Capture
-
-The quick capture box should support multiple entries at once.
-
-Input:
-
-```txt
-Reviewed API migration proposal
-Helped Alex debug staging auth issue
-Cleaned up flaky billing test
-```
-
-Creates three journal entries.
-
-Rules:
-
-- Split on non-empty lines.
-- Trim whitespace.
-- Ignore blank lines.
-- If the user enters a paragraph with wrapped lines, this may still split by line in v1. That is acceptable.
-- A later version may add an explicit “save as one entry” option.
-
-### Draft Protection
-
-The journal textarea should save unsent draft text in `localStorage`, scoped by selected date.
-
-Behavior:
-
-- Draft restores after page reload.
-- Draft clears after successful save.
-- Draft does not need to sync to the database.
+**Display.** Inline `#tags` and `[[links]]` are styled in place. Tags and links not written inline, and time spent, show as chips under the entry. A `[[link]]` that matches no goal is dimmed with a hint to check the spelling.
 
 ---
 
-## 9.3 Day View — TODO Panel
+### 9.3 Today: TODO Tray
 
-The TODO panel provides lightweight task tracking alongside the journal.
+Shows active TODOs in three groups with counts: In progress, Open, Blocked. TODOs completed on the selected day appear in the ledger column under "Todos closed this day", with star and reopen buttons.
 
-### Sections
+| ID  | Requirement                                                                                                    |
+| --- | -------------------------------------------------------------------------------------------------------------- |
+| T-1 | User can add a TODO with just a task. It starts `Open`, with no priority, and a created date of today.         |
+| T-2 | `#tags` and `[[goal-links]]` typed in the task are picked up.                                                  |
+| T-3 | The check button marks a TODO done, dated the selected day, or today if the selected day is in the future.     |
+| T-4 | A menu offers Start, Move to open, Mark blocked, Cancel todo (with confirmation), and Edit details.             |
+| T-5 | Edit details opens the TODO's editor on the Todos page and returns to the day afterwards.                      |
+| T-6 | A note under the tray says which day checking a TODO off will count for.                                       |
 
-Show:
-
-1. In Progress
-2. Open
-3. Blocked
-4. Completed on selected date
-
-### Requirements
-
-| ID  | Requirement                                                                            |
-| --- | -------------------------------------------------------------------------------------- |
-| T-1 | User can add a TODO from the Day View.                                                 |
-| T-2 | New TODOs default to `Open`, no tags, and no priority.                                |
-| T-3 | User can mark a TODO as `In Progress`, `Blocked`, `Done`, or `Cancelled`.              |
-| T-4 | User can edit task, priority, tags, and notes.                                        |
-| T-5 | User can delete a TODO.                                                                |
-| T-6 | When a TODO is marked `Done`, completion metadata is set if not already present.       |
-| T-7 | Completed TODOs appear on the date they were completed.                                |
-| T-8 | Reopening and re-closing a TODO does not silently change its original completion date. |
+Delete and clear-completion live on the Todos page.
 
 ---
 
-## 9.4 Day Summary
+### 9.4 Day Summary
 
-At the bottom or top of the Day View, show a simple summary.
-
-Example:
+Shown under the day title:
 
 ```txt
-4 journal entries · 2 TODOs completed · 1 highlight · 90 minutes logged
+4 entries · 2 todos closed · 1 starred · 1h 30m logged
 ```
 
-If no time is logged, omit the time phrase.
+"starred" and "logged" parts are omitted when zero. Time comes from journal entries only.
 
 ---
 
-## 9.5 `/todos` — TODO Manager
+### 9.5 `/todos` Todos
 
-The TODO Manager is a secondary page for managing all tasks.
+| ID   | Requirement                                                                                                      |
+| ---- | ---------------------------------------------------------------------------------------------------------------- |
+| TM-1 | User can view all TODOs grouped by status: In progress, Open, Blocked, Done, Cancelled.                          |
+| TM-2 | Done and Cancelled start collapsed, unless a filter is active or one of their TODOs is being edited.             |
+| TM-3 | User can filter by status, priority (High, Medium, Low, None), tag, and goal.                                    |
+| TM-4 | User can search task, notes, `#tags`, and goal links (`/` focuses search).                                       |
+| TM-5 | User can add a TODO with a priority and goal checkboxes. If the filters hide it, a notice says so.               |
+| TM-6 | User can edit task, status, priority, and notes. On a validation error the editor reopens with the typed values. |
+| TM-7 | User can change status from a per-row select, star or unstar, and delete with confirmation (copy kept in trash). |
+| TM-8 | User can clear a completion date with confirmation. The option shows in the editor when a date exists.           |
+| TM-9 | Rows show priority, "Added" date, and "Done Sep 28", or "Kept: done Sep 28" for a reopened TODO.                 |
 
-### Requirements
+The header shows counts per status, plus "showing N" when filtering.
 
-| ID   | Requirement                                                       |
-| ---- | ----------------------------------------------------------------- |
-| TM-1 | User can view all non-deleted TODOs.                              |
-| TM-2 | User can filter by status.                                        |
-| TM-3 | User can filter by tag.                                           |
-| TM-4 | User can filter by priority.                                      |
-| TM-5 | User can search task and notes.                                   |
-| TM-6 | User can create, edit, and delete TODOs.                          |
-| TM-7 | User can explicitly clear completion metadata, with confirmation. |
-| TM-8 | User can star or unstar important TODOs.                          |
+**Sort.**
 
-### Default Sort
+1. Groups in the order In progress, Open, Blocked, Done, Cancelled.
+2. Live groups: priority (High, Medium, Low, none), then newest first.
+3. Done and Cancelled: most recent completion date first.
 
-Sort TODOs by:
-
-1. Status group:
-   - In Progress
-   - Open
-   - Blocked
-   - Done
-   - Cancelled
-
-2. Priority:
-   - High
-   - Medium
-   - Low
-   - None
-
-3. Most recently updated.
+Marking a TODO done from this page records today.
 
 ---
 
-## 9.6 `/review` — Review Page
+### 9.6 `/goals` Goals
 
-The Review page is the payoff surface.
+| ID   | Requirement                                                                                                         |
+| ---- | ------------------------------------------------------------------------------------------------------------------- |
+| GL-1 | User sees goals for one review cycle (`?cycle=`, default the current year).                                         |
+| GL-2 | A cycle switcher lists the current year and every cycle used by a goal.                                             |
+| GL-3 | Each goal shows title, status, first line of its description, an evidence line, and its `[[slug]]`.                 |
+| GL-4 | The evidence line reads like "3 entries · 1 todo · 2 starred · last Sep 28", or "No linked work yet".                |
+| GL-5 | User can add a goal: name, review cycle (free text, defaults to the viewed cycle), and "What does success look like?". |
 
-It should feel like a generated accomplishment document, not a data dashboard.
+A review cycle is a free-text label, usually a year.
 
-### URL
+---
+
+### 9.7 `/goals/:slug` Goal
+
+| ID    | Requirement                                                                                                    |
+| ----- | -------------------------------------------------------------------------------------------------------------- |
+| GL-6  | Shows the goal's status, evidence line, and `[[slug]]`.                                                        |
+| GL-7  | Evidence feed: every linked journal entry and done TODO, all time, newest month first. Each links to its day.  |
+| GL-8  | Shows how many linked TODOs are still open, linking to `/todos?goal=<slug>`. They aren't evidence until done.   |
+| GL-9  | User can edit name, cycle, status (Active, Achieved, Dropped), and the description.                           |
+| GL-10 | The description holds success criteria, progress notes, and the self-assessment. It displays as plain text.    |
+| GL-11 | The slug never changes on edit, so existing `[[links]]` keep working. A blank name or cycle keeps the old one.  |
+| GL-12 | "Review this goal" opens `/review` filtered to the goal, from the first to the last evidence date.             |
+
+Achieved and dropped goals still collect evidence but drop out of the capture form's goal checkboxes and the "Link a goal by typing its link" hint.
+
+---
+
+### 9.8 `/review` Review
+
+The payoff surface. It should feel like a generated accomplishment document, not a data dashboard.
+
+**URL parameters.**
+
+| Param          | Meaning                                                              |
+| -------------- | -------------------------------------------------------------------- |
+| `preset`       | One of the preset keys below.                                        |
+| `from`, `to`   | Custom range (`YYYY-MM-DD`). Used when no preset is given.           |
+| `highlights=1` | Starred only.                                                        |
+| `sort=desc`    | Newest first. Default is oldest first.                               |
+| `tag`          | One tag (leading `#` and case are ignored).                          |
+| `goal`         | One goal slug.                                                       |
+| `q`            | Text the item must contain.                                          |
+
+**Presets.** Weeks start on Monday. All ranges are inclusive and end today unless stated.
+
+| Key           | Label          | Range                                                |
+| ------------- | -------------- | ---------------------------------------------------- |
+| `week`        | This week      | Monday of this week to today.                        |
+| `month`       | This month     | First of this month to today.                        |
+| `quarter`     | This quarter   | First day of this quarter to today.                  |
+| `lastQuarter` | Last quarter   | The whole previous calendar quarter.                 |
+| `ytd`         | Year to date   | January 1 to today.                                  |
+| `lastYear`    | Last year      | January 1 to December 31 of the previous year.       |
+| `6m`          | Last 6 months  | Rolling six months ending today.                     |
+| `year`        | Last 12 months | Rolling twelve months ending today. **Default.**     |
+
+A custom range given in reverse is swapped. If submitted dates match a preset, that preset stays highlighted.
+
+**Page order.**
+
+1. Preset buttons and the filter bar (From, To, Tag, Goal, Contains, Starred only, Newest first).
+2. The document ("Accomplishments"): range, summary line, a "Filtered: …" line when filters apply, then Highlights, By goal, and Day by day (grouped by month, then day).
+3. Side panel: "Take it with you" (copy, downloads, print), tag tally, goal tally, Markdown source.
+
+**Summary line.**
 
 ```txt
-/review
-/review?from=2026-01-01&to=2026-03-31
+12 journal entries · 3 todos completed · 4 starred · 9 active days · 6h 15m logged
 ```
 
-### Date Range Presets
-
-Required presets:
-
-| Preset        | Description                           |
-| ------------- | ------------------------------------- |
-| This Week     | Current local week.                   |
-| This Month    | Current local month.                  |
-| This Quarter  | Current local quarter.                |
-| Last 6 Months | Rolling six-month range ending today. |
-| Year to Date  | January 1 through today.              |
-| Custom        | User-selected start and end dates.    |
-
-### Review Page Order
-
-The page should be ordered for usefulness:
-
-1. Date range controls.
-2. Copy/export actions.
-3. Highlight summary.
-4. Generated accomplishment document.
-5. Supporting stats.
-
-### Summary Stats
-
-Show:
-
-| Metric              | Description                                           |
-| ------------------- | ----------------------------------------------------- |
-| Journal entries     | Count of entries in range.                            |
-| Completed TODOs     | Count of TODOs completed in range.                    |
-| Highlights          | Count of starred entries/TODOs in range.              |
-| Active logging days | Unique dates with journal entries or completed TODOs. |
-| Time logged         | Sum of optional time entries.                         |
-| Tag breakdown       | Counts by tag.                                        |
-
-### Review Feed
-
-Group items by date.
-
-Example:
-
-```md
-## 2026-05-27
-
-### Highlights
-
-- Resolved flaky billing integration test.
-- Helped unblock staging auth issue.
-
-### Journal
-
-- Reviewed API migration proposal.
-- Met with support about customer escalation.
-
-### Completed TODOs
-
-- [High] Set up local tracker
-- Update onboarding notes
-```
-
-### Requirements
-
-| ID  | Requirement                                                        |
-| --- | ------------------------------------------------------------------ |
-| R-1 | User can select a date range.                                      |
-| R-2 | User can view journal entries and completed TODOs grouped by date. |
-| R-3 | User can show all items or highlights only.                        |
-| R-4 | User can toggle oldest-first/newest-first.                         |
-| R-5 | User can copy Markdown.                                            |
-| R-6 | User can download Markdown.                                        |
-| R-7 | Empty dates are hidden.                                            |
-| R-8 | Output should be useful without extra formatting.                  |
+| ID   | Requirement                                                                                     |
+| ---- | ----------------------------------------------------------------------------------------------- |
+| R-1  | User can pick a preset or a custom date range.                                                  |
+| R-2  | User sees journal entries and completed TODOs grouped by date.                                  |
+| R-3  | User can filter to starred only, one tag, one goal, or text that an item contains.              |
+| R-4  | User can switch to newest first.                                                                |
+| R-5  | Clicking a tag or goal in the side tallies filters to it. Clicking again clears it.             |
+| R-6  | "Copy the document" copies the document as formatted HTML and as Markdown.                      |
+| R-7  | User can download Markdown, JSON, or JSONL with the same filters as the page.                   |
+| R-8  | "Print or save as PDF" prints the document alone, with `accomplishments-FROM-to-TO` as the title. |
+| R-9  | Empty dates are hidden. An empty period or filter result says so.                               |
+| R-10 | A filtered document says it is filtered, so it can't pass for the whole period.                 |
+| R-11 | Starred items are marked in every list, not only under Highlights.                              |
 
 ---
 
-## 9.7 Review Export and Data Access
+### 9.9 Review Export
 
-Review export is part of v1 because it supports the core performance review workflow.
+The export surface lets the user paste human-readable review output and hand structured date-range data to an AI tool. See section 14 for formats.
 
-### Purpose
+| ID  | Requirement                                                                     |
+| --- | ------------------------------------------------------------------------------- |
+| D-1 | User can download review output as Markdown.                                    |
+| D-2 | User can download review-range data as structured JSON.                         |
+| D-3 | User can download review-range data as JSONL.                                   |
+| D-4 | Exports include tags, goals, highlights, completed TODOs, priority, and minutes. |
+| D-5 | Filtered downloads have `-filtered` in the file name.                           |
 
-The export surface exists so the user can copy human-readable review output and provide structured date-range data to an AI agent.
-
-Standalone raw data browsing under `/data` is optional for v1.1. V1 should not require a full raw table utility page.
-
-### v1 Requirements
-
-| ID  | Requirement                                                      |
-| --- | ---------------------------------------------------------------- |
-| D-1 | User can download review output as Markdown.                     |
-| D-2 | User can download review-range data as structured JSON.          |
-| D-3 | User can download review-range data as JSONL.                    |
-| D-4 | Exports include tags, highlights, completed TODOs, and metadata. |
-
-### Deferred v1.1 Requirements
+**Not yet built** (from the original plan):
 
 | ID  | Requirement                                |
 | --- | ------------------------------------------ |
-| D-5 | User can download journal entries as CSV.  |
-| D-6 | User can download TODOs as CSV.            |
-| D-7 | User can download all active data as JSON. |
-| D-8 | User can view simple raw tables.           |
+| D-6 | Download journal entries as CSV.           |
+| D-7 | Download TODOs as CSV.                     |
+| D-8 | Download all data as one JSON file.        |
+| D-9 | A `/data` page with simple raw tables.     |
+
+The vault itself already gives full raw access, which makes these less pressing.
 
 ---
 
-## 10. Data Model
+## 10. Data Model: The Vault
 
-The app has these primary storage concepts:
+All data lives in one folder of Markdown files. There is no database and no cache. The app reads the files on every request.
 
-1. `journal_entries`
-2. `todos`
-3. `tags`
-4. join tables that attach tags to journal entries and TODOs
+### 10.1 Folder Layout
 
-Journal entries and TODOs are related by date, not by foreign key.
-
-A day’s accomplishment view combines:
-
-- Journal entries where `entry_date = selected date`.
-- TODOs where `completed_on = selected date`.
-
----
-
-## 10.1 `journal_entries`
-
-| Field                |                Type | Required | Notes                                      |
-| -------------------- | ------------------: | -------: | ------------------------------------------ |
-| `id`                 | INTEGER PRIMARY KEY |      Yes | Autoincrement row ID.                      |
-| `entry_date`         |                TEXT |      Yes | Local `YYYY-MM-DD` date the work happened. |
-| `content`            |                TEXT |      Yes | Freeform text. Markdown allowed.           |
-| `time_spent_minutes` |             INTEGER |       No | Optional. Must be non-negative.            |
-| `is_highlight`       |             INTEGER |      Yes | `0` or `1`. Defaults to `0`.               |
-| `created_at`         |                TEXT |      Yes | UTC ISO timestamp.                         |
-| `updated_at`         |                TEXT |      Yes | UTC ISO timestamp.                         |
-| `deleted_at`         |                TEXT |       No | Soft delete timestamp. NULL means active.  |
-
----
-
-## 10.2 `todos`
-
-| Field          |                Type | Required | Notes                                                  |
-| -------------- | ------------------: | -------: | ------------------------------------------------------ |
-| `id`           | INTEGER PRIMARY KEY |      Yes | Autoincrement row ID.                                  |
-| `task`         |                TEXT |      Yes | Short task title.                                      |
-| `priority`     |                TEXT |       No | `High`, `Medium`, `Low`, or NULL.                      |
-| `status`       |                TEXT |      Yes | `Open`, `In Progress`, `Blocked`, `Done`, `Cancelled`. |
-| `notes`        |                TEXT |       No | Optional detail.                                       |
-| `is_highlight` |             INTEGER |      Yes | `0` or `1`. Defaults to `0`.                           |
-| `created_at`   |                TEXT |      Yes | UTC ISO timestamp.                                     |
-| `updated_at`   |                TEXT |      Yes | UTC ISO timestamp.                                     |
-| `completed_at` |                TEXT |       No | UTC ISO timestamp set when first marked done.          |
-| `completed_on` |                TEXT |       No | Local `YYYY-MM-DD` date set when first marked done.    |
-| `deleted_at`   |                TEXT |       No | Soft delete timestamp. NULL means active.              |
-
----
-
-## 10.3 `tags`
-
-| Field       |                Type | Required | Notes                                      |
-| ----------- | ------------------: | -------: | ------------------------------------------ |
-| `id`        | INTEGER PRIMARY KEY |      Yes | Autoincrement row ID.                      |
-| `name`      |                TEXT |      Yes | Normalized tag text without `#`. Unique.   |
-| `created_at`|                TEXT |      Yes | UTC ISO timestamp.                         |
-
-Tags are simple labels in v1. Advanced colors, aliases, hierarchies, and a management screen are deferred.
-
----
-
-## 10.4 Suggested SQLite Schema
-
-```sql
-CREATE TABLE IF NOT EXISTS journal_entries (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  entry_date TEXT NOT NULL,
-  content TEXT NOT NULL CHECK (length(trim(content)) > 0),
-  time_spent_minutes INTEGER CHECK (
-    time_spent_minutes IS NULL OR time_spent_minutes >= 0
-  ),
-  is_highlight INTEGER NOT NULL DEFAULT 0 CHECK (
-    is_highlight IN (0, 1)
-  ),
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  deleted_at TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_journal_entries_entry_date
-  ON journal_entries(entry_date);
-
-CREATE INDEX IF NOT EXISTS idx_journal_entries_deleted_at
-  ON journal_entries(deleted_at);
-
-CREATE TABLE IF NOT EXISTS tags (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL UNIQUE CHECK (length(trim(name)) > 0),
-  created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS journal_entry_tags (
-  journal_entry_id INTEGER NOT NULL,
-  tag_id INTEGER NOT NULL,
-  PRIMARY KEY (journal_entry_id, tag_id),
-  FOREIGN KEY (journal_entry_id) REFERENCES journal_entries(id) ON DELETE CASCADE,
-  FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_journal_entry_tags_tag_id
-  ON journal_entry_tags(tag_id);
-
-CREATE TABLE IF NOT EXISTS todos (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  task TEXT NOT NULL CHECK (length(trim(task)) > 0),
-  priority TEXT CHECK (
-    priority IS NULL OR priority IN ('High', 'Medium', 'Low')
-  ),
-  status TEXT NOT NULL DEFAULT 'Open' CHECK (
-    status IN ('Open', 'In Progress', 'Blocked', 'Done', 'Cancelled')
-  ),
-  notes TEXT,
-  is_highlight INTEGER NOT NULL DEFAULT 0 CHECK (
-    is_highlight IN (0, 1)
-  ),
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  completed_at TEXT,
-  completed_on TEXT,
-  deleted_at TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_todos_status
-  ON todos(status);
-
-CREATE INDEX IF NOT EXISTS idx_todos_completed_on
-  ON todos(completed_on);
-
-CREATE INDEX IF NOT EXISTS idx_todos_deleted_at
-  ON todos(deleted_at);
-
-CREATE TABLE IF NOT EXISTS todo_tags (
-  todo_id INTEGER NOT NULL,
-  tag_id INTEGER NOT NULL,
-  PRIMARY KEY (todo_id, tag_id),
-  FOREIGN KEY (todo_id) REFERENCES todos(id) ON DELETE CASCADE,
-  FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
-);
-
-CREATE INDEX IF NOT EXISTS idx_todo_tags_tag_id
-  ON todo_tags(tag_id);
+```txt
+<vault>/
+├── journal/
+│   └── 2026/
+│       └── 2026-09-28.md      one daily note per day with entries
+├── todos.md                    every TODO, in creation order
+├── goals/
+│   └── <slug>.md               one file per goal
+├── .trash/
+│   └── deleted.md              append-only log of deleted lines
+└── .workledger/
+    └── error.log               the installed app's error log (not notes)
 ```
+
+Files and folders are created on first write.
+
+### 10.2 Journal Note
+
+`journal/YYYY/YYYY-MM-DD.md`. The app creates it with `date` frontmatter. Every top-level `- ` line that is not a task (`- [ ] `) is an entry. Headings, paragraphs and other text are left alone.
+
+```md
+---
+date: 2026-09-28
+---
+
+- 09:15 Reviewed the migration plan #review [[improve-reliability]] ⏱ 45m ⭐ ^k3x9qa
+- Helped support with an escalation ^m7p2rd
+```
+
+### 10.3 `todos.md`
+
+Every top-level task line is a TODO. Indented lines (2+ spaces or a tab) directly under it are its notes. Other lines are ignored.
+
+```md
+---
+type: todos
+---
+
+- [/] Fix flaky auth test #bug ⏫ ⭐ ➕ 2026-09-20 ^t8k2m4
+    Repro only on CI. Check the clock mock.
+- [x] Write incident follow-up [[improve-reliability]] 🔼 ➕ 2026-09-21 ✅ 2026-09-28 ^h4w9ze
+```
+
+### 10.4 Goal File
+
+`goals/<slug>.md`. Frontmatter holds `title`, `cycle`, and `status`. The body is the description in the user's own Markdown.
+
+```md
+---
+title: Improve platform reliability
+cycle: 2026
+status: active
+---
+
+Cut pages per week in half and get every service an owner and a runbook.
+```
+
+A missing title falls back to the slug. A missing or unknown status reads as `active`. Values that would confuse YAML are written JSON-quoted.
+
+### 10.5 Trash
+
+`.trash/deleted.md`. Each delete appends the removed line (and a TODO's notes), with a UTC timestamp and the source file. Nothing is lost, but there is no restore button.
+
+```md
+- Deleted 2026-09-28T18:42:15.123Z from journal/2026/2026-09-28.md
+    - 10:02 Draft notes nobody needed ^q2b8nm
+```
+
+### 10.6 Line Grammar
+
+Entry line: `- [HH:MM] text [#tags] [[[links]]] [⏱ Nm] [⭐] ^id`
+
+TODO line: `- [mark] task [#tags] [[[links]]] [priority] [⭐] [➕ created] [✅ completed] ^id`
+
+| Token              | Meaning                                                                                       |
+| ------------------ | --------------------------------------------------------------------------------------------- |
+| `[ ]`              | Open                                                                                          |
+| `[/]`              | In Progress                                                                                   |
+| `[b]`              | Blocked                                                                                       |
+| `[x]` (or `[X]`)   | Done                                                                                          |
+| `[-]`              | Cancelled                                                                                     |
+| `⏫` `🔼` `🔽`     | Priority High, Medium, Low (Obsidian Tasks). `🔺` reads as High and `⏬` as Low; never written. |
+| `➕ YYYY-MM-DD`    | Created date (Obsidian Tasks).                                                                |
+| `✅ YYYY-MM-DD`    | Completion date (Obsidian Tasks).                                                             |
+| `⭐`               | Starred highlight (app-specific).                                                             |
+| `⏱ Nm`             | Time spent in minutes (app-specific). Entries only.                                           |
+| `#tag`             | Tag. Letters, numbers, `_`, `/`, `-`. Lowercased. Number-only tags like `#892` are plain text, as in Obsidian. |
+| `[[slug]]`, `[[slug\|label]]` | Goal link (wikilink).                                                              |
+| `^id`              | Obsidian block ID. The app uses it to find the line again.                                    |
+| `HH:MM`            | Local clock time, entries only.                                                               |
+
+Rules:
+
+- `#tags` and `[[links]]` at the end of a line are metadata and are not shown as part of the text. Ones mid-sentence stay in the text and still count.
+- When the app rewrites a line, it never duplicates a tag or link already written inline.
+- Emoji variation selectors written by other editors are ignored.
+
+### 10.7 IDs and Hand Edits
+
+- IDs are 6 random characters from `a-z` and `2-9`, excluding look-alikes (`l`, `o`, `0`, `1`), unique within the file.
+- A hand-written entry or TODO line without `^id` gets one the first time the app reads the file. That line is rewritten in the app's canonical token order. Other lines are untouched.
+- Lines the app doesn't recognize are preserved as written.
+- Rewriting a line is lossy in two known ways. A trailing labeled link `[[slug|label]]` comes back as `[[slug]]`. A `⏱ Nm` typed on a TODO line is dropped, because TODOs don't store time. Rewrites happen on first read (missing ID), star, edit, and status change.
+
+### 10.8 Writes
+
+- Every write goes to `<file>.tmp` and is renamed over the original, so a crash never leaves a half-written note.
+- The trash log is appended to.
+- Goal slugs must match `^[\p{L}\p{N}]+(-[\p{L}\p{N}]+)*$`, so a URL can never point outside `goals/`.
 
 ---
 
 ## 11. Date and Time Rules
 
-Use two different date concepts.
+| Value          | Format       | Used for                                                                         |
+| -------------- | ------------ | -------------------------------------------------------------------------------- |
+| Local date     | `YYYY-MM-DD` | Journal file names, TODO created and completed dates, review ranges.             |
+| Local time     | `HH:MM`      | Clock time on entries logged to today.                                           |
+| UTC timestamp  | ISO string   | Trash log, `generatedAt` in JSON export, error log.                              |
 
-| Value         | Format       | Purpose                                                                |
-| ------------- | ------------ | ---------------------------------------------------------------------- |
-| Local date    | `YYYY-MM-DD` | Used for daily grouping and review ranges.                             |
-| UTC timestamp | ISO string   | Used for audit fields like `created_at`, `updated_at`, `completed_at`. |
+There are no `created_at`/`updated_at` audit timestamps. A journal entry's date is its file.
 
-Examples:
-
-```txt
-entry_date:   2026-05-27
-completed_on: 2026-05-27
-created_at:   2026-05-27T18:42:15.123Z
-updated_at:   2026-05-27T18:45:09.882Z
-completed_at: 2026-05-27T20:13:44.001Z
-```
-
-Do not derive local dates using:
-
-```ts
-new Date().toISOString().slice(0, 10);
-```
-
-That returns a UTC date and can be wrong near midnight.
-
-Use a local date helper:
+Local dates come from local getters, never `toISOString()`, which returns a UTC date and can be wrong near midnight:
 
 ```ts
 export function localDateString(date = new Date()): string {
@@ -730,615 +608,585 @@ export function localDateString(date = new Date()): string {
 }
 ```
 
+Date strings are parsed as local dates. Impossible dates such as `2026-02-30` are invalid. Weeks start on Monday.
+
 ---
 
 ## 12. Core Business Logic
 
-## 12.1 Creating Journal Entries
+### 12.1 Creating Journal Entries
 
-Validation:
+1. Use the form's date, or today if blank. Reject an invalid date.
+2. Split the text on line breaks, trim, drop list markers and blank lines. Reject if nothing is left.
+3. Parse time spent. Reject unreadable input.
+4. For each line, pull out typed `#tags` and `[[links]]`, then merge in the form's tags and checked goals.
+5. Add the clock time only when the date is today.
+6. Write the lines after the day's last entry (or create the note with frontmatter).
+7. Redirect back (303).
 
-| Field                | Rule                                  |
-| -------------------- | ------------------------------------- |
-| `entry_date`         | Required. Must be valid `YYYY-MM-DD`. |
-| `content`            | Required after trim.                  |
-| `tags`               | Optional normalized tag list.         |
-| `time_spent_minutes` | Optional integer >= 0.                |
-| `is_highlight`       | Optional boolean. Defaults to false.  |
+### 12.2 Updating Journal Entries
 
-Behavior:
+- Editable: text (including trailing tags and links) and time spent.
+- Star and unstar are a separate action.
+- Empty text is rejected: "An entry can't be empty. Delete it instead."
+- Moving an entry to another date is not supported.
 
-1. Split multiline quick capture into entries.
-2. Trim each entry.
-3. Ignore blank lines.
-4. Insert each entry with the selected date.
-5. Set `created_at` and `updated_at`.
-6. Return updated journal fragment.
+### 12.3 Deleting Journal Entries
 
----
+The line is appended to `.trash/deleted.md`, then removed from the note.
 
-## 12.2 Updating Journal Entries
+### 12.4 Creating TODOs
 
-Rules:
+| Field      | Rule                                                      |
+| ---------- | --------------------------------------------------------- |
+| `task`     | Required after trim. Typed `#tags` and `[[links]]` parsed. |
+| `priority` | Optional: `High`, `Medium`, `Low`, or blank.              |
+| `status`   | Optional. Defaults to `Open`.                             |
+| `goals`    | Optional checked goal slugs.                              |
+| `notes`    | Optional.                                                 |
 
-- Past entries are editable.
-- Empty content is rejected.
-- Updating bumps `updated_at`.
-- Star/unstar is allowed.
-- Changing tags/time spent is allowed.
-- Changing `entry_date` may be supported in the full edit UI, but is not required inline for v1.
+The created date is today. A TODO created as `Done` also gets today as its completion date. New TODOs are appended to `todos.md`.
 
----
-
-## 12.3 Deleting Journal Entries
-
-Use soft delete.
-
-Behavior:
-
-```sql
-UPDATE journal_entries
-SET deleted_at = ?, updated_at = ?
-WHERE id = ?;
-```
-
-Deleted entries are hidden from normal views and exports.
-
-Restore UI is not required for v1.
-
----
-
-## 12.4 Creating TODOs
-
-Validation:
-
-| Field      | Rule                               |
-| ---------- | ---------------------------------- |
-| `task`     | Required after trim.               |
-| `priority` | Optional: `High`, `Medium`, `Low`. |
-| `status`   | Optional. Defaults to `Open`.      |
-| `tags`     | Optional normalized tag list.      |
-| `notes`    | Optional.                          |
-
-Behavior:
-
-1. Insert TODO.
-2. Set `created_at` and `updated_at`.
-3. If created directly as `Done`, set `completed_at` and `completed_on`.
-
----
-
-## 12.5 Marking a TODO Done
-
-When a TODO first transitions to `Done`, set completion metadata.
+### 12.5 Marking a TODO Done
 
 ```ts
-if (newStatus === "Done" && existing.completed_at === null) {
-  completed_at = nowUtcIso();
-  completed_on = localDateString();
+if (patch.status === "Done" && next.completedOn === null) {
+  next.completedOn = patch.completedOn ?? today;
 }
 ```
 
-Rules:
+- The completion date is the local date used for grouping. There is no completion timestamp.
+- From Today, the form sends the viewed day as `on`. The server uses it only if it is valid and not after today. Otherwise it uses today.
+- From the Todos page, the date is today.
+- Once set, the date is never overwritten automatically.
 
-- `completed_at` is the exact UTC completion timestamp.
-- `completed_on` is the local calendar date used for grouping.
-- Once set, completion metadata is not overwritten automatically.
-- Reopening a TODO preserves completion metadata.
-- Re-closing a TODO preserves the original completion date.
-- Completion metadata can only be cleared by explicit user action.
+### 12.6 Reopening and Re-closing
 
----
+- Reopening keeps the completion date. The Todos page shows "Kept: done Sep 28".
+- A reopened TODO drops out of review evidence until it is done again.
+- Re-closing reuses the original date.
 
-## 12.6 Cancelling a TODO
+### 12.7 Cancelling
 
-`Cancelled` means the task is no longer relevant.
+`Cancelled` means the task is no longer relevant. It never sets a completion date. A done TODO that is later cancelled keeps its date in the file but stops counting as evidence.
 
-Rules:
+### 12.8 Clearing a Completion Date
 
-- Marking a task `Cancelled` does not set completion metadata.
-- If a previously completed task is later marked `Cancelled`, existing completion metadata is preserved unless explicitly cleared.
+Only by explicit user action, with confirmation. The TODO leaves every review until it is marked done again, which dates it anew.
 
----
+### 12.9 Deleting TODOs
 
-## 12.7 Deleting TODOs
+The task line and its notes are appended to `.trash/deleted.md`, then removed from `todos.md`.
 
-Use soft delete.
+### 12.10 Goals
 
-Behavior:
-
-```sql
-UPDATE todos
-SET deleted_at = ?, updated_at = ?
-WHERE id = ?;
-```
-
-Deleted TODOs are hidden from normal views and exports.
-
-Restore UI is not required for v1.
+- The slug comes from the title: lowercase, accents stripped, non-alphanumerics to `-`, max 48 characters.
+- If the title's slug is taken by a goal in another cycle, the new goal gets `<slug>-<cycle>` (for example `improve-reliability-2027`). Otherwise duplicates get `-2`, `-3`, and so on.
+- Title, cycle, status, and description can change. The slug and file name never do.
+- New goals start `active`.
+- There is no delete in the app. Remove the file by hand.
 
 ---
 
 ## 13. Review Query Model
 
-The review output combines journal entries and completed TODOs by date.
+All review output comes from one model in `src/review.ts`. The Review page, goal pages, and all three exports read from it, so they can't disagree.
 
-A SQLite view may be used to simplify this.
+**Collect.** Review items are:
 
-The base review view should keep journal and TODO rows aligned. Tags can be loaded from the join tables for the returned item IDs or aggregated by the review query layer.
+- Journal entries whose date is in range.
+- TODOs with status `Done` and a completion date in range, dated by that completion date.
 
-```sql
-CREATE VIEW IF NOT EXISTS review_items AS
-SELECT
-  entry_date AS item_date,
-  'journal' AS item_type,
-  id,
-  content,
-  time_spent_minutes,
-  is_highlight,
-  created_at
-FROM journal_entries
-WHERE deleted_at IS NULL
+**Filter.** Starred only, tag, goal, and a case-insensitive text match.
 
-UNION ALL
+**Order.** By date. Within a day, entries come before TODOs, each in file order. `sort=desc` reverses the days, not the items within a day.
 
-SELECT
-  completed_on AS item_date,
-  'todo' AS item_type,
-  id,
-  task AS content,
-  NULL AS time_spent_minutes,
-  is_highlight,
-  completed_at AS created_at
-FROM todos
-WHERE completed_on IS NOT NULL
-  AND deleted_at IS NULL;
-```
+**Group.**
 
-Review query:
+- Days: each date with its entries and TODOs. Days with nothing are left out.
+- Highlights: starred items in document order.
+- By goal: for each goal with linked items in the result, those items.
 
-```sql
-SELECT *
-FROM review_items
-WHERE item_date BETWEEN ? AND ?
-ORDER BY item_date ASC, created_at ASC;
-```
+**Stats.** Entry count, completed TODO count, starred count, active days (dates with any item), total minutes, and tag counts sorted by count then name. Stats reflect the active filters.
 
-Highlights-only query:
-
-```sql
-SELECT *
-FROM review_items
-WHERE item_date BETWEEN ? AND ?
-  AND is_highlight = 1
-ORDER BY item_date ASC, created_at ASC;
-```
+Goal pages use the same collection with an all-time range.
 
 ---
 
-## 14. Markdown and AI-Readable Export
+## 14. Export Formats
 
-### Routes
-
-```txt
-GET /review/export.md?from=2026-01-01&to=2026-03-31
-GET /review/export.json?from=2026-01-01&to=2026-03-31
-GET /review/export.jsonl?from=2026-01-01&to=2026-03-31
-```
-
-Optional params:
+### 14.1 Routes
 
 ```txt
-sort=asc|desc
-highlightsOnly=1
+GET /review/export.md?preset=lastQuarter
+GET /review/export.json?from=2026-01-01&to=2026-03-31&goal=improve-reliability
+GET /review/export.jsonl?preset=year&highlights=1
 ```
 
-### Markdown Format
+Exports take the same parameters as `/review`. Downloads are named `accomplishments-FROM-to-TO[-filtered].{md,json,jsonl}`.
+
+### 14.2 Markdown
 
 ```md
-# Accomplishments: 2026-01-01 to 2026-03-31
+# Accomplishments: 2026-09-01 to 2026-09-30
 
 ## Summary
 
-- Journal entries: 42
-- TODOs completed: 18
-- Highlights: 9
-- Active logging days: 37
-- Time logged: 64h 30m
+- Journal entries: 2
+- TODOs completed: 1
+- Highlights: 1
+- Active logging days: 2
+- Time logged: 1h 30m
+- Top tags: #review (2), #bug (1)
 
 ## Highlights
 
-- 2026-01-08 — Resolved flaky billing integration test.
-- 2026-01-17 — Helped unblock staging auth issue.
-- 2026-02-03 — Reviewed API migration proposal and identified rollout risks.
+- 2026-09-01 — Fixed flaky test
+
+## By goal
+
+### Improve reliability
+
+- 2026-09-02 — Reviewed Improve reliability plan
 
 ## Daily Accomplishments
 
-### 2026-01-08
+### 2026-09-01
 
 #### Journal
 
-- Resolved flaky billing integration test.
-- Helped support investigate customer escalation.
+- ★ Fixed flaky test
 
 #### Completed TODOs
 
-- [High] Write incident follow-up notes
+- [High] Deploy hotfix
 
-### 2026-01-09
+### 2026-09-02
 
 #### Journal
 
-- Reviewed design proposal for reporting dashboard.
+- Reviewed Improve reliability plan
 ```
 
-### Copy as Markdown
+- "Time logged" is omitted when zero. "Top tags" lists up to 8.
+- A `- Filters: …` line is added when filters apply.
+- Highlights is omitted in starred-only mode.
+- `★` marks starred items in By goal and the daily lists. TODOs show `[Priority]`.
+- `[[links]]` become their label, else the goal's title, else the slug.
+- An empty result ends with `_Nothing recorded in this range._`
 
-The review page should include a copy button.
+### 14.3 Copy the Document
 
-Implementation:
+The server puts the same Markdown in the collapsed "Markdown source" textarea, and a minimal HTML version (headings, lists, paragraphs) in a `<template>`. The copy button writes both to the clipboard, so it pastes as formatted text in Word or Google Docs and as Markdown in plain text boxes. If the clipboard API fails, it falls back to plain text. If that fails too, it opens the Markdown source, selects it, and asks the user to press Ctrl+C.
 
-- Server generates Markdown for the selected range.
-- Render it into a hidden or visible `<textarea>`.
-- Use `navigator.clipboard.writeText`.
-- Provide a manual copy fallback.
+### 14.4 JSON
 
-### JSON and JSONL Format
+```json
+{
+  "range": { "from": "2026-09-01", "to": "2026-09-30" },
+  "generatedAt": "2026-09-28T12:00:00.000Z",
+  "filters": { "highlightsOnly": false, "sort": "asc", "tag": null, "goal": null, "q": null },
+  "stats": { "journalEntries": 2, "completedTodos": 1, "highlights": 1, "activeDays": 2, "minutesLogged": 90 },
+  "tagCounts": [{ "name": "review", "count": 2 }, { "name": "bug", "count": 1 }],
+  "goals": [{ "slug": "reliability", "title": "Improve reliability", "cycle": "2026", "status": "active" }],
+  "items": [
+    {
+      "type": "journal",
+      "id": "b",
+      "date": "2026-09-01",
+      "text": "Fixed flaky test",
+      "tags": ["bug", "review"],
+      "goals": [],
+      "highlight": true,
+      "minutes": 60,
+      "priority": null,
+      "status": null
+    }
+  ]
+}
+```
 
-The JSON export should return a structured review bundle with range metadata, stats, tag counts, and normalized review items.
+`goals` lists every goal, not only those in range. Item `type` is `journal` or `todo`. Item goals carry `{ slug, title }`.
 
-JSONL should return one review item per line with enough metadata for long-range agent ingestion.
+### 14.5 JSONL
 
-Both formats must use the same review model as the page and Markdown export.
+One item per line, in document order, each with the range so it stands alone when chunked:
+
+```json
+{"type":"todo","id":"c","date":"2026-09-01","text":"Deploy hotfix","tags":[],"goals":[],"highlight":false,"minutes":null,"priority":"High","status":"Done","range":{"from":"2026-09-01","to":"2026-09-30"}}
+```
+
+An empty result is an empty file.
 
 ---
 
 ## 15. Routes
 
-## 15.1 Page Routes
+Every page and form goes through `handleRequest` in `src/server.ts`. `HEAD` is treated like `GET`.
 
-| Method | Path      | Purpose                                      |
-| ------ | --------- | -------------------------------------------- |
-| GET    | `/`       | Day View for today or selected date.         |
-| GET    | `/todos`  | TODO Manager.                                |
-| GET    | `/review` | Review page.                                 |
-| GET    | `/data`   | Raw data utility page. Optional for v1.1.    |
+### 15.1 GET
 
----
+| Path                          | Purpose                                                    |
+| ----------------------------- | ---------------------------------------------------------- |
+| `/`                           | Today. `?date=`, `?edit=<entry id>`, `?error=`.            |
+| `/todos`                      | Todos. `?q`, `status`, `priority`, `tag`, `goal`, `edit`, `back`, `added`, `error`. |
+| `/goals`                      | Goals. `?cycle=`, `?error=`.                               |
+| `/goals/:slug`                | Goal page. `?edit=1`, `?error=`.                           |
+| `/review`                     | Review page. Parameters in 9.8.                            |
+| `/review/export.md`           | Markdown download.                                         |
+| `/review/export.json`         | JSON download.                                             |
+| `/review/export.jsonl`        | JSONL download.                                            |
+| `/styles.css`, `/app.js`, `/icon.svg` | Bundled assets (exact paths only).                 |
 
-## 15.2 Journal Routes
+Anything else returns the "Not found" page (404). A path with a malformed `%` escape returns 500.
 
-| Method | Path                     | Purpose                     | Response                                |
-| ------ | ------------------------ | --------------------------- | --------------------------------------- |
-| POST   | `/journal`               | Create one or more entries. | Updated journal list fragment.          |
-| PATCH  | `/journal/:id`           | Update entry.               | Updated entry fragment.                 |
-| DELETE | `/journal/:id`           | Soft delete entry.          | Updated journal list or empty response. |
-| PATCH  | `/journal/:id/highlight` | Toggle highlight.           | Updated entry fragment.                 |
+### 15.2 POST
 
----
+| Path                              | Fields                                                     | Action                                  |
+| --------------------------------- | ---------------------------------------------------------- | --------------------------------------- |
+| `/journal`                        | `date`, `content`, `tags`, `minutes`, `star`, `goals`*, `return_to` | Add entries.                  |
+| `/journal/:id`                    | `date`, `content`, `minutes`, `return_to`                  | Edit entry.                             |
+| `/journal/:id/star`               | `date`, `return_to`                                        | Toggle star.                            |
+| `/journal/:id/delete`             | `date`, `return_to`                                        | Delete entry to trash.                  |
+| `/todos`                          | `task`, `priority`, `status`, `goals`*, `notes`, `return_to` | Add TODO.                             |
+| `/todos/:id`                      | `task`, `status`, `priority`, `notes`, `return_to`         | Edit TODO.                              |
+| `/todos/:id/status`               | `status`, `on`, `return_to`                                | Change status.                          |
+| `/todos/:id/star`                 | `return_to`                                                | Toggle star.                            |
+| `/todos/:id/clear-completion`     | `return_to`                                                | Clear completion date.                  |
+| `/todos/:id/delete`               | `return_to`                                                | Delete TODO to trash.                   |
+| `/goals`                          | `title`, `cycle`, `body`                                   | Create goal, go to its page.            |
+| `/goals/:slug`                    | `title`, `cycle`, `status`, `body`                         | Save goal.                              |
 
-## 15.3 TODO Routes
+\* repeated field.
 
-| Method | Path                          | Purpose                               | Response                               |
-| ------ | ----------------------------- | ------------------------------------- | -------------------------------------- |
-| POST   | `/todos`                      | Create TODO.                          | Updated TODO panel/table fragment.     |
-| PATCH  | `/todos/:id`                  | Update TODO.                          | Updated TODO fragment or parent panel. |
-| DELETE | `/todos/:id`                  | Soft delete TODO.                     | Updated TODO panel/table fragment.     |
-| PATCH  | `/todos/:id/highlight`        | Toggle highlight.                     | Updated TODO fragment.                 |
-| POST   | `/todos/:id/clear-completion` | Explicitly clear completion metadata. | Updated TODO fragment.                 |
-
----
-
-## 15.4 Review Routes
-
-| Method | Path                   | Purpose                                         |
-| ------ | ---------------------- | ----------------------------------------------- |
-| GET    | `/review/fragment`     | Optional HTMX refresh for range/filter changes. |
-| GET    | `/review/export.md`    | Download Markdown export.                       |
-| GET    | `/review/export.json`  | Download structured review-range JSON.          |
-| GET    | `/review/export.jsonl` | Download review-range JSONL.                    |
+A successful POST, or one with a validation error, answers with a 303 redirect (post/redirect/get). A missing entry, TODO, or goal gets the 404 page. `return_to` must be a same-origin path (starts with one `/`, not `//` or `/\`), otherwise a default is used. On a validation error, the redirect adds `?error=<message>` and the page shows it. The capture form and the entry and TODO editors also get the typed values back. Adding a TODO and the goal forms do not (their `required` fields catch most cases in the browser).
 
 ---
 
-## 15.5 Deferred Raw Data Utility Routes
+## 16. Progressive Enhancement
 
-Optional v1.1 raw data utility:
+There is no HTMX and no client framework. The server renders full HTML pages, and plain forms post and redirect. Everything works without `public/app.js`. With it:
 
-| Method | Path                | Purpose                           |
-| ------ | ------------------- | --------------------------------- |
-| GET    | `/data/journal.csv` | Download journal entries as CSV.  |
-| GET    | `/data/todos.csv`   | Download TODOs as CSV.            |
-| GET    | `/data/export.json` | Download all active data as JSON. |
+| Behavior               | Detail                                                                                                   |
+| ---------------------- | -------------------------------------------------------------------------------------------------------- |
+| In-place form posts    | POST forms are sent with `fetch`. The redirected page's `<main>` and nav replace the current ones, and the URL updates. Focus stays on the same control, or the same or a nearby row. New entries are briefly marked. On a network error it falls back to a normal submit. |
+| Confirmations          | Forms with `data-confirm` ask before posting (delete, cancel TODO, clear completion).                     |
+| Drafts                 | Capture text saved in `localStorage` per day. Cleared after a successful save.                            |
+| Remembered panels      | `details[data-remember-open]` (the capture options) stays open across visits.                             |
+| Auto-submit            | Filter selects and checkboxes submit on change. The date picker waits 900ms for typing to stop.           |
+| Copy                   | Writes HTML + Markdown to the clipboard, with fallbacks (14.3). Status is announced to screen readers.    |
+| Print                  | Sets the page title to the suggested PDF name, prints, restores the title.                                |
+| Menus                  | Clicking elsewhere or pressing Esc closes an open TODO menu.                                              |
+| Keyboard shortcuts     | See 20.2.                                                                                                 |
 
----
-
-## 16. HTMX Patterns
-
-Use server-rendered HTML fragments.
-
-### Journal Add Form
-
-```html
-<form
-  hx-post="/journal"
-  hx-target="#journal-list"
-  hx-swap="outerHTML">
-  <input
-    type="hidden"
-    name="entry_date"
-    value="2026-05-27" />
-
-  <label for="journal-content">What did you do?</label>
-  <textarea
-    id="journal-content"
-    name="content"
-    required></textarea>
-
-  <details>
-    <summary>Details</summary>
-
-    <label>
-      Tags
-      <input
-        name="tags"
-        placeholder="support, testing" />
-    </label>
-
-    <label>
-      Time spent, minutes
-      <input
-        name="time_spent_minutes"
-        type="number"
-        min="0" />
-    </label>
-  </details>
-
-  <button type="submit">Add</button>
-</form>
-```
-
-### TODO Status Update
-
-When a status update can move a TODO between sections, return the whole TODO panel.
-
-```html
-<form
-  hx-patch="/todos/123"
-  hx-target="#day-todos"
-  hx-swap="outerHTML">
-  <input
-    type="hidden"
-    name="status"
-    value="Done" />
-  <button type="submit">Mark done</button>
-</form>
-```
+Without the script, the date picker shows a "Go" button and status selects show a "Set" button. Destructive actions then post without a confirmation prompt (see 28.3).
 
 ---
 
 ## 17. Technical Architecture
 
-### Stack
+### 17.1 Stack
 
-| Layer           | Choice                  |
-| --------------- | ----------------------- |
-| Runtime         | Bun                     |
-| Server          | `Bun.serve()`           |
-| Database        | SQLite via `bun:sqlite` |
-| Rendering       | Server-rendered HTML    |
-| Interactivity   | HTMX                    |
-| Styling         | Small local stylesheet  |
-| Markdown export | Handwritten formatter   |
-| Build step      | None required           |
+| Layer               | Choice                                                                               |
+| ------------------- | ------------------------------------------------------------------------------------ |
+| Desktop shell       | Electron 44 (pinned `44.5.1`)                                                        |
+| Packaging           | electron-builder `26.17.0`: per-user NSIS installer and zip, Windows only            |
+| Main process build  | `bun build src/electron/main.ts --target=node --format=esm --external electron` to `out/main.js` |
+| Dev server, tests   | Bun (`Bun.serve()`, `bun test`). Bun is also the package manager.                    |
+| Request handling    | One function, `handleRequest(req, ctx): Promise<Response>`, using the Fetch API      |
+| Storage             | Markdown files via `node:fs`                                                         |
+| Rendering           | Server-rendered HTML from template strings, escaped with `escapeHtml`                |
+| Interactivity       | `public/app.js`, plain JavaScript                                                    |
+| Styling             | One stylesheet, `public/styles.css`. Dark theme only.                                |
+| Static assets       | `styles.css`, `app.js`, `icon.svg` imported as text and bundled. No disk reads at runtime. |
+| Dependencies        | Dev only: `@types/bun`, `electron`, `electron-builder`. No runtime packages.         |
 
-### Local Defaults
+### 17.2 Request Flow
 
-- Bind to `127.0.0.1`.
-- Store data in `tracker.db`.
-- Vendor static assets locally where practical.
-- No telemetry.
-- No external services required.
-- Database file is gitignored.
+```txt
+Desktop app:  window → app://local/... → protocol.handle("app") → serveAppRequest → handleRequest → Vault
+Development:  browser → http://127.0.0.1:41820/... → devFetch → handleRequest → Vault
+```
+
+`handleRequest` doesn't know which one called it. Each entry point checks where the request came from first and adds security headers: CSP and `nosniff` in the app, CSP in development (section 21).
+
+### 17.3 Desktop App Behavior
+
+- Double-click opens one window (1280×860). Closing it quits. Nothing runs in the background.
+- A second launch focuses the existing window instead of opening another.
+- Startup failures show an error box ("Work Ledger couldn't start") and quit.
+- The app ID `com.workledger.app` matches in `electron-builder.yml` and `main.ts`. Changing it breaks taskbar pins.
+
+### 17.4 Where Notes Live
+
+| How it runs                        | Vault path                         |
+| ---------------------------------- | ---------------------------------- |
+| `VAULT_PATH` set                   | That path (relative to the working directory). |
+| Installed app                      | `~/Work Ledger`                    |
+| From source (`bun run dev`, `bun run start`) | `./vault`                |
+
+The installed app sends errors to `<vault>/.workledger/error.log`. From source they go to the console.
+
+### 17.5 Design Language
+
+From the header of `styles.css`:
+
+- Brass means value. Only starred work and the review payoff use it.
+- Serif is the user's words. Mono is the record (dates, times, tags, counts). Sans is the app.
+- Ruled lines and a margin column instead of boxes.
+
+A print stylesheet turns the review into a plain black-on-white document.
+
+### 17.6 Commands
+
+| Command              | Does                                                                    |
+| -------------------- | ----------------------------------------------------------------------- |
+| `bun run dev`        | Dev server at `http://127.0.0.1:41820` (`PORT` overrides), with watch.  |
+| `bun run start`      | Builds the main process and opens the Electron window.                  |
+| `bun run build`      | Builds the main process and writes the installer and zip to `dist/`.    |
+| `bun test`           | Runs all tests.                                                         |
+| `bun run seed:demo`  | Fills `./demo-vault` (or `VAULT_PATH`) with about 10 weeks of sample work. Refuses a non-empty folder. |
+
+`scripts/make-icon.ps1` redraws `public/favicon.ico` (the Windows app icon) at every size Windows uses.
 
 ---
 
-## 18. Suggested Project Structure
+## 18. Project Structure
 
 ```txt
-tracker/
-├── tracker.db                  # SQLite database, gitignored
+todo/
 ├── package.json
-├── bun.lockb
-├── README.md
-├── PRD.md
+├── bun.lock
+├── tsconfig.json
+├── electron-builder.yml          # packaging, fuses
+├── prd.md
+├── planning/                     # original milestone plans and mockups (history)
+├── public/
+│   ├── app.js                    # progressive enhancement
+│   ├── styles.css
+│   ├── icon.svg                  # in-app icon
+│   └── favicon.ico               # Windows app icon
+├── scripts/
+│   ├── make-icon.ps1
+│   └── seed-demo.ts
 ├── src/
-│   ├── server.ts               # Bun.serve entry point
-│   ├── db.ts                   # SQLite connection and migration runner
-│   ├── schema.ts               # SQL migrations
-│   ├── queries.ts              # Query helpers
+│   ├── server.ts                 # handleRequest: routing and bundled assets
+│   ├── review.ts                 # review model and exports
+│   ├── launch.ts                 # vault path, error log
+│   ├── dev-server.ts             # development server
+│   ├── assets.d.ts
+│   ├── electron/
+│   │   ├── main.ts               # window, lockdown, single instance
+│   │   └── protocol.ts           # app:// handler, CSP
+│   ├── vault/
+│   │   ├── format.ts             # parse and format lines and files
+│   │   └── vault.ts              # file-backed store
 │   ├── routes/
-│   │   ├── day.ts              # Day View
-│   │   ├── journal.ts          # Journal mutations
-│   │   ├── todos.ts            # TODO pages and mutations
-│   │   ├── review.ts           # Review page and export
-│   │   └── data.ts             # Optional export routes
-│   ├── views/
-│   │   ├── layout.ts
-│   │   ├── components.ts
-│   │   ├── day.ts
+│   │   ├── shared.ts             # page, redirect, form helpers
+│   │   ├── today.ts
+│   │   ├── journal.ts
 │   │   ├── todos.ts
-│   │   ├── review.ts
-│   │   └── data.ts
+│   │   ├── goals.ts
+│   │   └── review.ts
+│   ├── views/
+│   │   ├── layout.ts             # shell, nav, shortcuts dialog
+│   │   ├── components.ts
+│   │   ├── today.ts
+│   │   ├── todos.ts
+│   │   ├── goals.ts
+│   │   └── review.ts
 │   └── lib/
 │       ├── date.ts
-│       ├── html.ts             # Escaping helpers
-│       ├── markdown.ts
-│       ├── validation.ts
-│       └── csv.ts
-└── public/
-    ├── styles.css
-    ├── app.js                  # Small client helpers
-    └── htmx.min.js
+│       ├── html.ts
+│       └── validation.ts
+└── tests/
+    ├── helpers/test-vault.ts
+    ├── unit/                     # date, format, html, review, validation
+    └── integration/              # vault, routes, server, app-protocol, launch
 ```
+
+Generated and ignored: `out/`, `dist/`, `vault/`, `demo-vault/`, `node_modules/`.
 
 ---
 
 ## 19. Validation and Error Handling
 
-### Validation Rules
+| Case                               | Behavior                                                                     |
+| ---------------------------------- | ---------------------------------------------------------------------------- |
+| Blank capture                      | "Write something before adding it to the ledger."                            |
+| Unreadable time spent              | "Time spent should look like 45m, 1h, 1h 30m or 90 minutes."                 |
+| Empty entry on edit                | "An entry can't be empty. Delete it instead."                                |
+| Empty TODO task                    | "A todo needs a task."                                                       |
+| Invalid priority                   | "Pick High, Medium, Low or no priority."                                     |
+| Invalid TODO status                | "That status isn't one the app knows."                                       |
+| Blank goal name on create          | "A goal needs a name."                                                       |
+| Invalid goal status                | "Pick Active, Achieved or Dropped."                                          |
+| Invalid date on Today              | Falls back to today.                                                         |
+| Invalid date on capture            | "That date isn't valid."                                                     |
+| Missing entry, TODO, or goal       | 404 page: "… doesn't exist. It may have been deleted or edited outside the app." |
+| Unsafe `return_to`                 | Ignored. A default path is used.                                             |
+| Unexpected error                   | 500, plain text with the message. Logged to the console or `error.log`.      |
+| Startup failure (desktop)          | Error box, then quit.                                                        |
 
-| Case                  | Behavior                                                   |
-| --------------------- | ---------------------------------------------------------- |
-| Empty journal content | Reject with inline error.                                  |
-| Empty TODO task       | Reject with inline error.                                  |
-| Invalid date          | Show error or fall back to today.                          |
-| Invalid status        | Reject.                                                    |
-| Invalid priority      | Reject.                                                    |
-| Negative time spent   | Reject.                                                    |
-| Missing record        | Return 404.                                                |
-| Database error        | Show readable local error page and log details to console. |
-
-For HTMX requests, return the updated form fragment with inline errors.
-
-For normal requests, re-render the page with an error message.
+Messages show at the top of the page (`role="alert"`). Capture and edit forms get the typed values back (see 15.2). The capture text itself survives as a draft.
 
 ---
 
 ## 20. Accessibility and Keyboard Support
 
-### Requirements
+### 20.1 Requirements
 
-| ID  | Requirement                                                       |
-| --- | ----------------------------------------------------------------- |
-| A-1 | All buttons use real `<button>` elements.                         |
-| A-2 | Inputs have labels.                                               |
-| A-3 | Focus states are visible.                                         |
-| A-4 | Destructive actions require confirmation.                         |
-| A-5 | Pages are usable on narrow screens.                               |
-| A-6 | Basic navigation works without relying on complex client-side JS. |
+| ID  | Requirement                                                                                      |
+| --- | ------------------------------------------------------------------------------------------------ |
+| A-1 | Actions use real `<button>` elements inside forms, or links. The TODO menu opens from a `<summary>`. |
+| A-2 | Inputs have labels (visible or screen-reader only). Icon buttons have `aria-label`.              |
+| A-3 | Focus states are visible. A skip link jumps to the main content.                                 |
+| A-4 | Destructive actions ask for confirmation (with the script).                                      |
+| A-5 | Layout adapts to narrow windows (breakpoints at 1180px, 860px, 560px).                           |
+| A-6 | Every page and form works without client-side JS. (The shortcuts dialog needs it.)               |
+| A-7 | After an in-place update, focus stays where the user was.                                        |
+| A-8 | Copy results are announced. Animations stop under `prefers-reduced-motion`.                      |
 
-### Keyboard Shortcuts
+### 20.2 Keyboard Shortcuts
 
-Minimum v1:
+Listed in the app's shortcuts dialog (`?`). Single-key shortcuts are ignored while typing in a field.
 
-| Shortcut           | Page         | Action              |
-| ------------------ | ------------ | ------------------- |
-| `Cmd/Ctrl + Enter` | Journal form | Save journal entry. |
-| `Cmd/Ctrl + Enter` | TODO form    | Save TODO.          |
-| `/`                | TODO Manager | Focus search field. |
-
-Nice-to-have:
-
-| Shortcut | Page     | Action               |
-| -------- | -------- | -------------------- |
-| `g t`    | Any page | Go to today.         |
-| `g r`    | Any page | Go to review.        |
-| `n`      | Day View | Focus journal input. |
+| Shortcut                | Where                | Action                                              |
+| ----------------------- | -------------------- | --------------------------------------------------- |
+| `n`                     | Today                | Focus the capture box.                              |
+| `t`                     | Today, Todos         | Focus the add-TODO field.                           |
+| `[` / `]`               | Today                | Previous / next day.                                |
+| `/`                     | Todos, Review        | Focus search.                                       |
+| `Esc`                   | Any                  | Close a menu, cancel an entry or TODO edit, or leave a text box. |
+| `Ctrl + Enter`          | Any form             | Save the form you're in (`Cmd + Enter` also works). |
+| `g` then `t`/`d`/`g`/`r`| Any                  | Go to Today, Todos, Goals, Review.                  |
+| `?`                     | Any                  | Show the shortcut list.                             |
 
 ---
 
 ## 21. Security and Privacy
 
-V1 security posture:
+### 21.1 Posture
 
-| Area            | Requirement                     |
-| --------------- | ------------------------------- |
-| Network binding | Bind to `127.0.0.1` by default. |
-| Auth            | None for localhost-only use.    |
-| External calls  | None required.                  |
-| Telemetry       | None.                           |
-| Database        | Local SQLite file.              |
-| Backups         | Manual file copy initially.     |
+| Area            | Requirement                                                                   |
+| --------------- | ----------------------------------------------------------------------------- |
+| Network         | The shipped app opens no port. Pages come through a custom `app://` scheme.   |
+| Outbound calls  | None. No auto-update, no telemetry.                                           |
+| Auth            | None. Single user, no network listener.                                       |
+| Data            | Plain Markdown files in a local folder. Not encrypted at rest.                |
+| Backups         | Copy the folder.                                                              |
 
-If LAN access is added later by binding to `0.0.0.0`, add:
+### 21.2 Desktop App
 
-- Basic password protection.
-- Clear README warning.
-- Optional local-network-only guidance.
+Follows Electron's security checklist.
+
+**Serving pages.**
+
+- The `app` scheme is registered as privileged (`standard`, `secure`, `supportFetchAPI`, `codeCache`) and served with `protocol.handle`.
+- Requests for any other host return 404.
+- GET and HEAD are open. Any other method needs `initiatorOrigin` to be `app://local`, which Electron sets and a page can't fake. Otherwise 403.
+- Every response gets a Content Security Policy and `X-Content-Type-Options: nosniff`:
+
+```txt
+default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; form-action 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'
+```
+
+**Renderer.**
+
+- Sandbox on (`app.enableSandbox()` and `sandbox: true`), `contextIsolation: true`, `nodeIntegration: false`.
+- No preload script and no IPC.
+- Navigation and redirects are locked to `app://local`. `window.open` is denied. `<webview>` is blocked.
+- Every permission is denied except `clipboard-sanitized-write` from `app://local`. Device permissions are denied.
+
+**Packaged build.**
+
+- DevTools off and no menu (so no reload or DevTools shortcuts).
+- Refuses to start when launched with `--remote-debugging-port` or `--remote-debugging-pipe`.
+- Electron fuses: `runAsNode` off, cookie encryption on, `NODE_OPTIONS` off, `--inspect` arguments off, embedded asar integrity validation on, only load app from asar, file protocol extra privileges off.
+- `publish: null`, so nothing is uploaded and no update feed exists.
+- Unsigned. Windows SmartScreen or IT policy may warn or block the installer.
+
+### 21.3 Development Server
+
+`bun run dev` only. Never shipped.
+
+- Binds to `127.0.0.1`.
+- Answers only when the `Host` header is `localhost`, `127.0.0.1`, or `[::1]` (blocks DNS rebinding).
+- Refuses POSTs with `Sec-Fetch-Site: cross-site`, an `Origin` of `null`, or an `Origin` whose host differs from `Host` (blocks CSRF from other tabs).
+- Sends the same CSP as the desktop app.
+
+### 21.4 Input Handling
+
+- All user text is HTML-escaped before rendering. Tag and link styling runs on escaped text.
+- `return_to` only accepts same-origin paths.
+- Goal slugs from URLs must be plain slugs.
+- Assets are served by exact path from bundled strings, so path traversal can't reach the disk.
 
 ---
 
 ## 22. Backup and Restore
 
-The SQLite database is the source of truth.
+The vault folder is the source of truth. The rail shows its path on every page.
 
-### v1 Backup
+**Backup.** Copy the folder. Closing the app first avoids copying mid-write, though writes are atomic per file.
 
-Document manual backup:
-
-```bash
-cp tracker.db ~/Backups/tracker-$(date +%Y-%m-%d).db
+```powershell
+Copy-Item -Recurse "$HOME\Work Ledger" "$HOME\Backups\Work Ledger $(Get-Date -Format yyyy-MM-dd)"
 ```
 
-### Restore
+**Restore.** Close the app, then copy a backup over the folder (or point `VAULT_PATH` at it).
 
-Document restore:
+**Deleted items.** Find the line in `.trash/deleted.md` and paste it back into its file. There is no restore button.
 
-```bash
-cp ~/Backups/tracker-2026-05-27.db ./tracker.db
-```
-
-### Future Enhancement
-
-Add:
-
-```bash
-bun run backup
-```
-
-Which copies the database to a configured backup directory.
+**Not yet built.** A `bun run backup` command that copies the vault to a configured folder.
 
 ---
 
-## 23. Testing Requirements
+## 23. Testing
 
-### Unit Tests
+`bun test` runs 152 tests across 10 files. Tests use a temp vault and a clock pinned to 2026-09-28 14:05.
 
-Test:
+### 23.1 Unit (`tests/unit/`)
 
-- Local date formatting.
-- Date range preset calculations.
-- Multiline journal splitting.
-- Journal validation.
-- TODO validation.
-- TODO completion transition logic.
-- Markdown export formatting.
-- Soft delete query behavior.
+| File                   | Covers                                                                                  |
+| ---------------------- | --------------------------------------------------------------------------------------- |
+| `date.test.ts`         | Local dates, validation, `addDays`, `startOfWeek`, every preset, last quarter across a year boundary, `formatMinutes`. |
+| `format.test.ts`       | Entry and TODO line parsing and round-trips, mid-sentence vs trailing tags, number-only hashtags, variation selectors, notes, frontmatter quoting, goal defaults. |
+| `html.test.ts`         | `escapeHtml`.                                                                           |
+| `review.test.ts`       | Grouping, ordering, stats, goal grouping, filters, newest first, exact Markdown output, Markdown to HTML, empty range, JSON and JSONL shape, filter parsing and the 12-month default. |
+| `validation.test.ts`   | Tags, priority, status, time-spent parsing, slugs, `safeReturnPath`.                    |
 
-### Integration Tests
+### 23.2 Integration (`tests/integration/`)
 
-Test:
+| File                     | Covers                                                                                 |
+| ------------------------ | -------------------------------------------------------------------------------------- |
+| `vault.test.ts`          | Daily note creation, appending after existing entries, ID assignment on read, update and delete with trash, date listing across years, TODO completion freezing and clearing, notes, goal slugs. |
+| `routes.test.ts`         | Pages, 404s, multi-line capture with clock time, overnight-window date, list-marker stripping, error round-trips, backfill, edit/star/delete, escaping, past-day check-off, TODO filters and edits, goal evidence, review downloads, filtered naming, dev request guard, `return_to`. |
+| `server.test.ts`         | Dev server over real HTTP: CSP, assets, form post and redirect, 404, path traversal.   |
+| `app-protocol.test.ts`   | `app://` handler: CSP and nosniff, host check, origin check for posts, assets, traversal. |
+| `launch.test.ts`         | Vault path resolution, error log writing.                                              |
 
-- Add journal entry.
-- Add multiline journal entries.
-- Edit journal entry.
-- Soft delete journal entry.
-- Add TODO.
-- Mark TODO done.
-- Reopen TODO without changing completion metadata.
-- Star journal entry.
-- Star TODO.
-- Review query includes journal entries and completed TODOs.
-- Review query excludes soft-deleted records.
-- Markdown export returns expected content.
+Not covered by automated tests: `public/app.js`, `src/electron/main.ts`, and the packaged build.
 
-### Manual Smoke Test
+### 23.3 Manual Smoke Test (Desktop App)
 
-Before v1 is considered usable:
+Run against a build from `bun run build`:
 
-1. Start the app.
-2. Add three journal entries for today using multiline capture.
-3. Add one journal entry for yesterday.
-4. Add three TODOs.
-5. Mark two TODOs done.
-6. Star one journal entry.
-7. Confirm today’s summary counts are correct.
-8. Open review for this week.
-9. Confirm entries and completed TODOs appear on the correct dates.
-10. Copy Markdown.
-11. Download Markdown.
-12. Restart the server.
-13. Confirm data persisted.
+1. Install from the NSIS installer without admin rights.
+2. Launch. One window opens on Today. The rail shows the notes path, `C:\Users\<name>\Work Ledger`.
+3. Launch again. The existing window comes forward. No second window.
+4. Add three entries with multi-line capture. Add one for yesterday.
+5. Add three TODOs. Mark two done, one while viewing yesterday. It counts on yesterday.
+6. Star one entry. Confirm the day summary counts.
+7. Add a goal. Link an entry to it. Confirm it on the goal page.
+8. Open Review, This week. Confirm dates. Copy the document and paste into Word (formatted) and Notepad (Markdown).
+9. Download .md, .json, .jsonl. Print to PDF.
+10. Delete an entry. Confirm it is in `.trash/deleted.md`.
+11. Edit a line by hand in the vault, reload, and confirm it shows with an ID added.
+12. Close the window. Confirm no Work Ledger process remains.
+13. Reopen. Data persisted.
+14. Confirm no menu bar, F12 and Ctrl+Shift+I do nothing, and a link to an outside site doesn't navigate.
+15. Launch with `--remote-debugging-port=9222`. The app refuses to start.
 
 ---
 
@@ -1352,7 +1200,7 @@ Before v1 is considered usable:
 | AC-2 | User can paste multiple lines and save them as separate entries. |
 | AC-3 | User can add entries for a previous date.                        |
 | AC-4 | User can edit journal entries.                                   |
-| AC-5 | User can delete journal entries.                                 |
+| AC-5 | User can delete journal entries. The deleted line is kept in trash. |
 | AC-6 | User can star important entries.                                 |
 | AC-7 | Draft journal text survives page reload before submission.       |
 
@@ -1363,40 +1211,54 @@ Before v1 is considered usable:
 | AC-8  | User can add a TODO with only a task title.                             |
 | AC-9  | User can update TODO status.                                            |
 | AC-10 | User can mark a TODO done.                                              |
-| AC-11 | Completed TODO appears on the correct completion date.                  |
-| AC-12 | Reopening and re-closing a TODO does not overwrite completion metadata. |
-| AC-13 | User can explicitly clear completion metadata with confirmation.        |
+| AC-11 | A completed TODO appears on its completion date. Done from a past day dates it to that day, never a future one. |
+| AC-12 | Reopening and re-closing a TODO does not overwrite its completion date. |
+| AC-13 | User can explicitly clear a completion date with confirmation.          |
+
+### Goals
+
+| ID   | Acceptance Criterion                                                           |
+| ---- | ------------------------------------------------------------------------------ |
+| AC-G1 | User can create a goal with a review cycle and description.                   |
+| AC-G2 | User can link entries and TODOs to a goal by checkbox or by typing `[[slug]]`. |
+| AC-G3 | A goal page lists linked entries and done TODOs as evidence.                  |
+| AC-G4 | User can set a goal Active, Achieved, or Dropped without breaking its links.  |
+| AC-G5 | User can review one goal's evidence as a document.                            |
 
 ### Review
 
-| ID    | Acceptance Criterion                      |
-| ----- | ----------------------------------------- |
-| AC-14 | User can select a custom date range.      |
-| AC-15 | Review includes journal entries in range. |
-| AC-16 | Review includes completed TODOs in range. |
-| AC-17 | Review groups items by date.              |
-| AC-18 | User can filter to highlights only.       |
-| AC-19 | User can copy Markdown.                   |
-| AC-20 | User can download Markdown.               |
+| ID    | Acceptance Criterion                                     |
+| ----- | -------------------------------------------------------- |
+| AC-14 | User can select a preset or custom date range.           |
+| AC-15 | Review includes journal entries in range.                |
+| AC-16 | Review includes done TODOs completed in range.           |
+| AC-17 | Review groups items by date and by goal.                 |
+| AC-18 | User can filter to starred only, tag, goal, or text.     |
+| AC-19 | User can copy the document as formatted text and Markdown. |
+| AC-20 | User can download Markdown, JSON, and JSONL.             |
+| AC-21 | User can print the document or save it as PDF.          |
 
-### Local-First
+### Local, Private, Desktop
 
-| ID    | Acceptance Criterion                                  |
-| ----- | ----------------------------------------------------- |
-| AC-21 | App runs locally with `bun run dev`.                  |
-| AC-22 | Data persists in SQLite after restart.                |
-| AC-23 | App does not require an external service.             |
-| AC-24 | Database file can be manually backed up and restored. |
+| ID    | Acceptance Criterion                                                        |
+| ----- | --------------------------------------------------------------------------- |
+| AC-22 | The installed app opens with a double-click. Closing the window quits it.   |
+| AC-23 | A second launch focuses the existing window.                                |
+| AC-24 | Data persists in the vault folder after restart.                            |
+| AC-25 | The shipped app opens no network port and makes no network calls.           |
+| AC-26 | The vault can be backed up and restored by copying the folder.              |
+| AC-27 | The vault reads as plain Markdown. Hand edits are picked up and kept.       |
+| AC-28 | The installer needs no admin rights.                                        |
 
-### Planning Additions
+### Tags and AI Export
 
-| ID   | Acceptance Criterion                                                       |
-| ---- | -------------------------------------------------------------------------- |
-| PX-1 | User can add, edit, and view simple tags on journal entries.               |
-| PX-2 | User can add, edit, and view simple tags on TODOs.                         |
-| PX-3 | Review output includes tag breakdown and optional tag filtering.           |
-| PX-4 | User can export review-range data as JSON and JSONL for AI summarization.  |
-| PX-5 | SQLite remains the source of truth; Markdown files are not primary storage. |
+| ID   | Acceptance Criterion                                                      |
+| ---- | ------------------------------------------------------------------------- |
+| PX-1 | User can add, edit, and view tags on journal entries.                     |
+| PX-2 | User can add, edit, and view tags on TODOs (typed in the task).           |
+| PX-3 | Review output includes tag counts and tag filtering.                      |
+| PX-4 | User can export review-range data as JSON and JSONL for AI summarization. |
+| PX-5 | The Markdown vault is the source of truth. There is no database.          |
 
 ---
 
@@ -1404,12 +1266,12 @@ Before v1 is considered usable:
 
 After 30 days of use, the app is successful if:
 
-| Metric              | Target                                                   |
-| ------------------- | -------------------------------------------------------- |
-| Capture speed       | Simple entry takes under 10 seconds.                     |
-| Review speed        | Prior-month summary can be produced in under 30 seconds. |
-| Logging consistency | At least 20 active logging days out of 30.               |
-| Historical trust    | Completion dates remain accurate.                        |
+| Metric              | Target                                                               |
+| ------------------- | -------------------------------------------------------------------- |
+| Capture speed       | Simple entry takes under 10 seconds.                                 |
+| Review speed        | Prior-month summary can be produced in under 30 seconds.             |
+| Logging consistency | At least 20 active logging days out of 30.                           |
+| Historical trust    | Completion dates remain accurate.                                    |
 | Export usefulness   | Markdown is review-ready; JSON/JSONL is usable for AI summarization. |
 
 If logging consistency is below 50% after a month, the likely issue is UX friction, not missing features.
@@ -1418,192 +1280,79 @@ If logging consistency is below 50% after a month, the likely issue is UX fricti
 
 ## 26. Product Risks
 
-| Risk                               | Mitigation                                    |
-| ---------------------------------- | --------------------------------------------- |
-| User forgets to log daily          | Make backfilling easy.                        |
-| Capture feels too structured       | Keep metadata optional and hidden by default. |
-| TODOs dominate the app             | Keep Day View journal-first.                  |
-| Review output is noisy             | Add highlights and highlights-only mode.      |
-| Accidental deletion loses history  | Use soft delete.                              |
-| Completion dates become unreliable | Freeze completion metadata.                   |
-| Local DB is lost                   | Document backup early.                        |
-| App grows too complex              | Defer sync, auth, recurring tasks, and in-app AI. |
+| Risk                               | Mitigation                                                                  |
+| ---------------------------------- | --------------------------------------------------------------------------- |
+| User forgets to log daily          | Make backfilling easy. The week strip shows empty days.                     |
+| Capture feels too structured       | Keep metadata optional and collapsed. Allow inline `#tags` and `[[links]]`. |
+| TODOs dominate the app             | Keep Today journal-first.                                                   |
+| Review output is noisy             | Stars, starred-only mode, tag and goal filters.                             |
+| Accidental deletion loses history  | Confirm deletes. Append deleted lines to `.trash/deleted.md`.               |
+| Completion dates become unreliable | Freeze completion dates. Never date a TODO in the future.                   |
+| Vault is lost                      | Show the vault path on every page. Backup is a folder copy.                 |
+| Hand edits break the app           | Unrecognized lines are left alone. Missing IDs are added on read. Writes are atomic. |
+| Goal links drift                   | Slugs never change. Unknown `[[links]]` are flagged in the UI.              |
+| Desktop app attack surface         | No port, sandboxed renderer, no IPC, CSP, fuses, locked navigation.         |
+| Unsigned build is blocked at work  | Known limit. Code signing is out of scope.                                  |
+| App grows too complex              | Defer sync, auth, recurring tasks, and in-app AI.                           |
 
 ---
 
 ## 27. Future Ideas
 
-Potential future features:
-
-- Full-text search.
+- Full-text search across the journal (today: Todos search and the Review "Contains" filter).
 - Weekly review page.
+- Restore deleted items from the trash in the app.
+- Delete or archive a goal in the app.
+- Move a journal entry to another date.
+- "Save as one entry" option for multi-line capture.
+- Backup command (`bun run backup`).
+- CSV exports and a raw data page (D-6 to D-9).
+- JSON or CSV import.
 - Advanced tag management.
-- JSON import.
-- CSV import.
-- Restore deleted entries.
 - Recurring TODOs.
-- Goal or OKR linkage.
 - AI-generated review drafts.
-- LAN/mobile access with password.
-- Backup script.
 - Calendar import.
 - GitHub/Jira/Linear import.
 - Mood or energy tracking.
-- “Wins only” review mode.
-- Print-friendly review page.
+- macOS or Linux builds.
+- Code signing.
+- LAN or mobile access. This would need a network listener and authentication, which the current security model deliberately avoids.
 
 ---
 
-## 28. Recommended Build Order
+## 28. Status
 
-### Milestone 1 — Foundation
+### 28.1 Built
 
-Build:
+Everything in sections 8 to 24 exists in the code, except items marked "Not yet built". That covers:
 
-- Bun project.
-- SQLite connection.
-- Migration runner.
-- Base layout.
-- Static assets.
-- Local date helpers.
+- Today: capture, backfill, edit, star, delete to trash, drafts, week strip, TODO tray.
+- Todos: groups, filters, search, edit, status, star, clear completion, delete to trash.
+- Goals: cycles, statuses, evidence feed, linked open TODOs, review shortcut.
+- Review: eight presets, custom ranges, filters, copy as formatted text, Markdown/JSON/JSONL, print to PDF.
+- Markdown vault storage with Obsidian-compatible syntax.
+- Windows desktop app with the security model in section 21.
+- 152 automated tests.
 
-Done when:
+`planning/*.html` holds the original milestone plans (`milestone-01-foundation.html` to `milestone-07-polish-backup.html`), the acceptance matrix, and UI mockups. They describe the earlier SQLite and HTMX design and are kept as history.
 
-- App starts with `bun run dev`.
-- Database initializes automatically.
-- Home page renders.
+### 28.2 Open Items
 
----
+| Item                                   | Notes                                                                |
+| -------------------------------------- | -------------------------------------------------------------------- |
+| CSV exports, `/data` page (D-6 to D-9) | From the original plan. The vault gives raw access meanwhile.        |
+| Restore from trash                     | Original plan deferred it. Today a manual copy-paste.                |
+| Backup command                         | Original "future enhancement". Today a manual folder copy.           |
+| Move an entry to another date          | Original plan said "may be supported". Not built.                    |
+| "Save as one entry"                    | Original plan said "a later version may add". Not built.             |
+| README                                 | There is no README. Setup, commands, and backup steps live only in this document. |
+| Goal delete or archive                 | No UI. Delete the file by hand.                                      |
+| Tests for `app.js` and `main.ts`       | Covered only by the manual smoke test.                               |
 
-### Milestone 2 — Day View Journal
+### 28.3 Known Gaps
 
-Build the core habit loop first.
-
-Build:
-
-- `/?date=YYYY-MM-DD`.
-- Date navigation.
-- Quick capture textarea.
-- Multiline entry creation.
-- Journal list.
-- Edit journal entry.
-- Soft delete journal entry.
-- Star/unstar journal entry.
-- Draft protection.
-
-Done when:
-
-- User can log a day’s work from the landing page.
-
----
-
-### Milestone 3 — Minimal TODO Support
-
-Build TODOs inside the Day View before building a full manager.
-
-Build:
-
-- Add TODO.
-- Show Open/In Progress/Blocked TODOs.
-- Mark TODO done.
-- Show TODOs completed on selected date.
-- Freeze `completed_at` and `completed_on`.
-- Reopen TODO without changing completion metadata.
-
-Done when:
-
-- TODOs provide useful context for the daily journal.
-
----
-
-### Milestone 4 — Review Output
-
-Build the payoff workflow.
-
-Build:
-
-- Date range picker.
-- Presets.
-- Review query.
-- Grouped date output.
-- Highlights section.
-- Highlights-only mode.
-- Summary stats.
-
-Done when:
-
-- User can inspect a date range and understand what happened.
-
----
-
-### Milestone 5 — Markdown and AI Export
-
-Build:
-
-- Copy as Markdown.
-- Download `.md`.
-- Download review-range JSON.
-- Download review-range JSONL.
-- Clean Markdown formatting.
-- Export tests.
-
-Done when:
-
-- Output can be pasted directly into a performance review draft.
-- JSON and JSONL can be handed to an agent for date-range summarization.
-
----
-
-### Milestone 6 — TODO Manager
-
-Build:
-
-- `/todos`.
-- Filters.
-- Search.
-- Edit details.
-- Clear completion metadata explicitly.
-- Soft delete TODO.
-
-Done when:
-
-- User can manage the task list beyond the Day View.
-
----
-
-### Milestone 7 — Polish and Backup
-
-Build:
-
-- Keyboard shortcuts.
-- Empty states.
-- Inline validation errors.
-- Delete confirmations.
-- README instructions.
-- Manual backup documentation.
-- Smoke test checklist.
-
-Done when:
-
-- The app is comfortable enough for real daily use.
-
----
-
-## 29. v1 Definition of Done
-
-v1 is complete when the user can:
-
-1. Run the app locally.
-2. Add freeform journal entries for today.
-3. Add multiple journal entries at once.
-4. Backfill a previous day.
-5. Add and manage lightweight TODOs.
-6. Mark TODOs done with frozen completion dates.
-7. Star important accomplishments.
-8. Review a date range.
-9. Filter review output to highlights.
-10. Copy or download Markdown.
-11. Restart the app without losing data.
-12. Back up the SQLite database manually.
-
-The app should be useful before any advanced features are added.
+- Without `app.js`, destructive actions post without a confirmation prompt. The desktop app always runs the script, so this only affects the dev server with scripts off.
+- The printed PDF's suggested name lacks the `-filtered` suffix that filtered downloads get. The document itself still shows the filter line.
+- Line rewrites drop a trailing `[[slug|label]]` label and any `⏱ Nm` on a TODO line (see 10.7).
+- A Today page left open overnight still sends yesterday's date as `on` from the TODO tray, so checking a TODO off before reloading dates it to yesterday. The capture form avoids this by sending no date.
+- Adding a TODO and the goal forms don't return typed values after a server-side error. A long goal description could be lost (the browser's `required` check prevents most cases).

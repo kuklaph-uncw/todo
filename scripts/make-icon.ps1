@@ -1,17 +1,14 @@
-# Draws the app icon (same shapes as public/icon.svg) at exact pixel sizes:
-#   public/favicon.ico      Windows icon sizes, used for the exe
-#   public/icons/*.png      sizes listed in public/manifest.webmanifest, used
-#                           by Edge when the app is installed
+# Draws the app icon (same shapes as public/icon.svg) at exact pixel sizes into
+# public/favicon.ico, the app's Windows icon (exe, taskbar, Start menu).
+# Every size Windows asks for at 100-200% scaling, so none is blurry from resizing.
 # Uses only built-in .NET; Windows only.
 #
 #   powershell -File scripts/make-icon.ps1
 
 Add-Type -AssemblyName System.Drawing
 
-$sizes = 16, 24, 32, 48, 64, 256
-$pngSizes = 16, 32, 48, 64, 192, 512
+$sizes = 16, 20, 24, 32, 40, 48, 64, 256
 $out = Join-Path $PSScriptRoot '..\public\favicon.ico'
-$pngDir = Join-Path $PSScriptRoot '..\public\icons'
 
 function New-RoundedRect([float]$x, [float]$y, [float]$w, [float]$h, [float]$r) {
     $path = [System.Drawing.Drawing2D.GraphicsPath]::new()
@@ -75,9 +72,3 @@ foreach ($png in $images) { $writer.Write($png) }
 $writer.Flush()
 [System.IO.File]::WriteAllBytes($out, $file.ToArray())
 Write-Output "Wrote $out ($($file.Length) bytes, sizes: $($sizes -join ', '))"
-
-New-Item -ItemType Directory -Force $pngDir | Out-Null
-foreach ($size in $pngSizes) {
-    [System.IO.File]::WriteAllBytes((Join-Path $pngDir "icon-$size.png"), (Get-IconPng $size))
-}
-Write-Output "Wrote $pngDir (sizes: $($pngSizes -join ', '))"

@@ -1,8 +1,10 @@
 node_modules/
-vault/
-demo-vault/
+/vault/
+/demo-vault/
 dist/
+/out/
 tmp/
+.serena/
 tracker.db
 *.db-wal
 *.db-shm

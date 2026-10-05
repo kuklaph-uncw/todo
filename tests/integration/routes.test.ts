@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { devFetch } from "../../src/dev-server";
 import { handleRequest } from "../../src/server";
 import { createTestContext, formPost, get } from "../helpers/test-vault";
 
@@ -23,42 +24,8 @@ describe("pages", () => {
     expect(await html("/?date=2026-02-30")).toContain("September 28");
   });
 
-  it("answers /health so a second launch can find this copy", async () => {
-    expect(await (await send(get("/health"))).json()).toEqual({ app: "work-ledger" });
-  });
-
-  it("shows the welcome page with the notes folder and an install button", async () => {
-    const page = await html("/welcome");
-    expect(page).toContain("Welcome to Work Ledger");
-    expect(page).toContain(ctx.vaultPath);
-    expect(page).toContain("data-install");
-  });
-
-  it("keeps a way back to setup and install on every page", async () => {
-    const page = await html("/todos");
-    expect(page).toContain('href="/welcome"');
-    expect(page).toMatch(/data-install hidden>Install as an app/);
-  });
-
-  it("offers Quit only in the packaged app, and stops after sending the 'stopped' page", async () => {
-    expect(await html("/")).not.toContain('action="/quit"');
-    expect((await send(formPost("/quit", {}))).status).toBe(404);
-
-    let quitCalls = 0;
-    ctx.quit = () => quitCalls++;
-    expect(await html("/")).toContain('action="/quit"');
-    const res = await send(formPost("/quit", {}));
-    expect(await res.text()).toContain("Work Ledger has stopped");
-    expect(quitCalls).toBe(0);
-    await Bun.sleep(600);
-    expect(quitCalls).toBe(1);
-  });
-
-  it("remembers 'Not now' on the welcome page", async () => {
-    expect(ctx.vault.isWelcomeDismissed()).toBe(false);
-    const res = await send(formPost("/welcome/dismiss", {}));
-    expect(res.headers.get("location")).toBe("/");
-    expect(ctx.vault.isWelcomeDismissed()).toBe(true);
+  it("shows where the notes live in the sidebar", async () => {
+    expect(await html("/todos")).toContain(ctx.vaultPath);
   });
 
   it("returns 404 for unknown pages and goals", async () => {
@@ -284,22 +251,32 @@ describe("review and exports", () => {
   });
 });
 
-describe("request guard", () => {
-  it("refuses cross-site form posts", async () => {
-    const req = new Request("http://127.0.0.1:3000/journal", {
+describe("development server request guard", () => {
+  const devSend = (req: Request) => devFetch(ctx)(req);
+  const post = (origin: string) =>
+    new Request("http://127.0.0.1:3000/journal", {
       method: "POST",
       body: new URLSearchParams({ date: "2026-09-28", content: "x" }),
-      headers: { origin: "https://evil.example", host: "127.0.0.1:3000" },
+      headers: { origin, host: "127.0.0.1:3000" },
     });
-    expect((await send(req)).status).toBe(403);
+
+  it("refuses cross-site and opaque-origin form posts", async () => {
+    expect((await devSend(post("https://evil.example"))).status).toBe(403);
+    expect((await devSend(post("null"))).status).toBe(403);
     expect(ctx.vault.getEntries("2026-09-28")).toEqual([]);
+  });
+
+  it("accepts same-origin form posts", async () => {
+    expect((await devSend(post("http://127.0.0.1:3000"))).status).toBe(303);
   });
 
   it("refuses requests for non-local hostnames (DNS rebinding)", async () => {
     const req = new Request("http://127.0.0.1:3000/", { headers: { host: "evil.example" } });
-    expect((await send(req)).status).toBe(403);
+    expect((await devSend(req)).status).toBe(403);
   });
+});
 
+describe("return paths", () => {
   it("does not redirect off-site via return_to", async () => {
     const res = await send(formPost("/journal", { date: "2026-09-28", content: "x", return_to: "//evil.example" }));
     expect(res.headers.get("location")).toBe("/?date=2026-09-28");

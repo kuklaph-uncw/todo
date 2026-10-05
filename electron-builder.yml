@@ -1,0 +1,33 @@
+# Packaging for Windows: `bun run build` writes a per-user installer and a zip to dist/.
+appId: com.workledger.app # must match APP_ID in src/electron/main.ts; changing it breaks taskbar pins
+productName: Work Ledger
+directories:
+  output: dist
+files:
+  - out/**/*
+asar: true
+npmRebuild: false
+electronLanguages:
+  - en-US
+publish: null # no auto-update and no upload anywhere
+
+win:
+  icon: public/favicon.ico
+  target:
+    - nsis
+    - zip
+
+nsis:
+  oneClick: true # installs on double-click
+  perMachine: false # per user, so no admin rights needed
+
+# Built-in switches baked into the exe (https://www.electronjs.org/docs/latest/tutorial/fuses).
+electronFuses:
+  runAsNode: false # the exe can't be used as a general-purpose Node.js
+  enableCookieEncryption: true # cookies on disk are encrypted (the app sets none today)
+  enableNodeOptionsEnvironmentVariable: false # NODE_OPTIONS can't inject code
+  enableNodeCliInspectArguments: false # --inspect can't attach a debugger
+  enableEmbeddedAsarIntegrityValidation: true # refuse to run if the app files were changed
+  onlyLoadAppFromAsar: true # only the packaged app files load, nothing beside them
+  loadBrowserProcessSpecificV8Snapshot: false
+  grantFileProtocolExtraPrivileges: false # the app never uses file:// pages

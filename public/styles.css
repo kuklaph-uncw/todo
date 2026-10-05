@@ -270,16 +270,6 @@ kbd {
   color: var(--ink);
 }
 
-.rail-foot a.link-button {
-  margin-top: 0;
-  text-decoration: none;
-}
-
-.install-link {
-  color: var(--ink-2);
-  font-weight: 600;
-}
-
 main {
   min-width: 0;
   outline: none;
@@ -1795,64 +1785,6 @@ a.goal-link:hover {
   font: 0.75rem/1.5 var(--mono);
 }
 
-/* ---- Welcome (first run) ----------------------------------------------- */
-
-.welcome {
-  max-width: 44rem;
-}
-
-.welcome-step {
-  display: grid;
-  gap: 0.6rem;
-  padding: 1.4rem 0;
-  border-top: 1px solid var(--line);
-}
-
-.welcome-step h2 {
-  font: 500 1.25rem var(--serif);
-}
-
-.welcome-step p {
-  color: var(--ink-2);
-}
-
-.welcome-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.install-status {
-  font-size: 0.875rem;
-  color: var(--ink-2);
-}
-
-.install-manual > summary {
-  font-size: 0.875rem;
-  color: var(--ink-3);
-  cursor: pointer;
-}
-
-.install-manual ol {
-  display: grid;
-  gap: 0.35rem;
-  margin-top: 0.5rem;
-  padding-left: 1.25rem;
-  list-style: decimal;
-  color: var(--ink-2);
-  font-size: 0.9rem;
-}
-
-.welcome .vault-path {
-  font-size: 0.85rem;
-}
-
-.welcome-skip {
-  padding-top: 1rem;
-  border-top: 1px solid var(--line);
-}
-
 /* ---- Shortcuts dialog -------------------------------------------------- */
 
 .shortcuts {
@@ -1947,7 +1879,7 @@ a.goal-link:hover {
     display: none;
   }
 
-  /* Keep setup, install and quit reachable: a wrapped row instead of hidden. */
+  /* Keep the notes folder and shortcuts reachable: a wrapped row instead of hidden. */
   .rail-foot {
     flex-basis: 100%;
     display: flex;

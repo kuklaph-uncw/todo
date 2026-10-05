@@ -1,15 +1,22 @@
 {
   "name": "todo",
+  "productName": "Work Ledger",
+  "version": "1.0.0",
+  "description": "A private log of your daily work, todos and goals, for performance reviews.",
   "private": true,
   "type": "module",
+  "main": "out/main.js",
   "scripts": {
-    "dev": "bun run --watch src/server.ts",
-    "start": "bun run src/server.ts",
+    "dev": "bun run --watch src/dev-server.ts",
     "test": "bun test",
     "seed:demo": "bun run scripts/seed-demo.ts",
-    "build": "bun build src/server.ts --compile --minify --sourcemap --windows-icon=public/favicon.ico --windows-hide-console --outfile dist/WorkLedger"
+    "build:main": "bun build src/electron/main.ts --target=node --format=esm --external electron --outfile out/main.js",
+    "start": "bun run build:main && electron .",
+    "build": "bun run build:main && electron-builder --win"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "electron": "44.5.1",
+    "electron-builder": "26.17.0"
   }
 }
