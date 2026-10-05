@@ -27,7 +27,13 @@ function serveAsset(pathname: string): Response | null {
 
 async function route(req: Request, ctx: AppContext): Promise<Response> {
   const { pathname } = new URL(req.url);
-  const parts = pathname.split("/").filter(Boolean).map(decodeURIComponent);
+  let parts: string[];
+  try {
+    parts = pathname.split("/").filter(Boolean).map(decodeURIComponent);
+  } catch {
+    // A malformed %-escape can't name any page.
+    return notFound(ctx);
+  }
 
   if (req.method === "GET" || req.method === "HEAD") {
     if (pathname === "/") return handleToday(req, ctx);

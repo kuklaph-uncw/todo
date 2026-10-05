@@ -32,6 +32,10 @@ describe("pages", () => {
     expect((await send(get("/nope"))).status).toBe(404);
     expect((await send(get("/goals/missing"))).status).toBe(404);
   });
+
+  it("returns 404, not an error, for a malformed address", async () => {
+    expect((await send(get("/goals/%E0%A4%A"))).status).toBe(404);
+  });
 });
 
 describe("journal capture", () => {
@@ -134,6 +138,16 @@ describe("todos", () => {
     expect(ctx.vault.getTodo(other.id)?.completedOn).toBe("2026-09-28");
   });
 
+  it("the tray on today sends no date, so a window left open overnight uses the new day", async () => {
+    await send(formPost("/todos", { task: "Ship it", return_to: "/" }));
+    const [todo] = ctx.vault.getTodos();
+    const tray = await html("/");
+    const doneForm = new RegExp(`action="/todos/${todo.id}/status"[\\s\\S]*?name="on" value="([^"]*)"`).exec(tray);
+    expect(doneForm?.[1]).toBe("");
+    // A past day still sends its own date.
+    expect(await html("/?date=2026-09-25")).toContain('name="on" value="2026-09-25"');
+  });
+
   it("filters the todo list", async () => {
     await send(formPost("/todos", { task: "Fix login #bug", return_to: "/todos" }));
     await send(formPost("/todos", { task: "Plan offsite", return_to: "/todos" }));
@@ -189,6 +203,13 @@ describe("todos", () => {
 });
 
 describe("goals", () => {
+  it("keeps the typed description when a new goal has no name", async () => {
+    const res = await send(formPost("/goals", { title: "  ", cycle: "2026", body: "A long self-assessment." }));
+    const page = await html(res.headers.get("location")!);
+    expect(page).toContain("A goal needs a name.");
+    expect(page).toContain("A long self-assessment.</textarea>");
+  });
+
   it("creates a goal and shows linked evidence on its page", async () => {
     const res = await send(formPost("/goals", { title: "Improve reliability", cycle: "2026", body: "Fewer pages." }));
     expect(res.headers.get("location")).toBe("/goals/improve-reliability");
@@ -244,6 +265,8 @@ describe("review and exports", () => {
     expect(page).toContain("Clear filters");
     const md = await send(get("/review/export.md?from=2026-09-01&to=2026-09-30&tag=incident"));
     expect(md.headers.get("content-disposition")).toContain("-filtered.md");
+    // The suggested PDF name too.
+    expect(page).toContain('data-print="accomplishments-2026-09-01-to-2026-09-30-filtered"');
   });
 
   it("keeps an active tag selected even when the period has no items with it", async () => {

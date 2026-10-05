@@ -1,7 +1,7 @@
 import { escapeHtml } from "../lib/html";
 import { formatMinutes, monthYear, RANGE_PRESETS, shortMonthDay, weekdayName } from "../lib/date";
 import type { Goal } from "../vault/format";
-import { filterSummary, markdownToHtml, reviewQuery, type Review, type ReviewFilters, type ReviewItem } from "../review";
+import { filterSummary, markdownToHtml, reviewFileName, reviewQuery, type Review, type ReviewFilters, type ReviewItem } from "../review";
 import { emptyState, goalIndex, icon, metaChips, richText, type GoalIndex } from "./components";
 
 export interface ReviewViewData {
@@ -112,7 +112,7 @@ function side(data: ReviewViewData): string {
         .join("")}</ol>`
     : `<p class="muted">No goal-linked work in this range.</p>`;
 
-  const fileName = `accomplishments-${f.from}-to-${f.to}`;
+  const fileName = reviewFileName(f);
 
   return `<aside class="review-side">
       <section class="export-panel" aria-labelledby="export-title">

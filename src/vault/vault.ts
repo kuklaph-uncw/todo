@@ -280,6 +280,7 @@ export class Vault {
       tags: [...new Set([...parsed.tags, ...input.tags])],
       goals: [...new Set([...parsed.goals, ...input.goals])],
       priority: input.priority,
+      minutes: null,
       isHighlight: false,
       createdOn: today,
       completedOn: input.status === "Done" ? today : null,

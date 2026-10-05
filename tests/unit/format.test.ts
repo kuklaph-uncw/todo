@@ -98,6 +98,27 @@ describe("todo blocks", () => {
     const [first] = parseTodoBlocks(lines);
     expect(formatTodo(first.todo)).toEqual(lines.slice(4, 7));
   });
+
+  it("keeps a time typed on a todo line when rewriting it", () => {
+    const line = "- [ ] Write the runbook #docs ⏱ 30m ^d1";
+    const [block] = parseTodoBlocks([line]);
+    expect(block.todo.minutes).toBe(30);
+    expect(formatTodo(block.todo)).toEqual([line]);
+  });
+});
+
+describe("hand-written lines", () => {
+  it("keeps a labelled goal link at the end of a line exactly as written", () => {
+    const line = "- 09:15 Cut alert noise [[reliability|Platform reliability]] ^a1";
+    const entry = parseEntryLine(line, "2026-09-28")!;
+    expect(entry.goals).toEqual(["reliability"]);
+    expect(formatEntryLine(entry)).toBe(line);
+  });
+
+  it("keeps tags written before a labelled link as part of the text", () => {
+    const entry = parseEntryLine("- Fixed the pager #ops [[reliability|Reliability]] ^a2", "2026-09-28")!;
+    expect(entry).toMatchObject({ text: "Fixed the pager #ops [[reliability|Reliability]]", tags: ["ops"], goals: ["reliability"] });
+  });
 });
 
 describe("frontmatter and goals", () => {

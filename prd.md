@@ -547,7 +547,7 @@ A missing title falls back to the slug. A missing or unknown status reads as `ac
 
 Entry line: `- [HH:MM] text [#tags] [[[links]]] [⏱ Nm] [⭐] ^id`
 
-TODO line: `- [mark] task [#tags] [[[links]]] [priority] [⭐] [➕ created] [✅ completed] ^id`
+TODO line: `- [mark] task [#tags] [[[links]]] [⏱ Nm] [priority] [⭐] [➕ created] [✅ completed] ^id`
 
 | Token              | Meaning                                                                                       |
 | ------------------ | --------------------------------------------------------------------------------------------- |
@@ -560,7 +560,7 @@ TODO line: `- [mark] task [#tags] [[[links]]] [priority] [⭐] [➕ created] [�
 | `➕ YYYY-MM-DD`    | Created date (Obsidian Tasks).                                                                |
 | `✅ YYYY-MM-DD`    | Completion date (Obsidian Tasks).                                                             |
 | `⭐`               | Starred highlight (app-specific).                                                             |
-| `⏱ Nm`             | Time spent in minutes (app-specific). Entries only.                                           |
+| `⏱ Nm`             | Time spent in minutes (app-specific). Counted for entries. On a TODO line it is kept but not shown or counted. |
 | `#tag`             | Tag. Letters, numbers, `_`, `/`, `-`. Lowercased. Number-only tags like `#892` are plain text, as in Obsidian. |
 | `[[slug]]`, `[[slug\|label]]` | Goal link (wikilink).                                                              |
 | `^id`              | Obsidian block ID. The app uses it to find the line again.                                    |
@@ -568,7 +568,7 @@ TODO line: `- [mark] task [#tags] [[[links]]] [priority] [⭐] [➕ created] [�
 
 Rules:
 
-- `#tags` and `[[links]]` at the end of a line are metadata and are not shown as part of the text. Ones mid-sentence stay in the text and still count.
+- `#tags` and `[[links]]` at the end of a line are metadata and are not shown as part of the text. Ones mid-sentence stay in the text and still count. A labeled link `[[slug|label]]` always stays in the text, and so does anything written before it.
 - When the app rewrites a line, it never duplicates a tag or link already written inline.
 - Emoji variation selectors written by other editors are ignored.
 
@@ -577,7 +577,7 @@ Rules:
 - IDs are 6 random characters from `a-z` and `2-9`, excluding look-alikes (`l`, `o`, `0`, `1`), unique within the file.
 - A hand-written entry or TODO line without `^id` gets one the first time the app reads the file. That line is rewritten in the app's canonical token order. Other lines are untouched.
 - Lines the app doesn't recognize are preserved as written.
-- Rewriting a line is lossy in two known ways. A trailing labeled link `[[slug|label]]` comes back as `[[slug]]`. A `⏱ Nm` typed on a TODO line is dropped, because TODOs don't store time. Rewrites happen on first read (missing ID), star, edit, and status change.
+- Rewrites happen on first read (missing ID), star, edit, and status change. They keep a trailing labeled link `[[slug|label]]` as written, and any `⏱ Nm` on a TODO line.
 
 ### 10.8 Writes
 
@@ -656,7 +656,7 @@ if (patch.status === "Done" && next.completedOn === null) {
 ```
 
 - The completion date is the local date used for grouping. There is no completion timestamp.
-- From Today, the form sends the viewed day as `on`. The server uses it only if it is valid and not after today. Otherwise it uses today.
+- From a past day on Today, the form sends that day as `on`. On today it sends no date, so a window left open overnight uses the new day. The server uses `on` only if it is valid and not after today. Otherwise it uses today.
 - From the Todos page, the date is today.
 - Once set, the date is never overwritten automatically.
 
@@ -838,7 +838,7 @@ Every page and form goes through `handleRequest` in `src/server.ts`. `HEAD` is t
 | `/review/export.jsonl`        | JSONL download.                                            |
 | `/styles.css`, `/app.js`, `/icon.svg` | Bundled assets (exact paths only).                 |
 
-Anything else returns the "Not found" page (404). A path with a malformed `%` escape returns 500.
+Anything else, including a path with a malformed `%` escape, returns the "Not found" page (404).
 
 ### 15.2 POST
 
@@ -1352,7 +1352,4 @@ Everything in sections 8 to 24 exists in the code, except items marked "Not yet 
 ### 28.3 Known Gaps
 
 - Without `app.js`, destructive actions post without a confirmation prompt. The desktop app always runs the script, so this only affects the dev server with scripts off.
-- The printed PDF's suggested name lacks the `-filtered` suffix that filtered downloads get. The document itself still shows the filter line.
-- Line rewrites drop a trailing `[[slug|label]]` label and any `⏱ Nm` on a TODO line (see 10.7).
-- A Today page left open overnight still sends yesterday's date as `on` from the TODO tray, so checking a TODO off before reloading dates it to yesterday. The capture form avoids this by sending no date.
-- Adding a TODO and the goal forms don't return typed values after a server-side error. A long goal description could be lost (the browser's `required` check prevents most cases).
+- Adding a TODO doesn't return typed values after a server-side error. That only happens for a blank task or a tampered field, so nothing of value is lost.

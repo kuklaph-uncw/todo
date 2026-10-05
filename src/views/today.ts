@@ -161,7 +161,7 @@ function closedRow(todo: Todo, goals: GoalIndex, returnTo: string): string {
       <div class="margin"><span class="done-mark" title="Todo completed">${icon("check")}</span></div>
       <div class="entry-body">
         <p class="entry-text">${richText(todo.task, goals)}</p>
-        ${metaChips({ ...todo, text: todo.task }, goals)}
+        ${metaChips({ ...todo, text: todo.task, minutes: null }, goals)}
       </div>
       <div class="row-actions">
         ${postButton({
@@ -200,7 +200,7 @@ function statusButton(todo: Todo, status: string, label: string, returnTo: strin
 function trayTodo(todo: Todo, goals: GoalIndex, returnTo: string, date: string): string {
   const meta = [
     todo.priority ? `<span class="priority p-${todo.priority.toLowerCase()}">${todo.priority}</span>` : "",
-    metaChips({ ...todo, text: todo.task }, goals),
+    metaChips({ ...todo, text: todo.task, minutes: null }, goals),
   ].join("");
   const moves = [
     todo.status !== "In Progress" ? statusButton(todo, "In Progress", "Start", returnTo, date) : "",
@@ -235,12 +235,14 @@ function trayTodo(todo: Todo, goals: GoalIndex, returnTo: string, date: string):
 }
 
 function tray(data: TodayViewData, goals: GoalIndex, returnTo: string): string {
+  // On today, send no date (like the capture form) so a window left open overnight dates to the new day.
+  const doneOn = data.date === data.today ? "" : data.date;
   const groups = TODO_GROUPS.map(({ status, label }) => {
     const todos = data.activeTodos.filter((todo) => todo.status === status);
     if (todos.length === 0) return "";
     return `<section class="todo-group g-${status.toLowerCase().replace(" ", "-")}">
         <h3>${label} <span class="count">${todos.length}</span></h3>
-        <ul class="todo-list">${todos.map((todo) => trayTodo(todo, goals, returnTo, data.date)).join("")}</ul>
+        <ul class="todo-list">${todos.map((todo) => trayTodo(todo, goals, returnTo, doneOn)).join("")}</ul>
       </section>`;
   }).join("");
 

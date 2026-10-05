@@ -205,6 +205,12 @@ export function filterSummary(filters: ReviewFilters, goals: Goal[]): string[] {
   return parts;
 }
 
+/** File name (no extension) for downloads and PDFs; a filtered one must not pass for the whole period. */
+export function reviewFileName(filters: ReviewFilters): string {
+  const filtered = filters.tag || filters.goal || filters.q || filters.highlightsOnly ? "-filtered" : "";
+  return `accomplishments-${filters.from}-to-${filters.to}${filtered}`;
+}
+
 type TitleOf = (slug: string) => string | undefined;
 
 const titleLookup = (goals: Goal[]): TitleOf => (slug) => goals.find((g) => g.slug === slug)?.title;

@@ -3,6 +3,7 @@
   "productName": "Work Ledger",
   "version": "1.0.0",
   "description": "A private log of your daily work, todos and goals, for performance reviews.",
+  "author": "kuklaph",
   "private": true,
   "type": "module",
   "main": "out/main.js",

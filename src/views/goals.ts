@@ -18,6 +18,8 @@ export interface GoalsViewData {
   goals: Goal[];
   stats: Map<string, GoalStats>;
   error: string | null;
+  /** The description typed into the new-goal form, sent back after an error. */
+  retryBody: string;
 }
 
 export interface GoalViewData {
@@ -96,7 +98,7 @@ export function renderGoals(data: GoalsViewData): string {
         <form class="stack-form" method="post" action="/goals">
           <label class="field"><span>Goal</span><input name="title" required placeholder="Cut incident response time" autocomplete="off"></label>
           <label class="field field-short"><span>Review cycle</span><input name="cycle" required value="${escapeHtml(data.cycle)}"></label>
-          <label class="field"><span>What does success look like?</span><textarea name="body" rows="4" placeholder="Measures, scope, what your manager will look for."></textarea></label>
+          <label class="field"><span>What does success look like?</span><textarea name="body" rows="4" placeholder="Measures, scope, what your manager will look for.">${escapeHtml(data.retryBody)}</textarea></label>
           <button class="btn primary" type="submit">Add goal</button>
         </form>
         <p class="field-hint">Link work by ticking the goal when you log it, or type its link, like <code>[[cut-incident-response-time]]</code>.</p>

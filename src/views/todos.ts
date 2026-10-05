@@ -160,7 +160,7 @@ function todoRow(todo: Todo, goals: GoalIndex, data: TodosViewData): string {
       <div class="todo-body">
         <p class="todo-task">${richText(todo.task, goals)}</p>
         ${notes}
-        ${metaChips({ ...todo, text: todo.task }, goals)}
+        ${metaChips({ ...todo, text: todo.task, minutes: null }, goals)}
       </div>
       <div class="todo-facts">
         ${todo.priority ? `<span class="priority p-${todo.priority.toLowerCase()}">${todo.priority}</span>` : ""}

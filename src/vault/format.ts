@@ -34,6 +34,8 @@ export interface Todo {
   tags: string[];
   goals: string[];
   priority: Priority | null;
+  /** A ⏱ time typed on the line by hand. Only kept so rewriting the line doesn't drop it; time logged counts entries. */
+  minutes: number | null;
   isHighlight: boolean;
   createdOn: string | null;
   completedOn: string | null;
@@ -129,10 +131,12 @@ function parseBody(raw: string): ParsedBody {
   const goals = findLinks(body);
 
   // Trailing tags/links are metadata; ones inside the sentence stay part of the text.
+  // A link with its own label ([[slug|label]]) also stays, so rewriting the line keeps the label.
   let text = body;
   for (let match = TRAILING_TOKEN_RE.exec(text); match; match = TRAILING_TOKEN_RE.exec(text)) {
     const token = match[2];
     if (token.startsWith("#") && !isTag(token.slice(1))) break;
+    if (token.includes("|")) break;
     text = match[1];
   }
 
@@ -247,6 +251,7 @@ export function parseTodoBlocks(lines: string[]): TodoBlock[] {
         tags: parsed.tags,
         goals: parsed.goals,
         priority,
+        minutes: parsed.minutes,
         isHighlight: parsed.isHighlight,
         createdOn,
         completedOn,
@@ -263,6 +268,7 @@ export function parseTodoBlocks(lines: string[]): TodoBlock[] {
 
 export function formatTodo(todo: Todo): string[] {
   const parts = [`- [${MARK_BY_STATUS[todo.status]}]`, todo.task, ...trailingMeta(todo.task, todo.tags, todo.goals)];
+  if (todo.minutes !== null) parts.push(`⏱ ${todo.minutes}m`);
   if (todo.priority) parts.push(EMOJI_BY_PRIORITY[todo.priority]);
   if (todo.isHighlight) parts.push("⭐");
   if (todo.createdOn) parts.push(`➕ ${todo.createdOn}`);

@@ -20,12 +20,14 @@ export function handleGoals(req: Request, ctx: AppContext): Response {
   const items = collectItems(ctx.vault, ALL_TIME.from, ALL_TIME.to);
   const stats = new Map<string, GoalStats>(goals.map((goal) => [goal.slug, goalStats(items, goal.slug)]));
 
+  const error = params.get("error");
   const main = renderGoals({
     cycle,
     cycles: cycles.includes(cycle) ? cycles : [cycle, ...cycles],
     goals,
     stats,
-    error: params.get("error"),
+    error,
+    retryBody: error ? (params.get("body") ?? "") : "",
   });
   return page(ctx, "Goals", "goals", main);
 }
@@ -56,7 +58,8 @@ export async function createGoal(req: Request, ctx: AppContext): Promise<Respons
   const form = await readForm(req);
   const title = form.text("title").trim();
   const cycle = form.text("cycle").trim() || today(ctx).slice(0, 4);
-  if (!title) return redirectWithError(`/goals?cycle=${encodeURIComponent(cycle)}`, "A goal needs a name.");
+  // Send the description back too, so a long one isn't lost.
+  if (!title) return redirectWithError(`/goals?cycle=${encodeURIComponent(cycle)}`, "A goal needs a name.", [["body", form.text("body")]]);
   const goal = ctx.vault.createGoal({ title, cycle, body: form.text("body") });
   return redirect(`/goals/${goal.slug}`);
 }

@@ -105,7 +105,7 @@ describe("todos", () => {
 
 describe("applyTodoPatch", () => {
   const base: Todo = {
-    id: "x", status: "Open", task: "T", tags: [], goals: [], priority: null,
+    id: "x", status: "Open", task: "T", tags: [], goals: [], priority: null, minutes: null,
     isHighlight: false, createdOn: null, completedOn: null, notes: "",
   };
 

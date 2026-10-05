@@ -1,5 +1,5 @@
 import { nowUtcIso } from "../lib/date";
-import { buildReview, collectItems, parseReviewFilters, reviewToJson, reviewToJsonl, reviewToMarkdown } from "../review";
+import { buildReview, collectItems, parseReviewFilters, reviewFileName, reviewToJson, reviewToJsonl, reviewToMarkdown } from "../review";
 import { renderReview } from "../views/review";
 import { notFound, page, today, type AppContext } from "./shared";
 
@@ -26,9 +26,7 @@ export function handleReview(req: Request, ctx: AppContext): Response {
 /** GET /review/export.{md,json,jsonl} */
 export function handleExport(req: Request, ctx: AppContext, format: string): Response {
   const { goals, review } = load(req, ctx);
-  const f = review.filters;
-  const filtered = f.tag || f.goal || f.q || f.highlightsOnly ? "-filtered" : "";
-  const name = `accomplishments-${f.from}-to-${f.to}${filtered}`;
+  const name = reviewFileName(review.filters);
   const download = (body: string, type: string, ext: string) =>
     new Response(body, {
       headers: { "content-type": `${type}; charset=utf-8`, "content-disposition": `attachment; filename="${name}.${ext}"` },
