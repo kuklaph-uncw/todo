@@ -6,19 +6,6 @@ export type Priority = (typeof PRIORITIES)[number];
 export type Status = (typeof STATUSES)[number];
 export type GoalStatus = (typeof GOAL_STATUSES)[number];
 
-/**
- * Splits comma- or space-separated tag input, trimming whitespace, stripping
- * leading "#", lowercasing, dropping empty tokens, and removing duplicates.
- */
-export function parseTags(raw: string): string[] {
-  const tokens = raw
-    .split(/[,\s]+/)
-    .map((token) => token.trim().replace(/^#+/, "").toLowerCase())
-    .filter((token) => token.length > 0);
-
-  return [...new Set(tokens)];
-}
-
 /** Rejects empty and whitespace-only strings. */
 export function isNonEmptyText(value: string): boolean {
   return value.trim().length > 0;

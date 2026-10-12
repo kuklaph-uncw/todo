@@ -26,6 +26,7 @@ export function handleToday(req: Request, ctx: AppContext): Response {
     activeTodos: todos.filter((t) => t.status === "Open" || t.status === "In Progress" || t.status === "Blocked"),
     week,
     goals: ctx.vault.getGoals(),
+    tagCounts: ctx.vault.getTagCounts(),
     editId: params.get("edit"),
     error: params.get("error"),
     retry: params.has("error") ? params : null,

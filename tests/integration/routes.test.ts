@@ -28,6 +28,18 @@ describe("pages", () => {
     expect(await html("/todos")).toContain(ctx.vaultPath);
   });
 
+  it.each(["/", "/todos"])("GET %s embeds tags and goals for #tag and /goal suggestions", async (path) => {
+    ctx.vault.addEntries("2026-09-28", ["Fixed it #ops"], { tags: [], goals: [], minutes: null, isHighlight: false, time: null });
+    ctx.vault.createGoal({ title: "Ship </script><b>v2</b>", cycle: "2026", body: "" });
+    const page = await html(path);
+    const json = /<script type="application\/json" id="composer-data">(.*?)<\/script>/.exec(page)?.[1] ?? "";
+    expect(json).not.toContain("<");
+    expect(JSON.parse(json)).toEqual({
+      tags: [["ops", 1]],
+      goals: [{ slug: "ship-script-b-v2-b", title: "Ship </script><b>v2</b>", active: true }],
+    });
+  });
+
   it("returns 404 for unknown pages and goals", async () => {
     expect((await send(get("/nope"))).status).toBe(404);
     expect((await send(get("/goals/missing"))).status).toBe(404);
@@ -43,8 +55,7 @@ describe("journal capture", () => {
     const res = await send(
       formPost("/journal", {
         date: "2026-09-28",
-        content: "Reviewed the API proposal\n\n  Helped Sam debug staging  \n",
-        tags: "#support",
+        content: "Reviewed the API proposal #support\n\n  Helped Sam debug staging #support  \n",
         minutes: "1h30m",
         star: "1",
         return_to: "/?date=2026-09-28",
@@ -73,14 +84,13 @@ describe("journal capture", () => {
 
   it("sends typed values back after an error so nothing is lost", async () => {
     const capture = await send(
-      formPost("/journal", { date: "2026-09-28", content: "x", tags: "ops", minutes: "soon", star: "1", goals: "reliability", return_to: "/" }),
+      formPost("/journal", { date: "2026-09-28", content: "x", minutes: "soon", star: "1", return_to: "/" }),
     );
     const location = capture.headers.get("location") ?? "";
-    expect(location).toContain("tags=ops");
     expect(location).toContain("minutes=soon");
-    expect(location).toContain("goals=reliability");
+    expect(location).toContain("star=1");
     const page = await html(location);
-    expect(page).toContain('value="ops"');
+    expect(page).toContain('value="soon"');
     expect(page).toMatch(/<details class="capture-more"[^>]* open>/);
 
     const [entry] = ctx.vault.addEntries("2026-09-28", ["Original"], { tags: [], goals: [], minutes: null, isHighlight: false, time: null });
@@ -225,7 +235,7 @@ describe("goals", () => {
 
   it("points to linked open todos, which aren't evidence until done", async () => {
     ctx.vault.createGoal({ title: "Mentoring", cycle: "2026", body: "" });
-    await send(formPost("/todos", { task: "Pair with Sam", goals: "mentoring", return_to: "/todos" }));
+    await send(formPost("/todos", { task: "Pair with Sam [[mentoring]]", return_to: "/todos" }));
     expect(await html("/goals/mentoring")).toContain("1 open todo linked");
   });
 

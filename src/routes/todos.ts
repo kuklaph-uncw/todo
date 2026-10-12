@@ -36,6 +36,7 @@ export function handleTodos(req: Request, ctx: AppContext): Response {
     filters,
     allTags: [...new Set(todos.flatMap((t) => t.tags))].sort(),
     goals: ctx.vault.getGoals(),
+    tagCounts: ctx.vault.getTagCounts(),
     editId: url.searchParams.get("edit"),
     error,
     returnTo,
@@ -62,7 +63,7 @@ export async function createTodo(req: Request, ctx: AppContext): Promise<Respons
   const status = form.text("status") || "Open";
   if (!isValidStatus(status)) return redirectWithError(back, "That status isn't one the app knows.");
 
-  const todo = ctx.vault.addTodo({ task, priority, status, tags: [], goals: form.all("goals"), notes: form.text("notes") }, today(ctx));
+  const todo = ctx.vault.addTodo({ task, priority, status, tags: [], goals: [], notes: form.text("notes") }, today(ctx));
   // Lets the Todos page explain when its filters hide the new todo.
   if (!back.startsWith("/todos")) return redirect(back);
   const url = new URL(back, "http://local");

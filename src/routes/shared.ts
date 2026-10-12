@@ -55,7 +55,6 @@ export async function readForm(req: Request) {
   };
   return {
     text,
-    all: (name: string): string[] => form.getAll(name).filter((v): v is string => typeof v === "string" && v !== ""),
     returnTo: (fallback: string) => safeReturnPath(text("return_to"), fallback),
   };
 }

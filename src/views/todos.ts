@@ -3,10 +3,10 @@ import { shortMonthDay } from "../lib/date";
 import { PRIORITIES, STATUSES, type Status } from "../lib/validation";
 import { editableText, type Goal, type Todo } from "../vault/format";
 import {
+  COMPOSER_HINT,
+  composerData,
   emptyState,
   goalIndex,
-  goalLinkHint,
-  goalPicker,
   hidden,
   icon,
   metaChips,
@@ -30,6 +30,8 @@ export interface TodosViewData {
   filters: TodoFilters;
   allTags: string[];
   goals: Goal[];
+  /** Every tag in the vault with its use count, for #tag suggestions. */
+  tagCounts: [string, number][];
   editId: string | null;
   error: string | null;
   returnTo: string;
@@ -108,10 +110,10 @@ function editForm(todo: Todo, data: TodosViewData): string {
   return `<div class="todo-edit">
       <form class="edit-form" method="post" action="/todos/${todo.id}">
         ${hidden("return_to", back)}
-        <label class="field"><span>Task</span>
-          <input name="task" required value="${escapeHtml(retry?.get("task") ?? editableText(todo.task, todo.tags, todo.goals))}" autofocus>
-        </label>
-        ${goalLinkHint(data.goals)}
+        <div class="field"><span id="task-label-${todo.id}">Task</span>
+          <input name="task" required aria-labelledby="task-label-${todo.id}" value="${escapeHtml(retry?.get("task") ?? editableText(todo.task, todo.tags, todo.goals))}" autofocus data-composer>
+        </div>
+        ${COMPOSER_HINT}
         <div class="field-row">
           <label class="field"><span>Status</span><select name="status">${options(STATUSES, status)}</select></label>
           <label class="field"><span>Priority</span><select name="priority">${options(PRIORITIES, priority, "None")}</select></label>
@@ -229,14 +231,10 @@ function addForm(data: TodosViewData): string {
   return `<form class="todo-add wide" method="post" action="/todos">
       ${hidden("return_to", data.returnTo)}
       <label class="sr-only" for="new-task">New todo</label>
-      <input id="new-task" name="task" required placeholder="Add a todo. #tags and [[goal-link]] work here too." autocomplete="off" data-shortcut="t">
+      <input id="new-task" name="task" required placeholder="Add a todo. Type # for tags, / for goals." autocomplete="off" data-shortcut="t" data-composer>
       <label class="sr-only" for="new-priority">Priority</label>
       <select id="new-priority" name="priority"><option value="">No priority</option>${PRIORITIES.map((p) => `<option>${p}</option>`).join("")}</select>
       <button class="btn primary" type="submit">Add todo</button>
-      <details class="add-more">
-        <summary>Link to a goal</summary>
-        ${goalPicker(data.goals.filter((g) => g.status === "active"))}
-      </details>
     </form>`;
 }
 
@@ -289,5 +287,6 @@ export function renderTodos(data: TodosViewData): string {
     ${addForm(data)}
     ${filterBar(data)}
     ${body}
+    ${composerData(data.tagCounts, data.goals)}
   </div>`;
 }

@@ -2,10 +2,10 @@ import { escapeHtml } from "../lib/html";
 import { addDays, formatMinutes, monthDay, parseLocalDate, weekdayName } from "../lib/date";
 import { editableText, type Entry, type Goal, type Todo } from "../vault/format";
 import {
+  COMPOSER_HINT,
+  composerData,
   emptyState,
   goalIndex,
-  goalLinkHint,
-  goalPicker,
   hidden,
   icon,
   metaChips,
@@ -23,6 +23,8 @@ export interface TodayViewData {
   activeTodos: Todo[];
   week: { date: string; count: number }[];
   goals: Goal[];
+  /** Every tag in the vault with its use count, for #tag suggestions. */
+  tagCounts: [string, number][];
   editId: string | null;
   error: string | null;
   /** What the user typed, sent back after a validation error so nothing is lost. */
@@ -68,7 +70,6 @@ function weekStrip(data: TodayViewData): string {
 }
 
 function captureForm(data: TodayViewData, returnTo: string): string {
-  const activeGoals = data.goals.filter((goal) => goal.status === "active");
   const retry = data.retry;
   const isToday = data.date === data.today;
   // On today, send no date: the server uses the real current date, so a
@@ -78,18 +79,16 @@ function captureForm(data: TodayViewData, returnTo: string): string {
       <div class="entry-body">
       ${hidden("date", isToday ? "" : data.date)}${hidden("return_to", returnTo)}
       <label class="sr-only" for="capture">What did you get done?</label>
-      <textarea id="capture" name="content" rows="2" required data-draft="draft:${isToday ? "today" : data.date}" data-shortcut="n"
-        placeholder="What did you get done? One line per entry. Add #tags right in the text."></textarea>
+      <textarea id="capture" name="content" rows="2" required data-draft="draft:${isToday ? "today" : data.date}" data-shortcut="n" data-composer
+        placeholder="What did you get done? One line per entry. Type # for tags, / for goals."></textarea>
       <div class="capture-bar">
         <details class="capture-more" data-remember-open="capture-more"${retry ? " open" : ""}>
-          <summary>Tags, time, goal, star</summary>
+          <summary>Time, star</summary>
           <div class="capture-fields">
-            <label class="field"><span>Tags</span><input name="tags" placeholder="review, support" autocomplete="off" value="${escapeHtml(retry?.get("tags") ?? "")}"></label>
             <label class="field field-short"><span>Time spent</span><input name="minutes" placeholder="45m or 1h 30m" autocomplete="off" value="${escapeHtml(retry?.get("minutes") ?? "")}"></label>
             <label class="check-label star-check"><input type="checkbox" name="star" value="1"${retry?.get("star") === "1" ? " checked" : ""}> ${icon("star")} Star as a highlight</label>
-            ${goalPicker(activeGoals, "goals", retry?.getAll("goals") ?? [])}
           </div>
-          <p class="field-hint">These apply to every line you add. You can also type <code>#tag</code> and <code>[[goal-link]]</code> right in the text.</p>
+          <p class="field-hint">These apply to every line you add.</p>
         </details>
         <span class="key-hint" aria-hidden="true"><kbd>Ctrl</kbd> <kbd>Enter</kbd></span>
         <button class="btn primary" type="submit">Add to ledger</button>
@@ -98,7 +97,7 @@ function captureForm(data: TodayViewData, returnTo: string): string {
     </form>`;
 }
 
-function entryEditForm(entry: Entry, returnTo: string, retry: URLSearchParams | null, goals: Goal[]): string {
+function entryEditForm(entry: Entry, returnTo: string, retry: URLSearchParams | null): string {
   const cancel = `${returnTo}#entry-${entry.id}`;
   // After a validation error, show what the user typed rather than the saved version.
   const content = retry?.get("content") ?? editableText(entry.text, entry.tags, entry.goals);
@@ -106,8 +105,8 @@ function entryEditForm(entry: Entry, returnTo: string, retry: URLSearchParams | 
   return `<form class="edit-form" method="post" action="/journal/${entry.id}">
       ${hidden("date", entry.date)}${hidden("return_to", `${returnTo}#entry-${entry.id}`)}
       <label class="sr-only" for="edit-${entry.id}">Entry text</label>
-      <textarea id="edit-${entry.id}" name="content" rows="2" required autofocus>${escapeHtml(content)}</textarea>
-      ${goalLinkHint(goals)}
+      <textarea id="edit-${entry.id}" name="content" rows="2" required autofocus data-composer>${escapeHtml(content)}</textarea>
+      ${COMPOSER_HINT}
       <div class="edit-bar">
         <label class="field field-short"><span>Time spent</span><input name="minutes" value="${escapeHtml(minutes)}" placeholder="45m"></label>
         <span class="spacer"></span>
@@ -121,7 +120,7 @@ function entryRow(entry: Entry, data: TodayViewData, goals: GoalIndex, returnTo:
   const starred = entry.isHighlight;
   const editing = data.editId === entry.id;
   const body = editing
-    ? entryEditForm(entry, returnTo, data.retry, data.goals)
+    ? entryEditForm(entry, returnTo, data.retry)
     : `<p class="entry-text">${richText(entry.text, goals)}</p>${metaChips(entry, goals)}`;
 
   const actions = editing
@@ -254,7 +253,7 @@ function tray(data: TodayViewData, goals: GoalIndex, returnTo: string): string {
       <form class="todo-add" method="post" action="/todos">
         ${hidden("return_to", returnTo)}
         <label class="sr-only" for="tray-task">New todo</label>
-        <input id="tray-task" name="task" required placeholder="Add a todo" autocomplete="off" data-shortcut="t">
+        <input id="tray-task" name="task" required placeholder="Add a todo" autocomplete="off" data-shortcut="t" data-composer>
         <button class="btn" type="submit">Add</button>
       </form>
       ${groups || emptyState("Nothing open.", "Todos you add here stay until they're done.")}
@@ -310,5 +309,6 @@ export function renderToday(data: TodayViewData): string {
       </div>
     </section>
     ${tray(data, goals, returnTo)}
+    ${composerData(data.tagCounts, data.goals)}
   </div>`;
 }

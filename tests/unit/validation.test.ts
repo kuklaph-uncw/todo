@@ -1,32 +1,9 @@
 import { describe, it, expect } from "bun:test";
 import {
-  parseTags,
   isNonEmptyText,
   isValidPriority,
   isValidStatus,
 } from "../../src/lib/validation";
-
-describe("parseTags", () => {
-  it("trims, strips leading #, lowercases, and dedupes", () => {
-    expect(parseTags("Support, #Testing, support,  ")).toEqual(["support", "testing"]);
-  });
-
-  it("returns empty array for empty string", () => {
-    expect(parseTags("")).toEqual([]);
-  });
-
-  it("returns empty array for whitespace-and-comma-only input", () => {
-    expect(parseTags("  ,  ,")).toEqual([]);
-  });
-
-  it("drops empty tokens between commas", () => {
-    expect(parseTags("work,,personal")).toEqual(["work", "personal"]);
-  });
-
-  it("strips multiple leading # characters is not required but single # stripped", () => {
-    expect(parseTags("#urgent")).toEqual(["urgent"]);
-  });
-});
 
 describe("isNonEmptyText", () => {
   it("rejects whitespace-only strings", () => {

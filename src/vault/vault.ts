@@ -266,6 +266,15 @@ export class Vault {
     return this.readTodoFile().blocks.map((block) => block.todo);
   }
 
+  /** Every tag on an entry or todo with how often it's used, most used first. */
+  getTagCounts(): [string, number][] {
+    const counts = new Map<string, number>();
+    for (const item of [...this.getAllEntries(), ...this.getTodos()]) {
+      for (const tag of item.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+    }
+    return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }
+
   getTodo(id: string): Todo | null {
     return this.getTodos().find((todo) => todo.id === id) ?? null;
   }

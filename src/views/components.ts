@@ -119,28 +119,20 @@ export function options(values: readonly string[], selected: string | null, blan
 }
 
 /**
- * Checkbox list of goals for the capture / add forms. Each shows its
- * [[link]] too, so people learn what to type to link a goal by hand.
+ * Tags and goals for the #tag and /goal suggestions in text fields marked
+ * `data-composer` (see app.js). Rendered inside <main> so it stays current
+ * when app.js swaps the page in place.
  */
-export function goalPicker(goals: Goal[], name = "goals", checked: string[] = []): string {
-  if (goals.length === 0) {
-    return `<p class="field-hint">No active goals yet. <a href="/goals">Add one</a> to link work to it.</p>`;
-  }
-  return `<fieldset class="goal-picker"><legend>Counts toward</legend>${goals
-    .map(
-      (goal) =>
-        `<label class="check-label"><input type="checkbox" name="${name}" value="${escapeHtml(goal.slug)}"${checked.includes(goal.slug) ? " checked" : ""}> ${escapeHtml(goal.title)} <small class="slug">[[${escapeHtml(goal.slug)}]]</small></label>`,
-    )
-    .join("")}</fieldset>`;
+export function composerData(tagCounts: [string, number][], goals: Goal[]): string {
+  const data = {
+    tags: tagCounts,
+    goals: goals.map((goal) => ({ slug: goal.slug, title: goal.title, active: goal.status === "active" })),
+  };
+  // Escaping "<" means a goal title can't close the script tag.
+  return `<script type="application/json" id="composer-data">${JSON.stringify(data).replace(/</g, "\\u003c")}</script>`;
 }
 
-/** Lists the goal links someone can type, since a goal's link isn't otherwise visible while editing. */
-export function goalLinkHint(goals: Goal[]): string {
-  const active = goals.filter((goal) => goal.status === "active");
-  if (active.length === 0) return "";
-  const links = active.map((g) => `<code title="${escapeHtml(g.title)}">[[${escapeHtml(g.slug)}]]</code>`).join(" ");
-  return `<p class="field-hint">Link a goal by typing its link: ${links}</p>`;
-}
+export const COMPOSER_HINT = `<p class="field-hint">Type <kbd>#</kbd> to add a tag, <kbd>/</kbd> to link a goal.</p>`;
 
 export function notice(message: string | null, kind: "error" | "ok" = "error"): string {
   if (!message) return "";

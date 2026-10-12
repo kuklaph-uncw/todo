@@ -145,3 +145,17 @@ describe("goals", () => {
     expect(vault.getGoal("../todos")).toBeNull();
   });
 });
+
+describe("tag counts", () => {
+  it("counts tags across entries and todos, most used first, then by name", () => {
+    vault.addEntries("2026-09-27", ["Paired #review", "Fixed #ops #review"], noMeta);
+    vault.addEntries("2026-09-28", ["Docs #docs"], noMeta);
+    vault.addTodo({ task: "Ship #ops", priority: null, status: "Open", tags: [], goals: [], notes: "" });
+    vault.addTodo({ task: "Write #review", priority: null, status: "Done", tags: [], goals: [], notes: "" });
+    expect(vault.getTagCounts()).toEqual([
+      ["review", 3],
+      ["ops", 2],
+      ["docs", 1],
+    ]);
+  });
+});

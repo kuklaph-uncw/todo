@@ -1,5 +1,5 @@
 import { isValidDateString, localTimeString } from "../lib/date";
-import { parseMinutes, parseTags } from "../lib/validation";
+import { parseMinutes } from "../lib/validation";
 import { parseTaskInput } from "../vault/vault";
 import { notFound, readForm, redirect, redirectWithError, today, type AppContext } from "./shared";
 
@@ -26,10 +26,8 @@ export async function createEntries(req: Request, ctx: AppContext): Promise<Resp
 
   // Put the extra fields back if something's wrong; the text itself survives as a draft.
   const keep: [string, string][] = [
-    ["tags", form.text("tags")],
     ["minutes", form.text("minutes")],
     ["star", form.text("star")],
-    ...form.all("goals").map((goal): [string, string] => ["goals", goal]),
   ];
   const lines = splitEntryLines(form.text("content"));
   if (lines.length === 0) return redirectWithError(back, "Write something before adding it to the ledger.", keep);
@@ -37,8 +35,8 @@ export async function createEntries(req: Request, ctx: AppContext): Promise<Resp
   if (minutes === undefined) return redirectWithError(back, TIME_HELP, keep);
 
   ctx.vault.addEntries(date, lines, {
-    tags: parseTags(form.text("tags")),
-    goals: form.all("goals"),
+    tags: [],
+    goals: [],
     minutes,
     isHighlight: form.text("star") === "1",
     // A clock time only means something when you're logging as it happens.
