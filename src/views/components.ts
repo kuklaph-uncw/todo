@@ -16,6 +16,8 @@ const ICON_PATHS: Record<string, string> = {
   print: '<path d="M7 9V4h10v5M7 17H5v-7h14v7h-2M7 14h10v6H7z"/>',
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
+  clock: '<circle cx="12" cy="13" r="7"/><path d="M12 9.5V13l2.5 1.5M10 3.5h4"/>',
+  expand: '<path d="M14 4h6v6M20 4l-6.5 6.5M10 20H4v-6M4 20l6.5-6.5"/>',
 };
 
 export function icon(name: keyof typeof ICON_PATHS | string, filled = false): string {

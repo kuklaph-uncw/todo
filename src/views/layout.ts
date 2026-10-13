@@ -20,6 +20,7 @@ export interface LayoutOptions {
 
 const SHORTCUTS: [string, string][] = [
   ["n", "Write a new entry"],
+  ["Ctrl + Shift + F", "Write a new entry in focus mode (Esc to leave)"],
   ["t", "Add a todo"],
   ["[ and ]", "Previous / next day"],
   ["/", "Search (Todos and Review pages)"],

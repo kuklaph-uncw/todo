@@ -91,7 +91,7 @@ describe("journal capture", () => {
     expect(location).toContain("star=1");
     const page = await html(location);
     expect(page).toContain('value="soon"');
-    expect(page).toMatch(/<details class="capture-more"[^>]* open>/);
+    expect(page).toContain('name="star" value="1" checked');
 
     const [entry] = ctx.vault.addEntries("2026-09-28", ["Original"], { tags: [], goals: [], minutes: null, isHighlight: false, time: null });
     const edit = await send(formPost(`/journal/${entry.id}`, { date: "2026-09-28", content: "Rewritten carefully", minutes: "lots" }));

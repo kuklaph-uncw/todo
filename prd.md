@@ -193,7 +193,7 @@ The user can review the selected day, add missed accomplishments, mark TODOs don
 
 ### 7.5 Goal Tracking
 
-At the start of a review cycle, the user adds the goals they agreed on. While logging, they tick a goal or type its `[[goal-link]]`. Each goal page collects the linked entries and completed TODOs as evidence. At review time, the user writes their self-assessment in the goal's description and opens a review filtered to that goal.
+At the start of a review cycle, the user adds the goals they agreed on. While logging, they type `/` to pick a goal, or type its `[[goal-link]]`. Each goal page collects the linked entries and completed TODOs as evidence. At review time, the user writes their self-assessment in the goal's description and opens a review filtered to that goal.
 
 ---
 
@@ -284,15 +284,17 @@ The default landing page. It answers:
 | J-3  | User can edit an entry inline (`?edit=<id>`): its text, trailing `#tags` and `[[links]]`, and time spent.     |
 | J-4  | User can delete an entry after confirming. The deleted line is appended to `.trash/deleted.md`.               |
 | J-5  | User can star or unstar an entry as a highlight.                                                              |
-| J-6  | User can add tags in a Tags field (comma or space separated) or type `#tag` in the text.                      |
-| J-7  | User can link goals with "Counts toward" checkboxes (active goals only) or type `[[goal-slug]]` in the text.   |
+| J-6  | User can add tags by typing `#` (suggests existing tags, most used first) or typing `#tag` in full.          |
+| J-7  | User can link goals by typing `/` (suggests active goals) or typing `[[goal-slug]]` in full.                  |
 | J-8  | User can enter time spent: `45m`, `1h`, `1h 30m`, `90 minutes`, `1.5h`.                                        |
 | J-9  | Entries display in file order. New entries go right after the day's last entry.                              |
-| J-10 | Empty capture is rejected with a message. Typed tags, time, star and goals are put back.                     |
+| J-10 | Empty capture is rejected with a message. Time and star are put back; the text survives as a draft.          |
 | J-11 | Past and future dates are editable. Entries added to today get an `HH:MM` clock time; other days get none.    |
 | J-12 | On today, the capture form sends no date, so the server uses the real current day.                           |
 
-**Quick capture.** A textarea ("What did you get done? One line per entry. Add #tags right in the text.") and an "Add to ledger" button. A collapsible "Tags, time, goal, star" panel holds the optional fields. They apply to every line added. The panel remembers whether it was left open.
+**Quick capture.** One bordered box: the text ("What did you get done? One line per entry. Type # for tags, / for goals.") with a toolbar inside it holding time spent ("Add time"), a star toggle, and "Add to ledger". Time and star apply to every line added. The box is two lines tall at rest, about six while focus is inside it, and grows with the text up to 75% of the window. Focus mode (the expand button or `Ctrl + Shift + F`) fills the window with the box; `Esc` or saving leaves it.
+
+**Inline tags and goals.** With the script, each field that takes `#tags` (capture, entry edit, TODO add and edit) becomes an editor where tags and goal links show as pills; goal pills show the goal's title. Typing `#` or `/` at the start of a word opens suggestions at the caret (arrows move, `Tab`/`Enter` pick, `Esc` closes). When nothing matches, the list says why (no goals yet, no match). The hidden original field always holds the plain text that is saved (`#tag`, `[[slug]]`), so drafts and the server see no difference.
 
 **Draft protection.** Unsent capture text is saved in `localStorage` (key `draft:today` on today, `draft:YYYY-MM-DD` on other days). It restores after a reload and clears after a successful save.
 
@@ -619,7 +621,7 @@ Date strings are parsed as local dates. Impossible dates such as `2026-02-30` ar
 1. Use the form's date, or today if blank. Reject an invalid date.
 2. Split the text on line breaks, trim, drop list markers and blank lines. Reject if nothing is left.
 3. Parse time spent. Reject unreadable input.
-4. For each line, pull out typed `#tags` and `[[links]]`, then merge in the form's tags and checked goals.
+4. For each line, pull out typed `#tags` and `[[links]]`.
 5. Add the clock time only when the date is today.
 6. Write the lines after the day's last entry (or create the note with frontmatter).
 7. Redirect back (303).
@@ -872,7 +874,6 @@ There is no HTMX and no client framework. The server renders full HTML pages, an
 | In-place form posts    | POST forms are sent with `fetch`. The redirected page's `<main>` and nav replace the current ones, and the URL updates. Focus stays on the same control, or the same or a nearby row. New entries are briefly marked. On a network error it falls back to a normal submit. |
 | Confirmations          | Forms with `data-confirm` ask before posting (delete, cancel TODO, clear completion).                     |
 | Drafts                 | Capture text saved in `localStorage` per day. Cleared after a successful save.                            |
-| Remembered panels      | `details[data-remember-open]` (the capture options) stays open across visits.                             |
 | Auto-submit            | Filter selects and checkboxes submit on change. The date picker waits 900ms for typing to stop.           |
 | Copy                   | Writes HTML + Markdown to the clipboard, with fallbacks (14.3). Status is announced to screen readers.    |
 | Print                  | Sets the page title to the suggested PDF name, prints, restores the title.                                |
@@ -1043,7 +1044,7 @@ Messages show at the top of the page (`role="alert"`). Capture and edit forms ge
 | A-3 | Focus states are visible. A skip link jumps to the main content.                                 |
 | A-4 | Destructive actions ask for confirmation (with the script).                                      |
 | A-5 | Layout adapts to narrow windows (breakpoints at 1180px, 860px, 560px).                           |
-| A-6 | Every page and form works without client-side JS. (The shortcuts dialog needs it.)               |
+| A-6 | Every page and form works without client-side JS. (The shortcuts dialog, tag and goal suggestions, and focus mode need it.) |
 | A-7 | After an in-place update, focus stays where the user was.                                        |
 | A-8 | Copy results are announced. Animations stop under `prefers-reduced-motion`.                      |
 
@@ -1057,7 +1058,8 @@ Listed in the app's shortcuts dialog (`?`). Single-key shortcuts are ignored whi
 | `t`                     | Today, Todos         | Focus the add-TODO field.                           |
 | `[` / `]`               | Today                | Previous / next day.                                |
 | `/`                     | Todos, Review        | Focus search.                                       |
-| `Esc`                   | Any                  | Close a menu, cancel an entry or TODO edit, or leave a text box. |
+| `Ctrl + Shift + F`      | Today                | Write a new entry in focus mode.                    |
+| `Esc`                   | Any                  | Close the suggestion list, leave focus mode, close a menu, cancel an entry or TODO edit, or leave a text box. |
 | `Ctrl + Enter`          | Any form             | Save the form you're in (`Cmd + Enter` also works). |
 | `g` then `t`/`d`/`g`/`r`| Any                  | Go to Today, Todos, Goals, Review.                  |
 | `?`                     | Any                  | Show the shortcut list.                             |
@@ -1283,7 +1285,7 @@ If logging consistency is below 50% after a month, the likely issue is UX fricti
 | Risk                               | Mitigation                                                                  |
 | ---------------------------------- | --------------------------------------------------------------------------- |
 | User forgets to log daily          | Make backfilling easy. The week strip shows empty days.                     |
-| Capture feels too structured       | Keep metadata optional and collapsed. Allow inline `#tags` and `[[links]]`. |
+| Capture feels too structured       | Keep metadata optional and out of the way. Suggest `#tags` and goals inline. |
 | TODOs dominate the app             | Keep Today journal-first.                                                   |
 | Review output is noisy             | Stars, starred-only mode, tag and goal filters.                             |
 | Accidental deletion loses history  | Confirm deletes. Append deleted lines to `.trash/deleted.md`.               |

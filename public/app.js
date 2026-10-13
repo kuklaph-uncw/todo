@@ -18,12 +18,10 @@
       });
     });
 
-    // Panels like "Time, star" stay open if you left them open.
-    root.querySelectorAll("details[data-remember-open]").forEach((details) => {
-      const key = `open:${details.dataset.rememberOpen}`;
-      if (localStorage.getItem(key) === "1") details.open = true;
-      details.addEventListener("toggle", () => localStorage.setItem(key, details.open ? "1" : "0"));
-    });
+    // Focus mode needs this script, so its button only shows when it runs.
+    // Posting from focus mode swaps the page, which ends it.
+    root.querySelectorAll("[data-focus-mode]").forEach((button) => (button.hidden = false));
+    releaseFocusMode();
 
     // After drafts, so a restored draft shows up with its pills.
     const data = document.getElementById("composer-data");
@@ -153,23 +151,27 @@
       .map((goal) => ({ kind: "goal", value: goal.slug, label: goal.title, note: `[[${goal.slug}]]` }));
   }
 
-  function showSuggestions(editor, items, rect, heading, pick) {
-    if (items.length === 0) return hideSuggestions();
-    suggesting = { editor, items, index: 0, pick };
+  /** With no items, shows `empty` as a note so the "#" or "/" visibly did something. */
+  function showSuggestions(editor, items, rect, heading, pick, empty) {
+    hideSuggestions();
     suggestBox.innerHTML =
       `<li class="suggest-head" role="presentation">${heading}</li>` +
-      items
-        .map(
-          (item, i) =>
-            `<li role="option" id="suggest-${i}" class="suggest-${item.kind}" aria-selected="${i === 0}"><span class="suggest-label">${escapeHtml(item.label)}</span><span class="suggest-note">${escapeHtml(item.note)}</span></li>`,
-        )
-        .join("");
+      (items.length === 0
+        ? `<li class="suggest-empty" role="presentation">${escapeHtml(empty)}</li>`
+        : items
+            .map(
+              (item, i) =>
+                `<li role="option" id="suggest-${i}" class="suggest-${item.kind}" aria-selected="${i === 0}"><span class="suggest-label">${escapeHtml(item.label)}</span><span class="suggest-note">${escapeHtml(item.note)}</span></li>`,
+            )
+            .join(""));
     suggestBox.hidden = false;
     // Below the caret, or above it when there's no room.
     const below = rect.bottom + 6;
     const fits = below + suggestBox.offsetHeight <= innerHeight;
     suggestBox.style.top = `${fits ? below : rect.top - suggestBox.offsetHeight - 6}px`;
     suggestBox.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - suggestBox.offsetWidth - 8))}px`;
+    if (items.length === 0) return;
+    suggesting = { editor, items, index: 0, pick };
     editor.setAttribute("aria-activedescendant", "suggest-0");
   }
 
@@ -198,8 +200,8 @@
     suggesting.index = Number(option.id.replace("suggest-", ""));
     pickSuggestion();
   });
-  addEventListener("scroll", () => suggesting && hideSuggestions(), true);
-  addEventListener("resize", () => suggesting && hideSuggestions());
+  addEventListener("scroll", () => !suggestBox.hidden && hideSuggestions(), true);
+  addEventListener("resize", () => !suggestBox.hidden && hideSuggestions());
 
   /** Opens, updates or closes the list for the "#..." or "/..." before the caret. */
   function checkTrigger(editor) {
@@ -214,8 +216,13 @@
     const range = document.createRange();
     range.setStart(at.node, start);
     range.setEnd(at.node, at.offset);
+    const empty = isTag
+      ? query ? "Number-only tags like #123 aren't tags." : "Type a name for a new tag."
+      : composerData.goals.some((goal) => goal.active)
+        ? `No active goal matches “${query}”.`
+        : "No active goals yet. Add one on the Goals page.";
     showSuggestions(editor, suggestions(isTag, query), range.getBoundingClientRect(), isTag ? "Tags" : "Goals", (item) =>
-      insertPill(at.node, start, at.offset, item.kind, item.value),
+      insertPill(at.node, start, at.offset, item.kind, item.value), empty,
     );
   }
 
@@ -278,14 +285,18 @@
     editor.addEventListener("keydown", (event) => {
       if (event.isComposing) return;
       const plain = !event.ctrlKey && !event.metaKey && !event.altKey;
+      if (plain && event.key === "Escape" && !suggestBox.hidden) {
+        event.preventDefault();
+        event.stopPropagation(); // closing the list shouldn't also cancel the edit
+        hideSuggestions();
+        return;
+      }
       if (suggesting?.editor === editor && plain) {
-        const handled = { ArrowDown: 1, ArrowUp: 1, Enter: 1, Tab: !event.shiftKey, Escape: 1 }[event.key];
+        const handled = { ArrowDown: 1, ArrowUp: 1, Enter: 1, Tab: !event.shiftKey }[event.key];
         if (handled) {
           event.preventDefault();
-          event.stopPropagation(); // Escape here shouldn't also cancel the edit
           if (event.key === "ArrowDown") highlightSuggestion(suggesting.index + 1);
           else if (event.key === "ArrowUp") highlightSuggestion(suggesting.index - 1);
-          else if (event.key === "Escape") hideSuggestions();
           else pickSuggestion();
           return;
         }
@@ -298,10 +309,12 @@
       }
     });
     editor.addEventListener("keyup", (event) => {
-      if (/^(ArrowLeft|ArrowRight|Home|End)$/.test(event.key)) checkTrigger(editor);
+      // Up/Down move through the list when it has items, so only recheck when it doesn't.
+      const moved = /^(ArrowLeft|ArrowRight|Home|End)$/.test(event.key) || (!suggesting && /^(ArrowUp|ArrowDown|PageUp|PageDown)$/.test(event.key));
+      if (moved) checkTrigger(editor);
     });
     editor.addEventListener("click", () => checkTrigger(editor));
-    editor.addEventListener("blur", () => suggesting?.editor === editor && hideSuggestions());
+    editor.addEventListener("blur", hideSuggestions);
 
     // Pasted or dropped text arrives as plain text, with its tags and links as pills.
     const insertPlain = (text) => {
@@ -345,16 +358,45 @@
     });
 
     if (hadFocus) {
-      const focusEditor = () => {
-        editor.focus();
-        getSelection().selectAllChildren(editor);
-        getSelection().collapseToEnd();
-      };
       // Edit links end in "#entry-…", and the browser drops focus when it
       // scrolls there during load, so wait until loading is done.
-      if (document.readyState === "complete") focusEditor();
-      else addEventListener("load", focusEditor, { once: true });
+      if (document.readyState === "complete") focusAtEnd(editor);
+      else addEventListener("load", () => focusAtEnd(editor), { once: true });
     }
+  }
+
+  function focusAtEnd(editor) {
+    editor.focus();
+    getSelection().selectAllChildren(editor);
+    getSelection().collapseToEnd();
+  }
+
+  /** Focus mode: the capture form fills the window. */
+  function setFocusMode(form, on) {
+    hideSuggestions(); // the editor moves, so an open list would point at the wrong spot
+    form.classList.toggle("is-focus-mode", on);
+    form.querySelector("[data-focus-mode]")?.setAttribute("aria-pressed", String(on));
+    // Everything behind the overlay is out of reach (Tab, shortcuts) while it's up.
+    if (on) {
+      for (let el = form; el !== document.body; el = el.parentElement) {
+        for (const sibling of el.parentElement.children) {
+          if (sibling === el || sibling === suggestBox || /^(DIALOG|SCRIPT)$/.test(sibling.tagName)) continue;
+          sibling.inert = true;
+          sibling.dataset.focusInert = "";
+        }
+      }
+    } else {
+      releaseFocusMode();
+    }
+    const editor = form.querySelector(".composer");
+    if (editor && !editor.contains(document.activeElement)) focusAtEnd(editor);
+  }
+
+  function releaseFocusMode() {
+    document.querySelectorAll("[data-focus-inert]").forEach((el) => {
+      el.inert = false;
+      delete el.dataset.focusInert;
+    });
   }
 
   // ---- Post a form, then swap in the page it redirects to ----------------
@@ -509,6 +551,9 @@
     }
     if (target.closest("[data-open-shortcuts]")) document.getElementById("shortcuts")?.showModal();
 
+    const focusButton = target.closest("[data-focus-mode]");
+    if (focusButton) setFocusMode(focusButton.form, focusButton.getAttribute("aria-pressed") !== "true");
+
     // Close any open action menu when clicking elsewhere.
     document.querySelectorAll("details.menu[open]").forEach((menu) => {
       if (!menu.contains(target)) menu.removeAttribute("open");
@@ -532,8 +577,24 @@
       return;
     }
 
+    if ((event.key === "f" || event.key === "F") && (event.ctrlKey || event.metaKey) && event.shiftKey) {
+      const capture = document.querySelector("form[data-capture]");
+      if (capture) {
+        event.preventDefault();
+        setFocusMode(capture, !capture.classList.contains("is-focus-mode"));
+      }
+      return;
+    }
+
     if (event.key === "Escape") {
-      // Close a menu, cancel an edit, or step out of a text field, in that order.
+      // A dialog closes itself on Esc; don't also act on the page behind it.
+      if (el?.closest("dialog[open]")) return;
+      // Leave focus mode, close a menu, cancel an edit, or step out of a text field, in that order.
+      const focusMode = document.querySelector(".is-focus-mode");
+      if (focusMode) {
+        setFocusMode(focusMode, false);
+        return;
+      }
       const menu = document.querySelector("details.menu[open]");
       if (menu) {
         menu.removeAttribute("open");
