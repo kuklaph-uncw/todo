@@ -1,7 +1,7 @@
 /**
  * Development only (`bun run dev`): serves the app at http://127.0.0.1:41820 so
- * pages can be checked in a normal browser while editing. Never shipped; the
- * desktop app is src/electron/main.ts.
+ * pages can be checked in a normal browser while editing, and reloads them
+ * after each code change. Never shipped; the desktop app is src/electron/main.ts.
  */
 import { homedir } from "node:os";
 import { CSP } from "./electron/protocol";
@@ -27,9 +27,55 @@ export function isAllowedRequest(req: Request): boolean {
   return new URL(origin).host === host;
 }
 
+/**
+ * Live reload: `bun --watch` restarts this server when code changes, which
+ * drops every open event stream. A page whose stream reconnects reloads itself.
+ */
+const RELOAD_SCRIPT = `let restarting = false;
+const events = new EventSource("/__dev/events");
+events.onerror = () => (restarting = true);
+events.onopen = () => restarting && location.reload();
+`;
+
+function reloadEvents(): Response {
+  const encoder = new TextEncoder();
+  let timer: ReturnType<typeof setInterval>;
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode("retry: 250\n\n"));
+      // A comment now and then keeps the idle connection open.
+      timer = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(": ping\n\n"));
+        } catch {
+          clearInterval(timer); // the page went away
+        }
+      }, 5000);
+    },
+    cancel() {
+      clearInterval(timer);
+    },
+  });
+  return new Response(stream, { headers: { "content-type": "text/event-stream", "cache-control": "no-store" } });
+}
+
+async function devResponse(req: Request, ctx: AppContext): Promise<Response> {
+  if (!isAllowedRequest(req)) return new Response("Forbidden", { status: 403 });
+  const path = new URL(req.url).pathname;
+  if (path === "/__dev/reload.js") return new Response(RELOAD_SCRIPT, { headers: { "content-type": "text/javascript; charset=utf-8" } });
+  if (path === "/__dev/events") return reloadEvents();
+
+  const res = await handleRequest(req, ctx);
+  if (!res.headers.get("content-type")?.startsWith("text/html")) return res;
+  const html = (await res.text()).replace("</head>", `  <script src="/__dev/reload.js" defer></script>\n</head>`);
+  const headers = new Headers(res.headers);
+  headers.delete("content-length");
+  return new Response(html, { status: res.status, headers });
+}
+
 export function devFetch(ctx: AppContext): (req: Request) => Promise<Response> {
   return async (req) => {
-    const res = isAllowedRequest(req) ? await handleRequest(req, ctx) : new Response("Forbidden", { status: 403 });
+    const res = await devResponse(req, ctx);
     // Same policy as the desktop app, so anything it would block shows up while developing.
     const headers = new Headers(res.headers);
     headers.set("content-security-policy", CSP);

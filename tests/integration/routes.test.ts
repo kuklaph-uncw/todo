@@ -303,8 +303,8 @@ describe("development server request guard", () => {
     expect((await devSend(post("http://127.0.0.1:3000"))).status).toBe(303);
   });
 
-  it("refuses requests for non-local hostnames (DNS rebinding)", async () => {
-    const req = new Request("http://127.0.0.1:3000/", { headers: { host: "evil.example" } });
+  it.each(["/", "/__dev/reload.js", "/__dev/events"])("refuses %s for non-local hostnames (DNS rebinding)", async (path) => {
+    const req = new Request(`http://127.0.0.1:3000${path}`, { headers: { host: "evil.example" } });
     expect((await devSend(req)).status).toBe(403);
   });
 });

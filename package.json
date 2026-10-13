@@ -8,7 +8,7 @@
   "type": "module",
   "main": "out/main.js",
   "scripts": {
-    "dev": "bun run --watch src/dev-server.ts",
+    "dev": "bun run scripts/copy-notes.ts && bun run --watch src/dev-server.ts",
     "test": "bun test",
     "seed:demo": "bun run scripts/seed-demo.ts",
     "build:main": "bun build src/electron/main.ts --target=node --format=esm --external electron --outfile out/main.js",

@@ -49,6 +49,15 @@ describe("development server", () => {
     expect(await res.text()).toContain("Posted over HTTP");
   });
 
+  it("adds the live-reload script to pages and serves its event stream", async () => {
+    expect(await (await fetch(`${baseUrl}/`)).text()).toContain('<script src="/__dev/reload.js" defer></script>\n</head>');
+    expect(await (await fetch(`${baseUrl}/__dev/reload.js`)).text()).toContain('new EventSource("/__dev/events")');
+
+    const events = await fetch(`${baseUrl}/__dev/events`);
+    expect(events.headers.get("content-type")).toBe("text/event-stream");
+    await events.body?.cancel();
+  });
+
   it("serves the app icon as SVG", async () => {
     const svg = await fetch(`${baseUrl}/icon.svg`);
     expect(svg.headers.get("content-type")).toBe("image/svg+xml");

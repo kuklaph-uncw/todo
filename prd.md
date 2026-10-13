@@ -924,7 +924,7 @@ Development:  browser → http://127.0.0.1:41820/... → devFetch → handleRequ
 | ---------------------------------- | ---------------------------------- |
 | `VAULT_PATH` set                   | That path (relative to the working directory). |
 | Installed app                      | `~/Work Ledger`                    |
-| From source (`bun run dev`, `bun run start`) | `./vault`                |
+| From source (`bun run dev`, `bun run start`) | `./vault`. `bun run dev` first replaces it with a fresh copy of `~/Work Ledger`, so development uses your real notes without changing them. |
 
 The installed app sends errors to `<vault>/.workledger/error.log`. From source they go to the console.
 
@@ -942,7 +942,7 @@ A print stylesheet turns the review into a plain black-on-white document.
 
 | Command              | Does                                                                    |
 | -------------------- | ----------------------------------------------------------------------- |
-| `bun run dev`        | Dev server at `http://127.0.0.1:41820` (`PORT` overrides), with watch.  |
+| `bun run dev`        | Copies your notes into `./vault` (skipped when `VAULT_PATH` is set), then serves `http://127.0.0.1:41820` (`PORT` overrides). Restarts on code changes and reloads open pages. |
 | `bun run start`      | Builds the main process and opens the Electron window.                  |
 | `bun run build`      | Builds the main process and writes the installer and zip to `dist/`.    |
 | `bun test`           | Runs all tests.                                                         |
@@ -1116,6 +1116,7 @@ default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; form-ac
 - Answers only when the `Host` header is `localhost`, `127.0.0.1`, or `[::1]` (blocks DNS rebinding).
 - Refuses POSTs with `Sec-Fetch-Site: cross-site`, an `Origin` of `null`, or an `Origin` whose host differs from `Host` (blocks CSRF from other tabs).
 - Sends the same CSP as the desktop app.
+- Adds a script to each page that reloads it after the server restarts (`/__dev/reload.js`, `/__dev/events`).
 
 ### 21.4 Input Handling
 
