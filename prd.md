@@ -943,6 +943,7 @@ A print stylesheet turns the review into a plain black-on-white document.
 | Command              | Does                                                                    |
 | -------------------- | ----------------------------------------------------------------------- |
 | `bun run dev`        | Copies your notes into `./vault` (skipped when `VAULT_PATH` is set), then serves `http://127.0.0.1:41820` (`PORT` overrides). Restarts on code changes and reloads open pages. |
+| `bun run demo`       | Same as `bun run dev`, but on fresh sample data: replaces `./demo-vault` with a new `seed:demo` run each start. |
 | `bun run start`      | Builds the main process and opens the Electron window.                  |
 | `bun run build`      | Builds the main process and writes the installer and zip to `dist/`.    |
 | `bun test`           | Runs all tests.                                                         |
