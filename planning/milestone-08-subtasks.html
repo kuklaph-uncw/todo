@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Milestone 8 - Subtasks and Ordering</title>
+  <link rel="stylesheet" href="assets/planning.css">
+</head>
+<body>
+  <div class="page">
+    <aside class="sidebar">
+      <h1 class="brand">Milestone 8<br>Subtasks</h1>
+      <p>Nested checklists and your own order.</p>
+      <nav class="nav" aria-label="Planning pages">
+        <a href="index.html">Roadmap</a>
+        <a href="milestone-01-foundation.html">M1 Foundation</a>
+        <a href="milestone-02-day-view-journal.html">M2 Journal</a>
+        <a href="milestone-03-day-view-todos.html">M3 TODO Panel</a>
+        <a href="milestone-04-review-output.html">M4 Review</a>
+        <a href="milestone-05-markdown-export.html">M5 Export</a>
+        <a href="milestone-06-todo-manager.html">M6 TODO Manager</a>
+        <a href="milestone-07-polish-backup.html">M7 Polish</a>
+        <a href="milestone-08-subtasks.html" aria-current="page">M8 Subtasks</a>
+        <a href="ui-mockups.html">UI Mockups</a>
+        <a href="data-access-strategy.html">AI Data Access</a>
+        <a href="acceptance-matrix.html">Acceptance Matrix</a>
+        <a href="deferred-scope.html">Deferred Scope</a>
+      </nav>
+    </aside>
+
+    <main class="content">
+      <header class="hero">
+        <p class="eyebrow">Milestone 8</p>
+        <h1>Subtasks and Ordering</h1>
+        <p class="lead">Let a todo hold a nested checklist, and let the user set the order of todos and subtasks by hand.</p>
+        <div class="meta">
+          <span class="tag warn">ST-1..ST-12</span>
+          <span class="tag test">TDD required</span>
+        </div>
+      </header>
+
+      <section class="callout">
+        <h2>Goal</h2>
+        <p>A todo can be broken into steps without becoming a project plan. The todo stays the unit of review evidence. Its subtasks are a checklist that helps get it done.</p>
+        <p>This milestone replaces two M6 exclusions: drag-and-drop, and the priority/newest sort for live todos.</p>
+      </section>
+
+      <section>
+        <h2>Scope</h2>
+        <div class="grid two">
+          <div class="panel">
+            <h3>Included</h3>
+            <ul>
+              <li>Subtasks nested to any depth under a todo.</li>
+              <li>Subtasks are checklist items: text and done/not done.</li>
+              <li>Marking a todo or subtask done checks everything under it.</li>
+              <li>Progress (<code>3/5</code>) on the todo's tag line, counting every level. Only todos with subtasks show it.</li>
+              <li>Clicking a todo's title (or Enter on it) opens and closes its subtasks.</li>
+              <li>Manual order for live todos and for subtasks.</li>
+              <li>Drag by a grip handle, plus hotkeys for moving, indenting and outdenting.</li>
+              <li>Today tray: expand, check off, quick-add. Todos page: everything.</li>
+            </ul>
+          </div>
+          <div class="panel">
+            <h3>Excluded</h3>
+            <ul>
+              <li>Priority, star, goals, tags or dates on subtasks.</li>
+              <li>Subtasks as review evidence.</li>
+              <li>Turning a todo into a subtask, or a subtask into a todo.</li>
+              <li>Auto-completing a parent when its last subtask is checked.</li>
+              <li>Reordering Done and Cancelled (they stay sorted by completion date).</li>
+              <li>Move up/down or indent buttons.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>File Format</h2>
+        <p>An indented task line under a todo is a subtask, as in Obsidian. An indented plain line is still a note on the todo. Each level is written with four more spaces. File order is display order, and new todos are written at the top.</p>
+        <pre><code>- [ ] Set up Azure DevOps org ⏫ ➕ 2026-10-27 ^8wfwpd
+    Notes stay as indented plain lines.
+    - [x] Pick org name ^k3m9qa
+    - [ ] Invite team ^p7r2wd
+        - [ ] Get list from manager ^z4n8ce</code></pre>
+        <ul>
+          <li>Subtask IDs share the file's ID space with todos.</li>
+          <li><code>[x]</code> or <code>[X]</code> is done. Any other mark reads as not done, and is written back as <code>[ ]</code> when the app rewrites the todo.</li>
+          <li>A hand-written subtask without an ID gets one on first read, changing only that line. A rewritten todo puts notes first, then subtasks.</li>
+          <li><code>#tags</code> and <code>[[links]]</code> in subtask text are shown but don't count toward tags, goals or filters.</li>
+          <li>Existing files with notes only read the same as before.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>Requirements</h2>
+        <table>
+          <thead><tr><th>ID</th><th>Requirement</th></tr></thead>
+          <tbody>
+            <tr><td>ST-1</td><td>User can add a subtask under a todo or under another subtask.</td></tr>
+            <tr><td>ST-2</td><td>User can check and uncheck a subtask.</td></tr>
+            <tr><td>ST-3</td><td>Marking a todo or subtask done checks every subtask under it. Reopening or unchecking changes nothing else.</td></tr>
+            <tr><td>ST-4</td><td>User can edit a subtask's text and delete a subtask. Deleting removes everything under it, with a copy in the trash.</td></tr>
+            <tr><td>ST-5</td><td>Deleting a todo trashes its subtasks with it.</td></tr>
+            <tr><td>ST-6</td><td>A todo with subtasks shows done/total across every level on its tag line, on Today and Todos. Clicking its title opens the list.</td></tr>
+            <tr><td>ST-7</td><td>Live status groups show todos in the user's order. Priority is a badge, not a sort key.</td></tr>
+            <tr><td>ST-8</td><td>User can drag a todo within the live list, and a subtask anywhere among subtasks, by its grip handle.</td></tr>
+            <tr><td>ST-9</td><td>Hotkeys on a focused row on the Todos page: <code>Alt+↑</code>/<code>Alt+↓</code> move among siblings, <code>Alt+→</code>/<code>Alt+←</code> indent and outdent. Listed in the <code>?</code> dialog.</td></tr>
+            <tr><td>ST-10</td><td>Today tray: a todo's subtasks can be opened from its title, checked off and quick-added.</td></tr>
+            <tr><td>ST-11</td><td>Search matches subtask text.</td></tr>
+            <tr><td>ST-12</td><td>Review evidence, exports and day summaries are unchanged.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Open Check</h2>
+        <p><code>Alt+←</code> is Back in browsers. Electron has no such binding. Verify the app can prevent it in a browser during <code>bun run dev</code>. If it can't, use <code>Alt+Shift</code> with the arrows instead.</p>
+      </section>
+
+      <section>
+        <h2>Planned Files</h2>
+        <table>
+          <thead><tr><th>Path</th><th>Purpose</th></tr></thead>
+          <tbody>
+            <tr><td><code>src\vault\format.ts</code></td><td>Parse and write nested subtasks with a todo.</td></tr>
+            <tr><td><code>src\vault\vault.ts</code></td><td>Add, toggle with cascade, edit, delete and move subtasks; move todos; insert new todos at the top.</td></tr>
+            <tr><td><code>src\routes\todos.ts</code></td><td>Subtask and move routes.</td></tr>
+            <tr><td><code>src\views\todos.ts</code>, <code>src\views\today.ts</code></td><td>Subtask trees, progress, manual order.</td></tr>
+            <tr><td><code>public\app.js</code>, <code>public\styles.css</code></td><td>Drag handle, hotkeys, tree styling.</td></tr>
+            <tr><td><code>prd.md</code></td><td>Todo format, Todos page and Today tray sections.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>TDD Plan</h2>
+        <ol class="sequence">
+          <li>RED: format tests for nested subtasks, notes mixed with subtasks, missing IDs and old notes-only files.</li>
+          <li>GREEN: parser and writer.</li>
+          <li>RED: vault tests for add, toggle cascade, edit, delete to trash, move and indent rules.</li>
+          <li>GREEN: vault operations.</li>
+          <li>RED: route tests for subtask and move endpoints and rendered trees, progress and order.</li>
+          <li>GREEN: routes and views.</li>
+          <li>Drive the dev server for drag and hotkeys.</li>
+        </ol>
+      </section>
+
+      <section>
+        <h2>Done Gate</h2>
+        <ul>
+          <li>ST-1..ST-12 pass in tests or a recorded manual check.</li>
+          <li>A <code>todos.md</code> edited by hand in Obsidian round-trips without losing lines.</li>
+          <li><code>bun test</code> passes and an independent review finds nothing unresolved.</li>
+        </ul>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

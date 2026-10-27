@@ -24,6 +24,8 @@ const SHORTCUTS: [string, string][] = [
   ["t", "Add a todo"],
   ["[ and ]", "Previous / next day"],
   ["/", "Search (Todos and Review pages)"],
+  ["Alt + ↑ / ↓", "Move the focused todo or subtask up or down (Todos page)"],
+  ["Alt + → / ←", "Indent or outdent the focused subtask (Todos page)"],
   ["Esc", "Close a menu, cancel an edit, or leave a text box"],
   ["Ctrl + Enter", "Save the form you're in"],
   ["g then t / d / g / r", "Go to Today, Todos, Goals, Review"],

@@ -12,6 +12,10 @@ import {
   notice,
   postButton,
   richText,
+  subtaskCount,
+  subtaskPanel,
+  subtaskButton,
+  subtaskToggle,
   type GoalIndex,
 } from "./components";
 
@@ -197,7 +201,7 @@ function statusButton(todo: Todo, status: string, label: string, returnTo: strin
 function trayTodo(todo: Todo, goals: GoalIndex, returnTo: string, date: string): string {
   const meta = [
     todo.priority ? `<span class="priority p-${todo.priority.toLowerCase()}">${todo.priority}</span>` : "",
-    metaChips({ ...todo, text: todo.task, minutes: null }, goals),
+    metaChips({ ...todo, text: todo.task, minutes: null }, goals, subtaskCount(todo)),
   ].join("");
   const moves = [
     todo.status !== "In Progress" ? statusButton(todo, "In Progress", "Start", returnTo, date) : "",
@@ -218,8 +222,10 @@ function trayTodo(todo: Todo, goals: GoalIndex, returnTo: string, date: string):
         id: `done-${todo.id}`,
       })}
       <div class="todo-body">
-        <p class="todo-task">${todo.isHighlight ? `<span class="star-inline" title="Starred">${icon("star", true)}</span>` : ""}${richText(todo.task, goals)}</p>
+        <p class="todo-task"${subtaskToggle(todo)}>${todo.isHighlight ? `<span class="star-inline" title="Starred">${icon("star", true)}</span>` : ""}${richText(todo.task, goals)}</p>
+        ${subtaskButton(todo)}
         ${meta ? `<div class="todo-meta">${meta}</div>` : ""}
+        ${subtaskPanel(todo, goals, { returnTo, full: false })}
       </div>
       <details class="menu">
         <summary class="icon-btn" aria-label="More actions: ${escapeHtml(todo.task)}" title="More">${icon("more")}</summary>

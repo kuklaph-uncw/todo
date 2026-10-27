@@ -1,5 +1,6 @@
 import { isValidDateString } from "../lib/date";
 import { isValidPriority, isValidStatus, safeReturnPath, type Priority, type Status } from "../lib/validation";
+import type { MoveTarget } from "../vault/vault";
 import { renderTodos, type TodoFilters } from "../views/todos";
 import { notFound, page, readForm, redirect, redirectWithError, today, type AppContext } from "./shared";
 
@@ -47,6 +48,16 @@ export function handleTodos(req: Request, ctx: AppContext): Response {
   return page(ctx, "Todos", "todos", main);
 }
 
+/** before / after / into fields sent by a drag or a move hotkey. Blank ones are left out. */
+function readMoveTarget(form: Awaited<ReturnType<typeof readForm>>): MoveTarget {
+  const target: MoveTarget = {};
+  for (const name of ["before", "after", "into"] as const) {
+    const value = form.text(name);
+    if (value) target[name] = value;
+  }
+  return target;
+}
+
 function readPriority(raw: string): Priority | null | undefined {
   if (raw === "") return null;
   return isValidPriority(raw) ? raw : undefined;
@@ -92,6 +103,17 @@ export async function changeTodo(req: Request, ctx: AppContext, id: string, acti
       ctx.vault.updateTodo(id, { clearCompletion: true }, now);
       return redirect(back);
 
+    case "subtasks": {
+      const text = form.text("text").trim();
+      if (!text) return redirectWithError(back, "A subtask needs some text.");
+      ctx.vault.addSubtask(id, text);
+      return redirect(back);
+    }
+
+    case "move":
+      if (!ctx.vault.moveTodo(id, readMoveTarget(form))) return redirectWithError(back, "That todo can't move there.");
+      return redirect(back);
+
     case "status": {
       const status = form.text("status");
       if (!isValidStatus(status)) return redirectWithError(back, "That status isn't one the app knows.");
@@ -127,6 +149,37 @@ export async function changeTodo(req: Request, ctx: AppContext, id: string, acti
       const status = form.text("status");
       if (!isValidStatus(status)) return redirectWithError(retryAt, "That status isn't one the app knows.", keep);
       ctx.vault.updateTodo(id, { task, priority, status, notes: form.text("notes") }, now);
+      return redirect(back);
+    }
+
+    default:
+      return notFound(ctx);
+  }
+}
+
+/** POST /subtasks/:id and /subtasks/:id/{done,delete,move} */
+export async function changeSubtask(req: Request, ctx: AppContext, id: string, action: string | undefined): Promise<Response> {
+  const form = await readForm(req);
+  const back = form.returnTo("/todos");
+  if (!ctx.vault.getSubtask(id)) return notFound(ctx, "That subtask");
+
+  switch (action) {
+    case "done":
+      ctx.vault.setSubtaskDone(id, form.text("done") === "1");
+      return redirect(back);
+
+    case "delete":
+      ctx.vault.deleteSubtask(id);
+      return redirect(back);
+
+    case "move":
+      if (!ctx.vault.moveSubtask(id, readMoveTarget(form))) return redirectWithError(back, "That subtask can't move there.");
+      return redirect(back);
+
+    case undefined: {
+      const text = form.text("text").trim();
+      if (!text) return redirectWithError(back, "A subtask needs some text.");
+      ctx.vault.editSubtask(id, text);
       return redirect(back);
     }
 

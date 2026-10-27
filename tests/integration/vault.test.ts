@@ -103,10 +103,161 @@ describe("todos", () => {
   });
 });
 
+describe("todo order", () => {
+  const add = (task: string) => vault.addTodo({ task, priority: null, status: "Open", tags: [], goals: [], notes: "" });
+
+  it("writes new todos at the top", () => {
+    const a = add("A");
+    const b = add("B");
+    expect(vault.getTodos().map((t) => t.id)).toEqual([b.id, a.id]);
+    expect(read("todos.md").startsWith("---\ntype: todos\n---\n\n- [ ] B")).toBe(true);
+  });
+
+  it("moves a todo before or after another, carrying its notes and subtasks", () => {
+    const c = add("C");
+    const b = add("B");
+    const a = add("A");
+    vault.updateTodo(a.id, { notes: "note" });
+    vault.addSubtask(a.id, "step");
+    expect(vault.moveTodo(a.id, { after: c.id })).toBe(true);
+    expect(vault.getTodos().map((t) => t.task)).toEqual(["B", "C", "A"]);
+    expect(vault.getTodo(a.id)).toMatchObject({ notes: "note", subtasks: [{ text: "step" }] });
+    expect(vault.moveTodo(a.id, { before: b.id })).toBe(true);
+    expect(vault.getTodos().map((t) => t.task)).toEqual(["A", "B", "C"]);
+  });
+
+  it("refuses to move a todo next to itself, a subtask or nothing", () => {
+    const a = add("A");
+    const sub = vault.addSubtask(add("B").id, "step")!;
+    expect(vault.moveTodo(a.id, { before: a.id })).toBe(false);
+    expect(vault.moveTodo(a.id, { after: sub.id })).toBe(false);
+    expect(vault.moveTodo(a.id, {})).toBe(false);
+  });
+});
+
+describe("subtasks", () => {
+  let todo: Todo;
+  beforeEach(() => {
+    todo = vault.addTodo({ task: "Set up the org", priority: null, status: "Open", tags: [], goals: [], notes: "" });
+  });
+  const tree = () =>
+    vault.getTodos().map((t) => [t.task, ...t.subtasks.map(function show(s): unknown {
+      const label = `${s.done ? "x " : ""}${s.text}`;
+      return s.children.length ? [label, ...s.children.map(show)] : label;
+    })]);
+
+  it("adds subtasks at the end of a todo with ids from the file's id space", () => {
+    const a = vault.addSubtask(todo.id, "Pick a name #naming")!;
+    const b = vault.addSubtask(todo.id, "Invite team")!;
+    expect(new Set([todo.id, a.id, b.id]).size).toBe(3);
+    expect(read("todos.md")).toContain(`    - [ ] Pick a name #naming ^${a.id}\n    - [ ] Invite team ^${b.id}\n`);
+    // Subtask tags are text, not the todo's tags.
+    expect(vault.getTodo(todo.id)?.tags).toEqual([]);
+    expect(vault.addSubtask("missing", "x")).toBeNull();
+  });
+
+  it("checking a subtask checks everything under it; unchecking leaves the rest", () => {
+    const parent = vault.addSubtask(todo.id, "Invite team")!;
+    const child = vault.addSubtask(todo.id, "Get the list")!;
+    vault.moveSubtask(child.id, { into: parent.id });
+    expect(vault.setSubtaskDone(parent.id, true)).toBe(true);
+    expect(tree()).toEqual([["Set up the org", ["x Invite team", "x Get the list"]]]);
+    vault.setSubtaskDone(parent.id, false);
+    expect(tree()).toEqual([["Set up the org", ["Invite team", "x Get the list"]]]);
+  });
+
+  it("marking the todo done checks every subtask; reopening leaves them", () => {
+    const a = vault.addSubtask(todo.id, "A")!;
+    const b = vault.addSubtask(todo.id, "B")!;
+    vault.moveSubtask(b.id, { into: a.id });
+    vault.updateTodo(todo.id, { status: "Done" }, "2026-09-28");
+    expect(tree()).toEqual([["Set up the org", ["x A", "x B"]]]);
+    vault.updateTodo(todo.id, { status: "Open" }, "2026-09-28");
+    expect(tree()).toEqual([["Set up the org", ["x A", "x B"]]]);
+  });
+
+  it("saving a todo that is already done doesn't re-check a subtask the user unchecked", () => {
+    const a = vault.addSubtask(todo.id, "A")!;
+    vault.updateTodo(todo.id, { status: "Done" }, "2026-09-28");
+    vault.setSubtaskDone(a.id, false);
+    // The edit form always sends the status.
+    vault.updateTodo(todo.id, { task: "Set up the org (typo fixed)", status: "Done" }, "2026-09-28");
+    expect(tree()).toEqual([["Set up the org (typo fixed)", "A"]]);
+  });
+
+  it("moves a subtask into a todo further down the file", () => {
+    const below = todo;
+    const above = vault.addTodo({ task: "Above", priority: null, status: "Open", tags: [], goals: [], notes: "" });
+    const a = vault.addSubtask(above.id, "A")!;
+    vault.addSubtask(below.id, "B");
+    expect(vault.moveSubtask(a.id, { into: below.id })).toBe(true);
+    expect(tree()).toEqual([["Above"], ["Set up the org", "B", "A"]]);
+  });
+
+  it("edits a subtask's text and deletes it with everything under it, keeping a copy in the trash", () => {
+    const a = vault.addSubtask(todo.id, "A")!;
+    const b = vault.addSubtask(todo.id, "B")!;
+    vault.moveSubtask(b.id, { into: a.id });
+    expect(vault.editSubtask(a.id, "  A edited  ")).toBe(true);
+    expect(vault.getTodo(todo.id)?.subtasks[0].text).toBe("A edited");
+    expect(vault.deleteSubtask(a.id)).toBe(true);
+    expect(vault.getTodo(todo.id)?.subtasks).toEqual([]);
+    expect(read(".trash", "deleted.md")).toContain(`    - [ ] A edited ^${a.id}\n        - [ ] B ^${b.id}\n`);
+    expect(vault.deleteSubtask(a.id)).toBe(false);
+  });
+
+  it("trashes subtasks with their todo", () => {
+    const a = vault.addSubtask(todo.id, "A")!;
+    vault.deleteTodo(todo.id);
+    expect(read(".trash", "deleted.md")).toContain(`- [ ] A ^${a.id}`);
+    expect(read("todos.md")).not.toContain("- [ ] A");
+  });
+
+  it("moves subtasks before, after and into others, and across todos", () => {
+    const other = vault.addTodo({ task: "Other", priority: null, status: "Open", tags: [], goals: [], notes: "" });
+    const a = vault.addSubtask(todo.id, "A")!;
+    const b = vault.addSubtask(todo.id, "B")!;
+    const c = vault.addSubtask(todo.id, "C")!;
+    expect(vault.moveSubtask(c.id, { before: a.id })).toBe(true);
+    expect(vault.moveSubtask(b.id, { into: c.id })).toBe(true);
+    expect(tree()).toEqual([["Other"], ["Set up the org", ["C", "B"], "A"]]);
+    // Outdent: B becomes the sibling right after its parent.
+    expect(vault.moveSubtask(b.id, { after: c.id })).toBe(true);
+    expect(vault.moveSubtask(a.id, { into: other.id })).toBe(true);
+    expect(tree()).toEqual([["Other", "A"], ["Set up the org", "C", "B"]]);
+  });
+
+  it("refuses moves into itself, under its own children, or next to a todo", () => {
+    const a = vault.addSubtask(todo.id, "A")!;
+    const b = vault.addSubtask(todo.id, "B")!;
+    vault.moveSubtask(b.id, { into: a.id });
+    expect(vault.moveSubtask(a.id, { into: a.id })).toBe(false);
+    expect(vault.moveSubtask(a.id, { into: b.id })).toBe(false);
+    expect(vault.moveSubtask(a.id, { after: b.id })).toBe(false);
+    expect(vault.moveSubtask(a.id, { before: todo.id })).toBe(false);
+    expect(vault.moveSubtask("missing", { into: todo.id })).toBe(false);
+  });
+
+  it("gives hand-written subtasks an id, rewriting only their lines", () => {
+    writeFileSync(
+      join(root, "todos.md"),
+      "---\ntype: todos\n---\n\n- [ ] Hand written ^t1\n  odd   note spacing\n  - [/] No id\n      - [x] Deeper, no id\n",
+    );
+    const [only] = vault.getTodos();
+    const [first] = only.subtasks;
+    const [deeper] = first.children;
+    expect(first.id).toBeTruthy();
+    expect(deeper).toMatchObject({ text: "Deeper, no id", done: true });
+    expect(read("todos.md")).toBe(
+      `---\ntype: todos\n---\n\n- [ ] Hand written ^t1\n  odd   note spacing\n  - [/] No id ^${first.id}\n      - [x] Deeper, no id ^${deeper.id}\n`,
+    );
+  });
+});
+
 describe("applyTodoPatch", () => {
   const base: Todo = {
     id: "x", status: "Open", task: "T", tags: [], goals: [], priority: null, minutes: null,
-    isHighlight: false, createdOn: null, completedOn: null, notes: "",
+    isHighlight: false, createdOn: null, completedOn: null, notes: "", subtasks: [],
   };
 
   it("uses an explicit completion day when given (backfilling)", () => {

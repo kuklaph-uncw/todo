@@ -8,6 +8,7 @@
  *   Todo (todos.md), using Obsidian Tasks plugin emoji where they exist:
  *     - [/] Fix flaky auth test #bug ⏫ ⭐ ➕ 2026-09-20 ✅ 2026-09-28 ^t8k2m1
  *         Optional notes, indented under the task.
+ *         - [x] Subtasks are indented task lines, nested by indent ^q7d3hn
  *
  *   Goal (goals/<slug>.md): frontmatter (title, cycle, status) + Markdown body.
  *
@@ -40,6 +41,15 @@ export interface Todo {
   createdOn: string | null;
   completedOn: string | null;
   notes: string;
+  subtasks: Subtask[];
+}
+
+/** A checklist item under a todo. Its id shares the todo file's id space. */
+export interface Subtask {
+  id: string;
+  text: string;
+  done: boolean;
+  children: Subtask[];
 }
 
 export interface Goal {
@@ -197,16 +207,24 @@ export function formatEntryLine(entry: Entry): string {
 
 const TODO_LINE_RE = /^- \[(.)\] (.+)$/;
 const NOTE_LINE_RE = /^(?: {2,}|\t)(.*)$/;
+const SUBTASK_LINE_RE = /^([ \t]+)- \[(.)\] (.*\S.*)$/;
 
 export interface TodoBlock {
   todo: Todo;
   /** Index of the task line. */
   start: number;
-  /** Index after the last note line. */
+  /** Index after the last note or subtask line. */
   end: number;
+  /** Where each subtask was written, so a hand-written one can get an id without touching other lines. */
+  subtaskLines: { subtask: Subtask; index: number }[];
 }
 
-/** Finds every top-level task in a file, along with its indented note lines. */
+/** Indent width with a tab counted as four spaces, so mixed indents still nest sensibly. */
+function indentWidth(indent: string): number {
+  return indent.replace(/\t/g, "    ").length;
+}
+
+/** Finds every top-level task in a file, along with its indented notes and subtasks. */
 export function parseTodoBlocks(lines: string[]): TodoBlock[] {
   const blocks: TodoBlock[] = [];
 
@@ -235,11 +253,30 @@ export function parseTodoBlocks(lines: string[]): TodoBlock[] {
     const parsed = parseBody(body);
 
     const noteLines: string[] = [];
+    const subtasks: Subtask[] = [];
+    const subtaskLines: TodoBlock["subtaskLines"] = [];
+    // Open subtasks by indent, so a deeper line becomes a child of the nearest shallower one.
+    const parents: { width: number; subtask: Subtask }[] = [];
     let end = i + 1;
     while (end < lines.length) {
       const note = NOTE_LINE_RE.exec(lines[end]);
       if (!note || lines[end].trim() === "") break;
-      noteLines.push(note[1].trim());
+      const sub = SUBTASK_LINE_RE.exec(lines[end]);
+      if (sub) {
+        const subtask: Subtask = {
+          id: ID_RE.exec(sub[3])?.[1] ?? "",
+          text: sub[3].replace(ID_RE, "").trim(),
+          done: sub[2] === "x" || sub[2] === "X",
+          children: [],
+        };
+        const width = indentWidth(sub[1]);
+        while (parents.length > 0 && parents[parents.length - 1].width >= width) parents.pop();
+        (parents.length > 0 ? parents[parents.length - 1].subtask.children : subtasks).push(subtask);
+        parents.push({ width, subtask });
+        subtaskLines.push({ subtask, index: end });
+      } else {
+        noteLines.push(note[1].trim());
+      }
       end++;
     }
 
@@ -256,9 +293,11 @@ export function parseTodoBlocks(lines: string[]): TodoBlock[] {
         createdOn,
         completedOn,
         notes: noteLines.join("\n"),
+        subtasks,
       },
       start: i,
       end,
+      subtaskLines,
     });
     i = end - 1;
   }
@@ -280,7 +319,21 @@ export function formatTodo(todo: Todo): string[] {
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
     .map((line) => `    ${line}`);
-  return [parts.join(" "), ...notes];
+  return [parts.join(" "), ...notes, ...formatSubtasks(todo.subtasks, "    ")];
+}
+
+/** A subtask line without its indent. */
+function formatSubtaskLine(subtask: Subtask): string {
+  return [`- [${subtask.done ? "x" : " "}]`, subtask.text, subtask.id ? `^${subtask.id}` : ""].filter(Boolean).join(" ");
+}
+
+export function formatSubtasks(subtasks: Subtask[], indent: string): string[] {
+  return subtasks.flatMap((subtask) => [`${indent}${formatSubtaskLine(subtask)}`, ...formatSubtasks(subtask.children, `${indent}    `)]);
+}
+
+/** A subtask and everything under it, in file order. */
+export function allSubtasks(subtasks: Subtask[]): Subtask[] {
+  return subtasks.flatMap((subtask) => [subtask, ...allSubtasks(subtask.children)]);
 }
 
 /** Minimal `key: value` frontmatter. Values may be JSON-quoted. */

@@ -1,6 +1,6 @@
 import { escapeHtml } from "../lib/html";
 import { formatMinutes } from "../lib/date";
-import { findLinks, findTags, type Goal } from "../vault/format";
+import { allSubtasks, findLinks, findTags, type Goal, type Subtask, type Todo } from "../vault/format";
 
 /** Small inline icons; stroke uses currentColor so they follow text color. */
 const ICON_PATHS: Record<string, string> = {
@@ -18,6 +18,7 @@ const ICON_PATHS: Record<string, string> = {
   undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
   clock: '<circle cx="12" cy="13" r="7"/><path d="M12 9.5V13l2.5 1.5M10 3.5h4"/>',
   expand: '<path d="M14 4h6v6M20 4l-6.5 6.5M10 20H4v-6M4 20l6.5-6.5"/>',
+  grip: '<circle cx="9" cy="6" r="1.2"/><circle cx="15" cy="6" r="1.2"/><circle cx="9" cy="12" r="1.2"/><circle cx="15" cy="12" r="1.2"/><circle cx="9" cy="18" r="1.2"/><circle cx="15" cy="18" r="1.2"/>',
 };
 
 export function icon(name: keyof typeof ICON_PATHS | string, filled = false): string {
@@ -57,12 +58,13 @@ export function richText(text: string, goals: GoalIndex): string {
     });
 }
 
-/** Metadata chips shown under an item: tags not written inline, goals, time. */
+/** Metadata chips shown under an item: `lead` (e.g. a subtask count), tags not written inline, goals, time. */
 export function metaChips(
   item: { text: string; tags: string[]; goals: string[]; minutes?: number | null },
   goals: GoalIndex,
+  lead = "",
 ): string {
-  const chips: string[] = [];
+  const chips: string[] = lead ? [lead] : [];
   const inlineTags = findTags(item.text);
   const inlineLinks = findLinks(item.text);
   for (const tag of item.tags) {
@@ -79,6 +81,108 @@ export function metaChips(
   }
   if (item.minutes) chips.push(`<span class="duration">${formatMinutes(item.minutes)}</span>`);
   return chips.length ? `<div class="chips">${chips.join("")}</div>` : "";
+}
+
+/** Drag handle; app.js also moves the focused row with Alt+arrows. */
+export function grip(id: string, label: string): string {
+  return `<button type="button" class="grip" id="grip-${escapeHtml(id)}" aria-label="Move: ${escapeHtml(label)}" title="Drag to move. Alt+arrows move and indent.">${icon("grip", true)}</button>`;
+}
+
+/** "2/5" for a todo's tag line; nothing when it has no subtasks. */
+export function subtaskCount(todo: Todo): string {
+  const all = allSubtasks(todo.subtasks);
+  if (all.length === 0) return "";
+  const done = all.filter((subtask) => subtask.done).length;
+  return `<span class="progress${done === all.length ? " is-complete" : ""}"><span aria-hidden="true">${done}/${all.length}</span><span class="sr-only">${done} of ${all.length} subtasks done</span></span>`;
+}
+
+/** Makes a todo's title open and close its subtasks on click (app.js). */
+export function subtaskToggle(todo: Todo): string {
+  return ` data-subtasks="subs-${todo.id}"`;
+}
+
+/**
+ * The same toggle as a real button for keyboard and screen-reader users, since
+ * the title holds links. Hidden until it has keyboard focus, and until app.js
+ * runs, since only the script can open the list.
+ */
+export function subtaskButton(todo: Todo): string {
+  return `<button type="button" class="sr-only subtask-toggle" hidden data-subtasks="subs-${todo.id}" aria-controls="subs-${todo.id}" aria-expanded="false">Subtasks: ${escapeHtml(todo.task)}</button>`;
+}
+
+/**
+ * A todo's checklist, collapsed until its title is clicked.
+ * `full` (Todos page) adds drag handles, edit and delete; the Today tray only checks and adds.
+ * `editId` opens the inline editor for that subtask.
+ */
+export function subtaskPanel(
+  todo: Todo,
+  goals: GoalIndex,
+  opts: { returnTo: string; full: boolean; editId?: string | null },
+): string {
+  const all = allSubtasks(todo.subtasks);
+  const back = `${opts.returnTo}#todo-${todo.id}`;
+  const linkTo = (id: string) => `${opts.returnTo}${opts.returnTo.includes("?") ? "&" : "?"}edit=${id}#sub-${id}`;
+
+  const row = (subtask: Subtask): string => {
+    const text = escapeHtml(subtask.text);
+    const editing = opts.full && opts.editId === subtask.id;
+    const body = editing
+      ? `<form class="edit-form subtask-edit" method="post" action="/subtasks/${subtask.id}">
+          ${hidden("return_to", back)}
+          <label class="sr-only" for="sub-text-${subtask.id}">Subtask</label>
+          <input id="sub-text-${subtask.id}" name="text" required value="${text}" autocomplete="off" autofocus>
+          <button class="btn primary" type="submit">Save</button>
+          <a class="btn ghost" href="${escapeHtml(back)}">Cancel</a>
+        </form>`
+      : `<span class="subtask-text">${richText(subtask.text, goals)}</span>`;
+    const actions =
+      opts.full && !editing
+        ? `<div class="row-actions">
+            <a class="icon-btn" href="${escapeHtml(linkTo(subtask.id))}" aria-label="Edit: ${text}" title="Edit">${icon("edit")}</a>
+            ${postButton({
+              action: `/subtasks/${subtask.id}/delete`,
+              label: `Delete: ${subtask.text}`,
+              body: icon("trash"),
+              returnTo: back,
+              className: "icon-btn danger",
+              confirm: subtask.children.length
+                ? "Delete this subtask and everything under it? A copy is kept in the notes folder's .trash/deleted.md file."
+                : "Delete this subtask? A copy is kept in the notes folder's .trash/deleted.md file.",
+            })}
+          </div>`
+        : "";
+    const move = opts.full ? ` data-move="subtask" data-id="${subtask.id}"` : "";
+    return `<li class="subtask${subtask.done ? " is-done" : ""}" id="sub-${subtask.id}"${move}>
+        <div class="subtask-line">
+          ${opts.full ? grip(subtask.id, subtask.text) : ""}
+          ${postButton({
+            action: `/subtasks/${subtask.id}/done`,
+            label: subtask.done ? `Uncheck: ${subtask.text}` : `Check: ${subtask.text}`,
+            body: icon("check"),
+            returnTo: back,
+            fields: { done: subtask.done ? "" : "1" },
+            className: `check-btn${subtask.done ? " is-done" : ""}`,
+            id: `check-${subtask.id}`,
+          })}
+          ${body}
+          ${actions}
+        </div>
+        ${subtask.children.length ? `<ul class="subtask-list">${subtask.children.map(row).join("")}</ul>` : ""}
+      </li>`;
+  };
+
+  const editing = opts.full && all.some((subtask) => subtask.id === opts.editId);
+  // Opened by clicking the todo's title or its keyboard button (subtaskToggle, subtaskButton), so the summary stays hidden.
+  return `<details class="subtasks" id="subs-${todo.id}" data-keep-open${editing ? " open" : ""}>
+      <summary hidden></summary>
+      ${todo.subtasks.length ? `<ul class="subtask-list">${todo.subtasks.map(row).join("")}</ul>` : ""}
+      <form class="subtask-add" method="post" action="/todos/${todo.id}/subtasks">
+        ${hidden("return_to", back)}
+        <label class="sr-only" for="add-sub-${todo.id}">Add a subtask to: ${escapeHtml(todo.task)}</label>
+        <input id="add-sub-${todo.id}" name="text" required placeholder="Add a subtask" autocomplete="off">
+      </form>
+    </details>`;
 }
 
 export function emptyState(title: string, hint = ""): string {

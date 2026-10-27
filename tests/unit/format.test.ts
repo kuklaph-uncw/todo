@@ -99,6 +99,53 @@ describe("todo blocks", () => {
     expect(formatTodo(first.todo)).toEqual(lines.slice(4, 7));
   });
 
+  it("reads indented task lines as nested subtasks and other indented lines as notes", () => {
+    const [block] = parseTodoBlocks([
+      "- [ ] Set up the org ^t1",
+      "    A note",
+      "    - [x] Pick a name ^s1",
+      "    - [ ] Invite team #people ^s2",
+      "        - [X] Get the list ^s3",
+      "\t\t- [/] Ask the manager ^s4",
+      "    - not a task, so a note",
+      "- [ ] Next todo ^t2",
+    ]);
+    expect(block.end).toBe(7);
+    expect(block.todo.notes).toBe("A note\n- not a task, so a note");
+    expect(block.todo.tags).toEqual([]);
+    expect(block.todo.subtasks).toEqual([
+      { id: "s1", text: "Pick a name", done: true, children: [] },
+      {
+        id: "s2",
+        text: "Invite team #people",
+        done: false,
+        children: [
+          { id: "s3", text: "Get the list", done: true, children: [] },
+          { id: "s4", text: "Ask the manager", done: false, children: [] },
+        ],
+      },
+    ]);
+  });
+
+  it("writes notes, then subtasks four spaces deeper per level", () => {
+    const lines = [
+      "- [ ] Set up the org ^t1",
+      "    A note",
+      "    - [x] Pick a name ^s1",
+      "    - [ ] Invite team ^s2",
+      "        - [ ] Get the list ^s3",
+    ];
+    expect(formatTodo(parseTodoBlocks(lines)[0].todo)).toEqual(lines);
+  });
+
+  it("records where each subtask line is, for giving hand-written ones an id", () => {
+    const [block] = parseTodoBlocks(["- [ ] Todo ^t1", "  - [ ] No id yet", "    - [ ] Nested, no id"]);
+    expect(block.subtaskLines.map(({ index, subtask }) => [index, subtask.text])).toEqual([
+      [1, "No id yet"],
+      [2, "Nested, no id"],
+    ]);
+  });
+
   it("keeps a time typed on a todo line when rewriting it", () => {
     const line = "- [ ] Write the runbook #docs ⏱ 30m ^d1";
     const [block] = parseTodoBlocks([line]);

@@ -1,5 +1,6 @@
 // Progressive enhancement only. Every form and link works without this file;
-// with it, form posts update the page in place and keyboard shortcuts work.
+// with it, form posts update the page in place, keyboard shortcuts work, and
+// todos and subtasks can be reordered.
 (() => {
   const isTyping = (el) =>
     el instanceof HTMLElement && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
@@ -22,6 +23,22 @@
     // Posting from focus mode swaps the page, which ends it.
     root.querySelectorAll("[data-focus-mode]").forEach((button) => (button.hidden = false));
     releaseFocusMode();
+
+    // Subtask lists stay open or closed as the user left them, across updates and pages, for this window.
+    const openLists = () => new Set(JSON.parse(sessionStorage.getItem("open-subtasks") || "[]"));
+    root.querySelectorAll("details[data-keep-open]").forEach((details) => {
+      const button = document.querySelector(`button[data-subtasks="${details.id}"]`);
+      if (button) button.hidden = false;
+      if (openLists().has(details.id)) details.open = true;
+      button?.setAttribute("aria-expanded", String(details.open));
+      details.addEventListener("toggle", () => {
+        button?.setAttribute("aria-expanded", String(details.open));
+        const open = openLists();
+        if (details.open) open.add(details.id);
+        else open.delete(details.id);
+        sessionStorage.setItem("open-subtasks", JSON.stringify([...open]));
+      });
+    });
 
     // After drafts, so a restored draft shows up with its pills.
     const data = document.getElementById("composer-data");
@@ -560,6 +577,142 @@
     });
   });
 
+  // ---- Subtasks: a todo's title opens and closes its list -----------------
+
+  function toggleSubtasks(title) {
+    const list = document.getElementById(title.dataset.subtasks);
+    if (!list) return;
+    list.open = !list.open;
+    // An empty list only has the add box, so go straight to it.
+    if (list.open && !list.querySelector(".subtask")) list.querySelector('.subtask-add input[name="text"]')?.focus();
+  }
+
+  document.addEventListener("click", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const toggle = target?.closest("[data-subtasks]");
+    if (!toggle) return;
+    // On the title, tag and goal links still work, and selecting text doesn't toggle.
+    const isButton = toggle instanceof HTMLButtonElement;
+    if (!isButton && (target.closest("a, button") || String(getSelection()).trim())) return;
+    toggleSubtasks(toggle);
+  });
+
+  // ---- Reordering todos and subtasks --------------------------------------
+  // Rows marked data-move can be dragged by their grip, or moved with Alt+arrows.
+
+  /** Posts a move like any other form, so the page updates in place. */
+  function postMove(row, where, targetId) {
+    // One at a time: each move is worked out from the page, which updates only when the last one lands.
+    if (document.querySelector("form[data-move-form]")) return;
+    const form = document.createElement("form");
+    form.method = "post";
+    form.action = `/${row.dataset.move === "todo" ? "todos" : "subtasks"}/${row.dataset.id}/move`;
+    form.hidden = true;
+    form.dataset.moveForm = "";
+    for (const [name, value] of [
+      [where, targetId],
+      ["return_to", location.pathname + location.search],
+    ]) {
+      const input = document.createElement("input");
+      input.type = "hidden";
+      input.name = name;
+      input.value = value;
+      form.append(input);
+    }
+    // Inside <main>, so the swap that follows removes it.
+    document.querySelector("main").append(form);
+    form.requestSubmit();
+  }
+
+  const siblingRow = (row, direction) => {
+    let el = row[direction];
+    while (el && !el.matches("li[data-move]")) el = el[direction];
+    return el;
+  };
+
+  /** Up/down among siblings; right nests under the one above; left moves out to just after its parent. */
+  function moveByKey(row, key) {
+    const above = siblingRow(row, "previousElementSibling");
+    const below = siblingRow(row, "nextElementSibling");
+    const parent = row.parentElement.closest("li[data-move]");
+    const isSubtask = row.dataset.move === "subtask";
+    if (key === "ArrowUp" && above) postMove(row, "before", above.dataset.id);
+    else if (key === "ArrowDown" && below) postMove(row, "after", below.dataset.id);
+    else if (key === "ArrowRight" && isSubtask && above) postMove(row, "into", above.dataset.id);
+    // A top-level subtask stays a subtask: its parent is the todo.
+    else if (key === "ArrowLeft" && isSubtask && parent?.dataset.move === "subtask") postMove(row, "after", parent.dataset.id);
+  }
+
+  let dragged = null;
+  let drop = null;
+
+  const clearDrop = () => {
+    drop?.row.classList.remove(`drop-${drop.where}`);
+    drop = null;
+  };
+
+  /** Where the dragged row would land: before/after a sibling todo, or before/after/into a subtask or todo. */
+  function dropAt(event) {
+    if (!dragged || !(event.target instanceof Element)) return null;
+    if (dragged.dataset.move === "todo") {
+      const row = event.target.closest('li[data-move="todo"]');
+      // Todos only move within their own status group.
+      if (!row || row === dragged || row.parentElement !== dragged.parentElement) return null;
+      const box = row.getBoundingClientRect();
+      return { row, where: event.clientY < box.top + box.height / 2 ? "before" : "after" };
+    }
+    const row = event.target.closest("li[data-move]");
+    if (!row || dragged.contains(row)) return null;
+    if (row.dataset.move === "todo") return { row, where: "into" };
+    const box = row.querySelector(":scope > .subtask-line").getBoundingClientRect();
+    const y = (event.clientY - box.top) / box.height;
+    return { row, where: y < 0.3 ? "before" : y > 0.7 ? "after" : "into" };
+  }
+
+  // Only the grip starts a drag, so text in the row can still be selected.
+  document.addEventListener("pointerdown", (event) => {
+    const handle = event.target instanceof Element ? event.target.closest(".grip") : null;
+    if (handle) handle.closest("li[data-move]").draggable = true;
+  });
+  document.addEventListener("pointerup", () => {
+    document.querySelectorAll("li[data-move][draggable]").forEach((row) => row.removeAttribute("draggable"));
+  });
+
+  document.addEventListener("dragstart", (event) => {
+    const row = event.target instanceof Element ? event.target.closest("li[data-move]") : null;
+    if (!row?.draggable) return;
+    dragged = row;
+    event.dataTransfer.effectAllowed = "move";
+    // Not text/plain, so letting go over a text box doesn't paste the id into it.
+    event.dataTransfer.setData("application/x-workledger-move", row.dataset.id);
+    // After the browser has taken its drag image.
+    requestAnimationFrame(() => row.classList.add("is-dragging"));
+  });
+
+  document.addEventListener("dragover", (event) => {
+    const next = dropAt(event);
+    if (next) event.preventDefault();
+    if (next?.row === drop?.row && next?.where === drop?.where) return;
+    clearDrop();
+    drop = next;
+    drop?.row.classList.add(`drop-${drop.where}`);
+  });
+
+  document.addEventListener("drop", (event) => {
+    if (!dragged || !drop) return;
+    event.preventDefault();
+    // Focus the moved row's grip, so focus stays with it after the update.
+    dragged.querySelector(".grip")?.focus({ preventScroll: true });
+    postMove(dragged, drop.where, drop.row.dataset.id);
+  });
+
+  document.addEventListener("dragend", () => {
+    clearDrop();
+    dragged?.classList.remove("is-dragging");
+    dragged?.removeAttribute("draggable");
+    dragged = null;
+  });
+
   // ---- Keyboard -----------------------------------------------------------
 
   let pendingG = 0;
@@ -607,6 +760,15 @@
         return;
       }
       if (isTyping(el)) el.blur();
+      return;
+    }
+
+    const plainAlt = event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+    const row = el?.closest("li[data-move]");
+    if (plainAlt && /^Arrow(Up|Down|Left|Right)$/.test(event.key) && row && !isTyping(el)) {
+      // Also stops Alt+Left going back a page in a browser.
+      event.preventDefault();
+      if (!event.repeat) moveByKey(row, event.key);
       return;
     }
 

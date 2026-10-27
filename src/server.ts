@@ -2,7 +2,7 @@ import type { AppContext } from "./routes/shared";
 import { notFound } from "./routes/shared";
 import { handleToday } from "./routes/today";
 import { changeEntry, createEntries } from "./routes/journal";
-import { changeTodo, createTodo, handleTodos } from "./routes/todos";
+import { changeSubtask, changeTodo, createTodo, handleTodos } from "./routes/todos";
 import { createGoal, handleGoal, handleGoals, saveGoal } from "./routes/goals";
 import { handleExport, handleReview } from "./routes/review";
 import styles from "../public/styles.css" with { type: "text" };
@@ -51,6 +51,7 @@ async function route(req: Request, ctx: AppContext): Promise<Response> {
     if (parts[0] === "journal" && (parts.length === 2 || parts.length === 3)) return changeEntry(req, ctx, parts[1], parts[2]);
     if (pathname === "/todos") return createTodo(req, ctx);
     if (parts[0] === "todos" && (parts.length === 2 || parts.length === 3)) return changeTodo(req, ctx, parts[1], parts[2]);
+    if (parts[0] === "subtasks" && (parts.length === 2 || parts.length === 3)) return changeSubtask(req, ctx, parts[1], parts[2]);
     if (pathname === "/goals") return createGoal(req, ctx);
     if (parts[0] === "goals" && parts.length === 2) return saveGoal(req, ctx, parts[1]);
   }

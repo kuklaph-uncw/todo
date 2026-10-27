@@ -4,7 +4,7 @@
  *
  *   vault/
  *     journal/2026/2026-09-28.md   one daily note per day with entries
- *     todos.md                     every todo, in creation order
+ *     todos.md                     every todo and its subtasks, in the user's order
  *     goals/<slug>.md              one file per goal
  *     .trash/deleted.md            append-only log of deleted lines
  *     .workledger/error.log        the desktop app's error log (not notes)
@@ -15,15 +15,19 @@ import { isValidDateString, localDateString, nowUtcIso } from "../lib/date";
 import type { GoalStatus, Priority, Status } from "../lib/validation";
 import { slugify } from "../lib/validation";
 import {
+  allSubtasks,
   formatEntryLine,
   formatGoal,
+  formatSubtasks,
   formatTodo,
   parseEntryLine,
   parseGoal,
   parseTodoBlocks,
   type Entry,
   type Goal,
+  type Subtask,
   type Todo,
+  type TodoBlock,
 } from "./format";
 
 export interface NewEntryMeta {
@@ -67,6 +71,8 @@ export function applyTodoPatch(todo: Todo, patch: TodoPatch, today: string): Tod
   if (patch.status !== undefined) {
     next.status = patch.status;
     if (patch.status === "Done" && next.completedOn === null) next.completedOn = patch.completedOn ?? today;
+    // Only on the move to Done: saving a todo that's already done keeps any subtask the user unchecked.
+    if (patch.status === "Done" && todo.status !== "Done") next.subtasks = checkAll(next.subtasks);
   }
   if (patch.clearCompletion) next.completedOn = null;
   return next;
@@ -76,6 +82,47 @@ export function applyTodoPatch(todo: Todo, patch: TodoPatch, today: string): Tod
 export function parseTaskInput(raw: string): { task: string; tags: string[]; goals: string[] } {
   const parsed = parseEntryLine(`- ${raw.replace(/\s+/g, " ").trim()}`, "");
   return { task: parsed?.text ?? "", tags: parsed?.tags ?? [], goals: parsed?.goals ?? [] };
+}
+
+/** Done is done all the way down: checking an item checks everything under it. */
+function checkAll(subtasks: Subtask[]): Subtask[] {
+  return subtasks.map((subtask) => ({ ...subtask, done: true, children: checkAll(subtask.children) }));
+}
+
+/** Where to put a moved item, relative to another one. */
+export interface MoveTarget {
+  before?: string;
+  after?: string;
+  /** Subtasks only: become the last child of this todo or subtask. */
+  into?: string;
+}
+
+/** A subtask, the list it sits in, and the block of the todo it belongs to. */
+interface FoundSubtask {
+  subtask: Subtask;
+  siblings: Subtask[];
+  block: TodoBlock;
+}
+
+function findSubtask(blocks: TodoBlock[], id: string): FoundSubtask | null {
+  for (const block of blocks) {
+    const search = (siblings: Subtask[]): FoundSubtask | null => {
+      for (const subtask of siblings) {
+        if (subtask.id === id) return { subtask, siblings, block };
+        const found = search(subtask.children);
+        if (found) return found;
+      }
+      return null;
+    };
+    const found = search(block.todo.subtasks);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** Todos and subtasks share one id space per file. */
+function takenIds(blocks: TodoBlock[]): Set<string> {
+  return new Set(blocks.flatMap((block) => [block.todo.id, ...allSubtasks(block.todo.subtasks).map((s) => s.id)]).filter(Boolean));
 }
 
 function newId(taken: Set<string>): string {
@@ -110,7 +157,7 @@ interface DayFile {
 
 interface TodoFile {
   lines: string[];
-  blocks: ReturnType<typeof parseTodoBlocks>;
+  blocks: TodoBlock[];
 }
 
 export class Vault {
@@ -246,20 +293,38 @@ export class Vault {
 
   // ---- Todos ---------------------------------------------------------------
 
+  /** Reads todos.md, giving any hand-written todo or subtask line an id (only those lines change). */
   private readTodoFile(): TodoFile {
     const lines = readLines(this.todosPath);
     const blocks = parseTodoBlocks(lines).filter((block) => block.todo.task);
-    const taken = new Set(blocks.map((block) => block.todo.id).filter(Boolean));
-    const missing = blocks.filter((block) => !block.todo.id);
-    if (missing.length > 0) {
-      for (const block of missing) {
+    const taken = takenIds(blocks);
+    let changed = false;
+    for (const block of blocks) {
+      if (!block.todo.id) {
         block.todo.id = newId(taken);
         taken.add(block.todo.id);
         lines[block.start] = formatTodo(block.todo)[0];
+        changed = true;
       }
-      writeLines(this.todosPath, lines);
+      for (const { subtask, index } of block.subtaskLines) {
+        if (subtask.id) continue;
+        subtask.id = newId(taken);
+        taken.add(subtask.id);
+        // Just add the id, so the line keeps its mark and spacing as written.
+        lines[index] = `${lines[index].trimEnd()} ^${subtask.id}`;
+        changed = true;
+      }
     }
+    if (changed) writeLines(this.todosPath, lines);
     return { lines, blocks };
+  }
+
+  /** Rewrites these todos' blocks, last first so earlier line numbers stay valid. */
+  private writeTodoBlocks(lines: string[], blocks: TodoBlock[]): void {
+    for (const block of [...new Set(blocks)].sort((a, b) => b.start - a.start)) {
+      lines.splice(block.start, block.end - block.start, ...formatTodo(block.todo));
+    }
+    writeLines(this.todosPath, lines);
   }
 
   getTodos(): Todo[] {
@@ -279,11 +344,15 @@ export class Vault {
     return this.getTodos().find((todo) => todo.id === id) ?? null;
   }
 
+  getSubtask(id: string): Subtask | null {
+    return findSubtask(this.readTodoFile().blocks, id)?.subtask ?? null;
+  }
+
   addTodo(input: NewTodo, today: string = localDateString()): Todo {
     const { lines, blocks } = this.readTodoFile();
     const parsed = parseTaskInput(input.task);
     const todo: Todo = {
-      id: newId(new Set(blocks.map((block) => block.todo.id))),
+      id: newId(takenIds(blocks)),
       status: input.status,
       task: parsed.task,
       tags: [...new Set([...parsed.tags, ...input.tags])],
@@ -294,10 +363,17 @@ export class Vault {
       createdOn: today,
       completedOn: input.status === "Done" ? today : null,
       notes: input.notes,
+      subtasks: [],
     };
 
-    const head = lines.length === 0 ? ["---", "type: todos", "---", ""] : lines;
-    writeLines(this.todosPath, [...head, ...formatTodo(todo)]);
+    // Newest on top, above the first todo; the user reorders from there.
+    if (blocks.length > 0) {
+      lines.splice(blocks[0].start, 0, ...formatTodo(todo));
+      writeLines(this.todosPath, lines);
+    } else {
+      const head = lines.length === 0 ? ["---", "type: todos", "---", ""] : lines;
+      writeLines(this.todosPath, [...head, ...formatTodo(todo)]);
+    }
     return todo;
   }
 
@@ -305,10 +381,101 @@ export class Vault {
     const { lines, blocks } = this.readTodoFile();
     const block = blocks.find((candidate) => candidate.todo.id === id);
     if (!block) return null;
-    const next = applyTodoPatch(block.todo, patch, today);
-    lines.splice(block.start, block.end - block.start, ...formatTodo(next));
+    block.todo = applyTodoPatch(block.todo, patch, today);
+    this.writeTodoBlocks(lines, [block]);
+    return block.todo;
+  }
+
+  /** Moves a todo, with its notes and subtasks, to just before or after another todo. */
+  moveTodo(id: string, target: MoveTarget): boolean {
+    const { lines, blocks } = this.readTodoFile();
+    const block = blocks.find((candidate) => candidate.todo.id === id);
+    const anchorId = target.before ?? target.after;
+    const anchor = blocks.find((candidate) => candidate.todo.id === anchorId);
+    if (!block || !anchor || anchor === block) return false;
+    const moved = lines.splice(block.start, block.end - block.start);
+    const shift = anchor.start > block.start ? moved.length : 0;
+    lines.splice((target.before ? anchor.start : anchor.end) - shift, 0, ...moved);
     writeLines(this.todosPath, lines);
-    return next;
+    return true;
+  }
+
+  /** Adds a subtask at the end of a todo's list. */
+  addSubtask(todoId: string, text: string): Subtask | null {
+    const { lines, blocks } = this.readTodoFile();
+    const block = blocks.find((candidate) => candidate.todo.id === todoId);
+    if (!block) return null;
+    const subtask: Subtask = { id: newId(takenIds(blocks)), text: text.replace(/\s+/g, " ").trim(), done: false, children: [] };
+    block.todo.subtasks.push(subtask);
+    this.writeTodoBlocks(lines, [block]);
+    return subtask;
+  }
+
+  /** Checking a subtask checks everything under it. Unchecking changes only that one. */
+  setSubtaskDone(id: string, done: boolean): boolean {
+    const { lines, blocks } = this.readTodoFile();
+    const found = findSubtask(blocks, id);
+    if (!found) return false;
+    found.subtask.done = done;
+    if (done) found.subtask.children = checkAll(found.subtask.children);
+    this.writeTodoBlocks(lines, [found.block]);
+    return true;
+  }
+
+  editSubtask(id: string, text: string): boolean {
+    const { lines, blocks } = this.readTodoFile();
+    const found = findSubtask(blocks, id);
+    if (!found) return false;
+    found.subtask.text = text.replace(/\s+/g, " ").trim();
+    this.writeTodoBlocks(lines, [found.block]);
+    return true;
+  }
+
+  /** Deletes a subtask and everything under it, keeping a copy in the trash. */
+  deleteSubtask(id: string): boolean {
+    const { lines, blocks } = this.readTodoFile();
+    const found = findSubtask(blocks, id);
+    if (!found) return false;
+    this.trash(this.todosPath, formatSubtasks([found.subtask], ""));
+    found.siblings.splice(found.siblings.indexOf(found.subtask), 1);
+    this.writeTodoBlocks(lines, [found.block]);
+    return true;
+  }
+
+  /**
+   * Moves a subtask (and everything under it) next to another subtask, or to the
+   * end of a todo's or subtask's list. It can't go inside itself, and it stays a
+   * subtask: a todo is never an anchor for before/after.
+   */
+  moveSubtask(id: string, target: MoveTarget): boolean {
+    const { lines, blocks } = this.readTodoFile();
+    const found = findSubtask(blocks, id);
+    if (!found) return false;
+    // Take it out first, so it (and its children) can't be found as the destination.
+    found.siblings.splice(found.siblings.indexOf(found.subtask), 1);
+
+    let destination: TodoBlock;
+    if (target.into) {
+      const todoBlock = blocks.find((candidate) => candidate.todo.id === target.into);
+      const parent = findSubtask(blocks, target.into);
+      if (todoBlock) {
+        todoBlock.todo.subtasks.push(found.subtask);
+        destination = todoBlock;
+      } else if (parent) {
+        parent.subtask.children.push(found.subtask);
+        destination = parent.block;
+      } else {
+        return false;
+      }
+    } else {
+      const anchorId = target.before ?? target.after;
+      const anchor = anchorId ? findSubtask(blocks, anchorId) : null;
+      if (!anchor) return false;
+      anchor.siblings.splice(anchor.siblings.indexOf(anchor.subtask) + (target.before ? 0 : 1), 0, found.subtask);
+      destination = anchor.block;
+    }
+    this.writeTodoBlocks(lines, [found.block, destination]);
+    return true;
   }
 
   deleteTodo(id: string): boolean {

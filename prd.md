@@ -65,7 +65,7 @@ The system should make daily capture easy enough to become a habit and make hist
 | Rich attachments            | Text is the core medium.                                                            |
 | Advanced tag management     | Simple `#tags` are enough.                                                          |
 | In-app AI summaries         | Capture and export work without AI. Exports are shaped for an outside AI tool.      |
-| Project/OKR hierarchy       | Goals are one flat list per review cycle. No projects, key results, or nesting.     |
+| Project/OKR hierarchy       | Goals are one flat list per review cycle. No projects, key results, or nested goals. |
 | Recurring TODOs             | Useful later, not needed now.                                                       |
 | Obsidian dependency         | The files read well in Obsidian, but the app needs neither Obsidian nor its plugins. |
 | Code signing, auto-update   | The build is unsigned. The app never checks for updates.                            |
@@ -179,7 +179,7 @@ This matters because daily logging will not always happen in real time.
 
 ### 7.3 TODO Tracking
 
-The user can add simple TODOs, update status, and mark items done.
+The user can add simple TODOs, update status, and mark items done. A TODO can hold a checklist of subtasks, nested to any depth, and the user sets the order of TODOs and subtasks by hand.
 
 When a TODO is marked done, it becomes part of that day's review evidence. Checking one off while viewing a past day dates it to that day.
 
@@ -314,6 +314,9 @@ Shows active TODOs in three groups with counts: In progress, Open, Blocked. TODO
 | T-4 | A menu offers Start, Move to open, Mark blocked, Cancel todo (with confirmation), and Edit details.             |
 | T-5 | Edit details opens the TODO's editor on the Todos page and returns to the day afterwards.                      |
 | T-6 | A note under the tray says which day checking a TODO off will count for.                                       |
+| T-7 | A TODO with subtasks shows its progress (`3/5`, every level) on its tag line. Clicking its title opens its subtasks to check off or quick-add. |
+
+Groups show TODOs in the user's order (see 9.5).
 
 Delete and clear-completion live on the Todos page.
 
@@ -344,14 +347,18 @@ Shown under the day title:
 | TM-7 | User can change status from a per-row select, star or unstar, and delete with confirmation (copy kept in trash). |
 | TM-8 | User can clear a completion date with confirmation. The option shows in the editor when a date exists.           |
 | TM-9 | Rows show priority, "Added" date, and "Done Sep 28", or "Kept: done Sep 28" for a reopened TODO.                 |
+| TM-10 | User can add, check, edit, and delete subtasks at any depth. Deleting one removes everything under it (copy kept in trash). |
+| TM-11 | A TODO with subtasks shows its progress (`3/5`, every level) on its tag line. Clicking its title opens its subtasks. Search also matches subtask text. |
+| TM-12 | User can reorder live TODOs, and move, indent, and outdent subtasks, by dragging a grip handle or with hotkeys (20.2). A TODO can't become a subtask, and a subtask can't become a TODO. |
 
 The header shows counts per status, plus "showing N" when filtering.
 
 **Sort.**
 
 1. Groups in the order In progress, Open, Blocked, Done, Cancelled.
-2. Live groups: priority (High, Medium, Low, none), then newest first.
+2. Live groups: the user's order (file order). New TODOs go to the top. Priority is shown, not sorted on.
 3. Done and Cancelled: most recent completion date first.
+4. Subtasks: the user's order.
 
 Marking a TODO done from this page records today.
 
@@ -482,7 +489,7 @@ All data lives in one folder of Markdown files. There is no database and no cach
 ├── journal/
 │   └── 2026/
 │       └── 2026-09-28.md      one daily note per day with entries
-├── todos.md                    every TODO, in creation order
+├── todos.md                    every TODO and its subtasks, in the user's order
 ├── goals/
 │   └── <slug>.md               one file per goal
 ├── .trash/
@@ -508,7 +515,7 @@ date: 2026-09-28
 
 ### 10.3 `todos.md`
 
-Every top-level task line is a TODO. Indented lines (2+ spaces or a tab) directly under it are its notes. Other lines are ignored.
+Every top-level task line is a TODO. Indented lines (2+ spaces or a tab) directly under it belong to it: an indented task line is a subtask, and any other indented line is a note on the TODO. A subtask indented under another subtask is its child. The app writes four more spaces per level. Other lines are ignored. File order is display order.
 
 ```md
 ---
@@ -517,8 +524,13 @@ type: todos
 
 - [/] Fix flaky auth test #bug ⏫ ⭐ ➕ 2026-09-20 ^t8k2m4
     Repro only on CI. Check the clock mock.
+    - [x] Reproduce locally ^q7d3hn
+    - [ ] Replace the clock mock ^w2c8rv
+        - [ ] Check the other suites that use it ^e5j9tb
 - [x] Write incident follow-up [[improve-reliability]] 🔼 ➕ 2026-09-21 ✅ 2026-09-28 ^h4w9ze
 ```
+
+A subtask is a checklist item: text, done or not, and an `^id`. `[x]` or `[X]` is done; any other mark reads as not done. Subtasks have no priority, star, goals, or dates. `#tags` and `[[links]]` in their text are shown but don't count toward tags, goals, or filters. A hand-written subtask without `^id` gets one on first read, changing only that line. When the app rewrites a TODO, it writes the notes first and then the subtasks, and a subtask mark other than `x` is written back as `[ ]`.
 
 ### 10.4 Goal File
 
@@ -538,7 +550,7 @@ A missing title falls back to the slug. A missing or unknown status reads as `ac
 
 ### 10.5 Trash
 
-`.trash/deleted.md`. Each delete appends the removed line (and a TODO's notes), with a UTC timestamp and the source file. Nothing is lost, but there is no restore button.
+`.trash/deleted.md`. Each delete appends the removed line (and a TODO's notes and subtasks, or a subtask's children), with a UTC timestamp and the source file. Nothing is lost, but there is no restore button.
 
 ```md
 - Deleted 2026-09-28T18:42:15.123Z from journal/2026/2026-09-28.md
@@ -550,6 +562,8 @@ A missing title falls back to the slug. A missing or unknown status reads as `ac
 Entry line: `- [HH:MM] text [#tags] [[[links]]] [⏱ Nm] [⭐] ^id`
 
 TODO line: `- [mark] task [#tags] [[[links]]] [⏱ Nm] [priority] [⭐] [➕ created] [✅ completed] ^id`
+
+Subtask line: `<indent>- [mark] text ^id`
 
 | Token              | Meaning                                                                                       |
 | ------------------ | --------------------------------------------------------------------------------------------- |
@@ -647,7 +661,7 @@ The line is appended to `.trash/deleted.md`, then removed from the note.
 | `goals`    | Optional checked goal slugs.                              |
 | `notes`    | Optional.                                                 |
 
-The created date is today. A TODO created as `Done` also gets today as its completion date. New TODOs are appended to `todos.md`.
+The created date is today. A TODO created as `Done` also gets today as its completion date. New TODOs are written at the top of `todos.md`, after the frontmatter.
 
 ### 12.5 Marking a TODO Done
 
@@ -661,6 +675,7 @@ if (patch.status === "Done" && next.completedOn === null) {
 - From a past day on Today, the form sends that day as `on`. On today it sends no date, so a window left open overnight uses the new day. The server uses `on` only if it is valid and not after today. Otherwise it uses today.
 - From the Todos page, the date is today.
 - Once set, the date is never overwritten automatically.
+- Marking a TODO done, or checking a subtask, checks every subtask under it. Reopening a TODO or unchecking a subtask changes nothing else. Checking the last subtask does not complete the TODO.
 
 ### 12.6 Reopening and Re-closing
 
@@ -678,7 +693,7 @@ Only by explicit user action, with confirmation. The TODO leaves every review un
 
 ### 12.9 Deleting TODOs
 
-The task line and its notes are appended to `.trash/deleted.md`, then removed from `todos.md`.
+The task line, its notes, and its subtasks are appended to `.trash/deleted.md`, then removed from `todos.md`. Deleting a subtask does the same for it and the subtasks under it.
 
 ### 12.10 Goals
 
@@ -878,6 +893,7 @@ There is no HTMX and no client framework. The server renders full HTML pages, an
 | Copy                   | Writes HTML + Markdown to the clipboard, with fallbacks (14.3). Status is announced to screen readers.    |
 | Print                  | Sets the page title to the suggested PDF name, prints, restores the title.                                |
 | Menus                  | Clicking elsewhere or pressing Esc closes an open TODO menu.                                              |
+| Reordering             | Drag a TODO or subtask by its grip handle, or use the hotkeys in 20.2. Needs the script.                  |
 | Keyboard shortcuts     | See 20.2.                                                                                                 |
 
 Without the script, the date picker shows a "Go" button and status selects show a "Set" button. Destructive actions then post without a confirmation prompt (see 28.3).
@@ -1045,7 +1061,7 @@ Messages show at the top of the page (`role="alert"`). Capture and edit forms ge
 | A-3 | Focus states are visible. A skip link jumps to the main content.                                 |
 | A-4 | Destructive actions ask for confirmation (with the script).                                      |
 | A-5 | Layout adapts to narrow windows (breakpoints at 1180px, 860px, 560px).                           |
-| A-6 | Every page and form works without client-side JS. (The shortcuts dialog, tag and goal suggestions, and focus mode need it.) |
+| A-6 | Every page and form works without client-side JS. (The shortcuts dialog, tag and goal suggestions, focus mode, opening subtasks, and reordering need it.) |
 | A-7 | After an in-place update, focus stays where the user was.                                        |
 | A-8 | Copy results are announced. Animations stop under `prefers-reduced-motion`.                      |
 
@@ -1060,6 +1076,8 @@ Listed in the app's shortcuts dialog (`?`). Single-key shortcuts are ignored whi
 | `[` / `]`               | Today                | Previous / next day.                                |
 | `/`                     | Todos, Review        | Focus search.                                       |
 | `Ctrl + Shift + F`      | Today                | Write a new entry in focus mode.                    |
+| `Alt + ↑` / `Alt + ↓`   | Todos                | Move the focused TODO or subtask up or down among its siblings. |
+| `Alt + →` / `Alt + ←`   | Todos                | Indent the focused subtask under the one above, or outdent it.  |
 | `Esc`                   | Any                  | Close the suggestion list, leave focus mode, close a menu, cancel an entry or TODO edit, or leave a text box. |
 | `Ctrl + Enter`          | Any form             | Save the form you're in (`Cmd + Enter` also works). |
 | `g` then `t`/`d`/`g`/`r`| Any                  | Go to Today, Todos, Goals, Review.                  |

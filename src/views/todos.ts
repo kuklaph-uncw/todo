@@ -1,12 +1,13 @@
 import { escapeHtml } from "../lib/html";
 import { shortMonthDay } from "../lib/date";
 import { PRIORITIES, STATUSES, type Status } from "../lib/validation";
-import { editableText, type Goal, type Todo } from "../vault/format";
+import { allSubtasks, editableText, type Goal, type Todo } from "../vault/format";
 import {
   COMPOSER_HINT,
   composerData,
   emptyState,
   goalIndex,
+  grip,
   hidden,
   icon,
   metaChips,
@@ -14,6 +15,10 @@ import {
   options,
   postButton,
   richText,
+  subtaskCount,
+  subtaskPanel,
+  subtaskButton,
+  subtaskToggle,
   type GoalIndex,
 } from "./components";
 
@@ -52,28 +57,29 @@ const GROUPS: { status: Status; label: string; collapsed: boolean }[] = [
   { status: "Cancelled", label: "Cancelled", collapsed: true },
 ];
 
-const PRIORITY_RANK: Record<string, number> = { High: 0, Medium: 1, Low: 2 };
+const isFinished = (status: Status) => status === "Done" || status === "Cancelled";
 
 /**
- * Live todos: priority, then newest first (file order is creation order).
+ * Live todos: the user's order (file order).
  * Done/Cancelled: most recently completed first, so a just-checked todo is on top.
  */
 export function sortTodos(todos: Todo[]): Todo[] {
   return todos
     .map((todo, index) => ({ todo, index }))
     .sort((a, b) => {
-      const finished = a.todo.status === "Done" || a.todo.status === "Cancelled";
-      if (finished) return (b.todo.completedOn ?? "").localeCompare(a.todo.completedOn ?? "") || b.index - a.index;
-      return (PRIORITY_RANK[a.todo.priority ?? ""] ?? 3) - (PRIORITY_RANK[b.todo.priority ?? ""] ?? 3) || b.index - a.index;
+      if (isFinished(a.todo.status)) return (b.todo.completedOn ?? "").localeCompare(a.todo.completedOn ?? "") || a.index - b.index;
+      return a.index - b.index;
     })
     .map(({ todo }) => todo);
 }
 
 export function filterTodos(todos: Todo[], filters: TodoFilters): Todo[] {
   const q = filters.q.toLowerCase();
-  // Search everything the user can see on the row, including tags and goal links.
+  // Search everything the user can see on the row, including tags, goal links and subtasks.
   const haystack = (todo: Todo) =>
-    [todo.task, todo.notes, ...todo.tags.map((tag) => `#${tag}`), ...todo.goals].join(" ").toLowerCase();
+    [todo.task, todo.notes, ...todo.tags.map((tag) => `#${tag}`), ...todo.goals, ...allSubtasks(todo.subtasks).map((s) => s.text)]
+      .join(" ")
+      .toLowerCase();
   return todos.filter(
     (todo) =>
       (!filters.status || todo.status === filters.status) &&
@@ -157,12 +163,19 @@ function todoRow(todo: Todo, goals: GoalIndex, data: TodosViewData): string {
   const notes = todo.notes ? `<p class="todo-notes">${escapeHtml(todo.notes).replace(/\n/g, "<br>")}</p>` : "";
   const task = escapeHtml(todo.task);
 
-  return `<li class="todo-row ${statusClass(todo.status)}${todo.isHighlight ? " is-starred" : ""}" id="todo-${todo.id}">
+  // Only live todos are in the user's order; Done and Cancelled are sorted by date.
+  const movable = !isFinished(todo.status);
+  const move = movable ? ` data-move="todo" data-id="${todo.id}"` : "";
+
+  return `<li class="todo-row ${statusClass(todo.status)}${todo.isHighlight ? " is-starred" : ""}" id="todo-${todo.id}"${move}>
+      ${movable ? grip(todo.id, todo.task) : ""}
       ${check}
       <div class="todo-body">
-        <p class="todo-task">${richText(todo.task, goals)}</p>
+        <p class="todo-task"${subtaskToggle(todo)}>${richText(todo.task, goals)}</p>
+        ${subtaskButton(todo)}
         ${notes}
-        ${metaChips({ ...todo, text: todo.task, minutes: null }, goals)}
+        ${metaChips({ ...todo, text: todo.task, minutes: null }, goals, subtaskCount(todo))}
+        ${subtaskPanel(todo, goals, { returnTo, full: true, editId: data.editId })}
       </div>
       <div class="todo-facts">
         ${todo.priority ? `<span class="priority p-${todo.priority.toLowerCase()}">${todo.priority}</span>` : ""}
@@ -256,7 +269,7 @@ export function renderTodos(data: TodosViewData): string {
     if (todos.length === 0) return "";
     const list = `<ul class="todo-table">${todos.map((t) => todoRow(t, goals, data)).join("")}</ul>`;
     const heading = `${label} <span class="count">${todos.length}</span>`;
-    const hasEdit = todos.some((t) => t.id === data.editId);
+    const hasEdit = todos.some((t) => t.id === data.editId || allSubtasks(t.subtasks).some((s) => s.id === data.editId));
     if (collapsed && !filtering && !hasEdit) {
       return `<details class="todo-section g-${statusClass(status)}"><summary><h2 class="section-title">${heading}</h2></summary>${list}</details>`;
     }
