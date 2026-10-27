@@ -170,7 +170,7 @@ describe("todos", () => {
   it("edits, clears completion and deletes", async () => {
     await send(formPost("/todos", { task: "Ship", status: "Done", return_to: "/todos" }));
     const [todo] = ctx.vault.getTodos();
-    await send(formPost(`/todos/${todo.id}`, { task: "Ship v2 #release", status: "Done", priority: "Low", notes: "after QA" }));
+    await send(formPost(`/todos/${todo.id}`, { task: "Ship v2 #release", priority: "Low", notes: "after QA" }));
     expect(ctx.vault.getTodo(todo.id)).toMatchObject({ task: "Ship v2", tags: ["release"], priority: "Low", notes: "after QA", completedOn: "2026-09-28" });
 
     await send(formPost(`/todos/${todo.id}/clear-completion`, {}));
@@ -197,6 +197,26 @@ describe("todos", () => {
     const location = res.headers.get("location") ?? "";
     expect(location).toContain(`edit=${todo.id}`);
     expect(location).toContain(`back=${encodeURIComponent("/?date=2026-09-20")}`);
+  });
+
+  it("gives each tray todo an edit link instead of a status menu", async () => {
+    await send(formPost("/todos", { task: "Ship it", return_to: "/" }));
+    const [todo] = ctx.vault.getTodos();
+    const page = await html("/");
+    expect(page).toContain(`href="/todos?edit=${todo.id}&amp;back=%2F#todo-${todo.id}" aria-label="Edit details: Ship it"`);
+    expect(page).not.toContain('class="menu"');
+  });
+
+  it("saves an edit without a status field, leaving the todo open or done as it was", async () => {
+    await send(formPost("/todos", { task: "Ship", status: "Done", return_to: "/todos" }));
+    const [todo] = ctx.vault.getTodos();
+    const res = await send(formPost(`/todos/${todo.id}`, { task: "Ship v2", priority: "", notes: "", return_to: "/todos" }));
+    expect(res.headers.get("location")).toBe("/todos");
+    expect(ctx.vault.getTodo(todo.id)).toMatchObject({ task: "Ship v2", status: "Done" });
+    const page = await html(`/todos?edit=${todo.id}`);
+    // No status field in the editor and no status filter: the Open and Done groups are enough.
+    expect(page).not.toContain('<select name="status"');
+    expect(page).not.toContain("In progress");
   });
 
   it("says a reopened todo keeps its completion date", async () => {

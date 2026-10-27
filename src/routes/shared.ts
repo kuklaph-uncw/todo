@@ -16,7 +16,7 @@ export function today(ctx: AppContext): string {
 }
 
 export function page(ctx: AppContext, title: string, active: NavKey | null, main: string, status = 200): Response {
-  const openTodos = ctx.vault.getTodos().filter((t) => t.status === "Open" || t.status === "In Progress" || t.status === "Blocked").length;
+  const openTodos = ctx.vault.getTodos().filter((t) => t.status === "Open").length;
   const html = renderLayout({ title, active, main, vaultPath: ctx.vaultPath, openTodos });
   return new Response(html, { status, headers: { "content-type": "text/html; charset=utf-8" } });
 }

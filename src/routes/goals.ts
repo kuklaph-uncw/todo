@@ -41,7 +41,7 @@ export function handleGoal(req: Request, ctx: AppContext, slug: string): Respons
   const items = byDate(collectItems(ctx.vault, ALL_TIME.from, ALL_TIME.to).filter((item) => item.goals.includes(slug)));
   const openTodos = ctx.vault
     .getTodos()
-    .filter((todo) => todo.goals.includes(slug) && todo.status !== "Done" && todo.status !== "Cancelled").length;
+    .filter((todo) => todo.goals.includes(slug) && todo.status === "Open").length;
   const main = renderGoal({
     goal,
     goals: ctx.vault.getGoals(),

@@ -50,20 +50,12 @@ describe("isValidStatus", () => {
     expect(isValidStatus("Open")).toBe(true);
   });
 
-  it("accepts In Progress", () => {
-    expect(isValidStatus("In Progress")).toBe(true);
-  });
-
-  it("accepts Blocked", () => {
-    expect(isValidStatus("Blocked")).toBe(true);
-  });
-
   it("accepts Done", () => {
     expect(isValidStatus("Done")).toBe(true);
   });
 
-  it("accepts Cancelled", () => {
-    expect(isValidStatus("Cancelled")).toBe(true);
+  it.each(["In Progress", "Blocked", "Cancelled"])("rejects %s, which todos no longer have", (status) => {
+    expect(isValidStatus(status)).toBe(false);
   });
 
   it("rejects an invalid value", () => {

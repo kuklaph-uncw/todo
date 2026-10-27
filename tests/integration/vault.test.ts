@@ -263,10 +263,6 @@ describe("applyTodoPatch", () => {
   it("uses an explicit completion day when given (backfilling)", () => {
     expect(applyTodoPatch(base, { status: "Done", completedOn: "2026-09-25" }, "2026-09-28").completedOn).toBe("2026-09-25");
   });
-
-  it("does not stamp a date when cancelling", () => {
-    expect(applyTodoPatch(base, { status: "Cancelled" }, "2026-09-28").completedOn).toBeNull();
-  });
 });
 
 describe("goals", () => {

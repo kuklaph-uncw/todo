@@ -5,11 +5,9 @@ import { renderTodos, type TodoFilters } from "../views/todos";
 import { notFound, page, readForm, redirect, redirectWithError, today, type AppContext } from "./shared";
 
 function parseFilters(params: URLSearchParams): TodoFilters {
-  const status = params.get("status") ?? "";
   const priority = params.get("priority") ?? "";
   return {
     q: params.get("q")?.trim() ?? "",
-    status: isValidStatus(status) ? status : null,
     priority: priority === "none" || isValidPriority(priority) ? priority || null : null,
     tag: params.get("tag") || null,
     goal: params.get("goal") || null,
@@ -23,7 +21,7 @@ export function handleTodos(req: Request, ctx: AppContext): Response {
 
   // Where forms on this page send you back to: same filters, no one-off state.
   const keep = new URLSearchParams();
-  for (const name of ["q", "status", "priority", "tag", "goal"]) {
+  for (const name of ["q", "priority", "tag", "goal"]) {
     const value = url.searchParams.get(name);
     if (value) keep.set(name, value);
   }
@@ -82,7 +80,7 @@ export async function createTodo(req: Request, ctx: AppContext): Promise<Respons
   return redirect(`${url.pathname}${url.search}`);
 }
 
-/** POST /todos/:id and /todos/:id/{status,star,clear-completion,delete} */
+/** POST /todos/:id and /todos/:id/{status,star,clear-completion,delete,subtasks,move} */
 export async function changeTodo(req: Request, ctx: AppContext, id: string, action: string | undefined): Promise<Response> {
   const form = await readForm(req);
   const back = form.returnTo("/todos");
@@ -140,15 +138,13 @@ export async function changeTodo(req: Request, ctx: AppContext, id: string, acti
       const keep: [string, string][] = [
         ["task", form.text("task")],
         ["priority", form.text("priority")],
-        ["status", form.text("status")],
         ["notes", form.text("notes")],
       ];
       if (!task) return redirectWithError(retryAt, "A todo needs a task.", keep);
       const priority = readPriority(form.text("priority"));
       if (priority === undefined) return redirectWithError(retryAt, "Pick High, Medium, Low or no priority.", keep);
-      const status = form.text("status");
-      if (!isValidStatus(status)) return redirectWithError(retryAt, "That status isn't one the app knows.", keep);
-      ctx.vault.updateTodo(id, { task, priority, status, notes: form.text("notes") }, now);
+      // Open or done is changed by the check button, not the editor.
+      ctx.vault.updateTodo(id, { task, priority, notes: form.text("notes") }, now);
       return redirect(back);
     }
 

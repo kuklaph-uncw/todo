@@ -91,14 +91,13 @@ vault.updateTodo(done2.id, { status: "Done" }, addDays(today, -12));
 const done3 = todo("Draft self-review notes for mid-year check-in", "Medium");
 vault.updateTodo(done3.id, { status: "Done" }, addDays(today, -30));
 
-const wip = todo("Investigate memory growth in the export worker #bug", "High", [reliability]);
-vault.updateTodo(wip.id, { status: "In Progress", notes: "Heap snapshots from staging are in the incident channel." }, today);
-const wip2 = todo("Prep Sam for the webhook retry design review #mentoring", "Medium", [mentoring]);
-vault.updateTodo(wip2.id, { status: "In Progress" }, today);
+const notesTodo = todo("Investigate memory growth in the export worker #bug", "High", [reliability]);
+vault.updateTodo(notesTodo.id, { notes: "Heap snapshots from staging are in the incident channel." }, today);
+todo("Prep Sam for the webhook retry design review #mentoring", "Medium", [mentoring]);
 todo("Review Priya's runbook PR #review", "Low", [mentoring]);
 todo("Schedule the billing dry run with finance #billing", "Medium", [delivery]);
 todo("Update the on-call rotation doc", null);
-const blocked = todo("Turn off the legacy invoice cron #billing", "High", [delivery]);
-vault.updateTodo(blocked.id, { status: "Blocked", notes: "Waiting on finance sign-off." }, today);
+const waiting = todo("Turn off the legacy invoice cron #billing", "High", [delivery]);
+vault.updateTodo(waiting.id, { notes: "Waiting on finance sign-off." }, today);
 
 console.log(`Demo vault written to ${root}`);

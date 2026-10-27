@@ -6,7 +6,7 @@
  *     - 09:15 Reviewed the migration plan #review [[reliability]] ⏱ 45m ⭐ ^k3x9qa
  *
  *   Todo (todos.md), using Obsidian Tasks plugin emoji where they exist:
- *     - [/] Fix flaky auth test #bug ⏫ ⭐ ➕ 2026-09-20 ✅ 2026-09-28 ^t8k2m1
+ *     - [x] Fix flaky auth test #bug ⏫ ⭐ ➕ 2026-09-20 ✅ 2026-09-28 ^t8k2m1
  *         Optional notes, indented under the task.
  *         - [x] Subtasks are indented task lines, nested by indent ^q7d3hn
  *
@@ -60,20 +60,18 @@ export interface Goal {
   body: string;
 }
 
+// Todos are open or done. Obsidian Tasks' in-progress, blocked and cancelled marks read as open.
 const STATUS_BY_MARK: Record<string, Status> = {
   " ": "Open",
-  "/": "In Progress",
-  b: "Blocked",
+  "/": "Open",
+  b: "Open",
+  "-": "Open",
   x: "Done",
   X: "Done",
-  "-": "Cancelled",
 };
 const MARK_BY_STATUS: Record<Status, string> = {
   Open: " ",
-  "In Progress": "/",
-  Blocked: "b",
   Done: "x",
-  Cancelled: "-",
 };
 
 const PRIORITY_BY_EMOJI: Record<string, Priority> = { "🔺": "High", "⏫": "High", "🔼": "Medium", "🔽": "Low", "⏬": "Low" };

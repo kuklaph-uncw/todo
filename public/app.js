@@ -570,11 +570,6 @@
 
     const focusButton = target.closest("[data-focus-mode]");
     if (focusButton) setFocusMode(focusButton.form, focusButton.getAttribute("aria-pressed") !== "true");
-
-    // Close any open action menu when clicking elsewhere.
-    document.querySelectorAll("details.menu[open]").forEach((menu) => {
-      if (!menu.contains(target)) menu.removeAttribute("open");
-    });
   });
 
   // ---- Subtasks: a todo's title opens and closes its list -----------------
@@ -742,16 +737,10 @@
     if (event.key === "Escape") {
       // A dialog closes itself on Esc; don't also act on the page behind it.
       if (el?.closest("dialog[open]")) return;
-      // Leave focus mode, close a menu, cancel an edit, or step out of a text field, in that order.
+      // Leave focus mode, cancel an edit, or step out of a text field, in that order.
       const focusMode = document.querySelector(".is-focus-mode");
       if (focusMode) {
         setFocusMode(focusMode, false);
-        return;
-      }
-      const menu = document.querySelector("details.menu[open]");
-      if (menu) {
-        menu.removeAttribute("open");
-        menu.querySelector("summary")?.focus();
         return;
       }
       const cancel = el?.closest(".edit-form")?.querySelector("a.btn.ghost");

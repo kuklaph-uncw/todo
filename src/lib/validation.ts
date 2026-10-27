@@ -1,5 +1,5 @@
 export const PRIORITIES = ["High", "Medium", "Low"] as const;
-export const STATUSES = ["Open", "In Progress", "Blocked", "Done", "Cancelled"] as const;
+export const STATUSES = ["Open", "Done"] as const;
 export const GOAL_STATUSES = ["active", "achieved", "dropped"] as const;
 
 export type Priority = (typeof PRIORITIES)[number];
@@ -16,7 +16,7 @@ export function isValidPriority(value: string | null): value is Priority | null 
   return value === null || (PRIORITIES as readonly string[]).includes(value);
 }
 
-/** Accepts exactly "Open" | "In Progress" | "Blocked" | "Done" | "Cancelled". */
+/** Accepts exactly "Open" | "Done". */
 export function isValidStatus(value: string): value is Status {
   return (STATUSES as readonly string[]).includes(value);
 }

@@ -1,6 +1,6 @@
 import { escapeHtml } from "../lib/html";
 import { shortMonthDay } from "../lib/date";
-import { PRIORITIES, STATUSES, type Status } from "../lib/validation";
+import { PRIORITIES, type Status } from "../lib/validation";
 import { allSubtasks, editableText, type Goal, type Todo } from "../vault/format";
 import {
   COMPOSER_HINT,
@@ -24,7 +24,6 @@ import {
 
 export interface TodoFilters {
   q: string;
-  status: Status | null;
   priority: string | null;
   tag: string | null;
   goal: string | null;
@@ -48,26 +47,21 @@ export interface TodosViewData {
   retry: URLSearchParams | null;
 }
 
-/** Done and Cancelled start collapsed so a year of history doesn't bury the live list. */
+/** Done starts collapsed so a year of history doesn't bury the open list. */
 const GROUPS: { status: Status; label: string; collapsed: boolean }[] = [
-  { status: "In Progress", label: "In progress", collapsed: false },
   { status: "Open", label: "Open", collapsed: false },
-  { status: "Blocked", label: "Blocked", collapsed: false },
   { status: "Done", label: "Done", collapsed: true },
-  { status: "Cancelled", label: "Cancelled", collapsed: true },
 ];
 
-const isFinished = (status: Status) => status === "Done" || status === "Cancelled";
-
 /**
- * Live todos: the user's order (file order).
- * Done/Cancelled: most recently completed first, so a just-checked todo is on top.
+ * Open todos: the user's order (file order).
+ * Done: most recently completed first, so a just-checked todo is on top.
  */
 export function sortTodos(todos: Todo[]): Todo[] {
   return todos
     .map((todo, index) => ({ todo, index }))
     .sort((a, b) => {
-      if (isFinished(a.todo.status)) return (b.todo.completedOn ?? "").localeCompare(a.todo.completedOn ?? "") || a.index - b.index;
+      if (a.todo.status === "Done") return (b.todo.completedOn ?? "").localeCompare(a.todo.completedOn ?? "") || a.index - b.index;
       return a.index - b.index;
     })
     .map(({ todo }) => todo);
@@ -82,7 +76,6 @@ export function filterTodos(todos: Todo[], filters: TodoFilters): Todo[] {
       .toLowerCase();
   return todos.filter(
     (todo) =>
-      (!filters.status || todo.status === filters.status) &&
       (!filters.priority || (filters.priority === "none" ? todo.priority === null : todo.priority === filters.priority)) &&
       (!filters.tag || todo.tags.includes(filters.tag)) &&
       (!filters.goal || todo.goals.includes(filters.goal)) &&
@@ -91,13 +84,12 @@ export function filterTodos(todos: Todo[], filters: TodoFilters): Todo[] {
 }
 
 function statusClass(status: Status): string {
-  return `s-${status.toLowerCase().replace(" ", "-")}`;
+  return `s-${status.toLowerCase()}`;
 }
 
 function editForm(todo: Todo, data: TodosViewData): string {
   const back = data.back ?? `${data.returnTo}#todo-${todo.id}`;
   const retry = data.retry;
-  const status = retry?.get("status") ?? todo.status;
   const priority = retry?.has("priority") ? retry.get("priority") : todo.priority;
   const clear = todo.completedOn
     ? `<div class="completion-note">
@@ -121,7 +113,6 @@ function editForm(todo: Todo, data: TodosViewData): string {
         </div>
         ${COMPOSER_HINT}
         <div class="field-row">
-          <label class="field"><span>Status</span><select name="status">${options(STATUSES, status)}</select></label>
           <label class="field"><span>Priority</span><select name="priority">${options(PRIORITIES, priority, "None")}</select></label>
         </div>
         <label class="field"><span>Notes</span><textarea name="notes" rows="3">${escapeHtml(retry?.get("notes") ?? todo.notes)}</textarea></label>
@@ -163,8 +154,8 @@ function todoRow(todo: Todo, goals: GoalIndex, data: TodosViewData): string {
   const notes = todo.notes ? `<p class="todo-notes">${escapeHtml(todo.notes).replace(/\n/g, "<br>")}</p>` : "";
   const task = escapeHtml(todo.task);
 
-  // Only live todos are in the user's order; Done and Cancelled are sorted by date.
-  const movable = !isFinished(todo.status);
+  // Only open todos are in the user's order; Done is sorted by date.
+  const movable = !done;
   const move = movable ? ` data-move="todo" data-id="${todo.id}"` : "";
 
   return `<li class="todo-row ${statusClass(todo.status)}${todo.isHighlight ? " is-starred" : ""}" id="todo-${todo.id}"${move}>
@@ -178,16 +169,10 @@ function todoRow(todo: Todo, goals: GoalIndex, data: TodosViewData): string {
         ${subtaskPanel(todo, goals, { returnTo, full: true, editId: data.editId })}
       </div>
       <div class="todo-facts">
-        ${todo.priority ? `<span class="priority p-${todo.priority.toLowerCase()}">${todo.priority}</span>` : ""}
         <span class="dates">${dates}</span>
+        ${todo.priority ? `<span class="priority p-${todo.priority.toLowerCase()}">${todo.priority}</span>` : ""}
       </div>
       <div class="row-actions">
-        <form class="inline-form" method="post" action="/todos/${todo.id}/status">
-          ${hidden("return_to", back)}
-          <label class="sr-only" for="status-${todo.id}">Status: ${task}</label>
-          <select id="status-${todo.id}" name="status" class="status-select" data-autosubmit>${options(STATUSES, todo.status)}</select>
-          <noscript><button class="btn" type="submit">Set</button></noscript>
-        </form>
         ${postButton({
           action: `/todos/${todo.id}/star`,
           label: todo.isHighlight ? `Unstar: ${todo.task}` : `Star as a highlight: ${todo.task}`,
@@ -219,12 +204,11 @@ function goalOptionLabel(goal: Goal, goals: Goal[]): string {
 
 function filterBar(data: TodosViewData): string {
   const f = data.filters;
-  const anyFilter = f.q || f.status || f.priority || f.tag || f.goal;
+  const anyFilter = f.q || f.priority || f.tag || f.goal;
   return `<form class="filter-bar" method="get" action="/todos" role="search">
       <label class="field grow"><span>Search</span>
         <input type="search" name="q" value="${escapeHtml(f.q)}" placeholder="Task, notes, #tag or goal" data-shortcut="/">
       </label>
-      <label class="field"><span>Status</span><select name="status" data-autosubmit>${options(STATUSES, f.status, "Any")}</select></label>
       <label class="field"><span>Priority</span><select name="priority" data-autosubmit>
         <option value="">Any</option>${PRIORITIES.map((p) => `<option${f.priority === p ? " selected" : ""}>${p}</option>`).join("")}
         <option value="none"${f.priority === "none" ? " selected" : ""}>None</option>
@@ -254,7 +238,7 @@ function addForm(data: TodosViewData): string {
 export function renderTodos(data: TodosViewData): string {
   const goals = goalIndex(data.goals);
   const filtered = filterTodos(data.todos, data.filters);
-  const filtering = Boolean(data.filters.q || data.filters.status || data.filters.priority || data.filters.tag || data.filters.goal);
+  const filtering = Boolean(data.filters.q || data.filters.priority || data.filters.tag || data.filters.goal);
 
   const counts = GROUPS.map(({ status, label }) => {
     const n = data.todos.filter((t) => t.status === status).length;

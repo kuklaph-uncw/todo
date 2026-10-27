@@ -14,7 +14,7 @@ export interface LayoutOptions {
   active: NavKey | null;
   main: string;
   vaultPath: string;
-  /** Open + in-progress + blocked todos, shown beside the nav item. */
+  /** Open todos, shown beside the nav item. */
   openTodos?: number;
 }
 
@@ -26,7 +26,7 @@ const SHORTCUTS: [string, string][] = [
   ["/", "Search (Todos and Review pages)"],
   ["Alt + ↑ / ↓", "Move the focused todo or subtask up or down (Todos page)"],
   ["Alt + → / ←", "Indent or outdent the focused subtask (Todos page)"],
-  ["Esc", "Close a menu, cancel an edit, or leave a text box"],
+  ["Esc", "Cancel an edit or leave a text box"],
   ["Ctrl + Enter", "Save the form you're in"],
   ["g then t / d / g / r", "Go to Today, Todos, Goals, Review"],
   ["?", "Show this list"],

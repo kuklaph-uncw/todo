@@ -23,7 +23,7 @@ export function handleToday(req: Request, ctx: AppContext): Response {
     today: now,
     entries: ctx.vault.getEntries(date),
     closedTodos: doneOn(date),
-    activeTodos: todos.filter((t) => t.status === "Open" || t.status === "In Progress" || t.status === "Blocked"),
+    activeTodos: todos.filter((t) => t.status === "Open"),
     week,
     goals: ctx.vault.getGoals(),
     tagCounts: ctx.vault.getTagCounts(),

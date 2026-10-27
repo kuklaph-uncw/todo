@@ -179,7 +179,7 @@ This matters because daily logging will not always happen in real time.
 
 ### 7.3 TODO Tracking
 
-The user can add simple TODOs, update status, and mark items done. A TODO can hold a checklist of subtasks, nested to any depth, and the user sets the order of TODOs and subtasks by hand.
+The user can add simple TODOs and mark them done. A TODO is either open or done. A TODO can hold a checklist of subtasks, nested to any depth, and the user sets the order of TODOs and subtasks by hand.
 
 When a TODO is marked done, it becomes part of that day's review evidence. Checking one off while viewing a past day dates it to that day.
 
@@ -229,7 +229,7 @@ The user can open the vault in any editor or Obsidian, read it, and add or chang
 
 Every page shares a left rail with:
 
-- Nav links (Today, Todos, Goals, Review) with their `g` shortcut. Todos shows the count of open, in-progress and blocked TODOs.
+- Nav links (Today, Todos, Goals, Review) with their `g` shortcut. Todos shows the count of open TODOs.
 - The vault path, with the note "Plain Markdown files. Back up by copying the folder."
 - A "Keyboard shortcuts" button that opens the shortcut list.
 
@@ -253,7 +253,7 @@ The default landing page. It answers:
 ┌───────────────────────────────┬───────────────────────────────┐
 │ Day header, day nav           │ Todos                         │
 │ Week strip                    │ Quick add                     │
-│ Capture form                  │ In progress / Open / Blocked  │
+│ Capture form                  │ Open todos, in your order     │
 │ Entries for the day           │                               │
 │ Todos closed this day         │                               │
 └───────────────────────────────┴───────────────────────────────┘
@@ -304,19 +304,17 @@ The default landing page. It answers:
 
 ### 9.3 Today: TODO Tray
 
-Shows active TODOs in three groups with counts: In progress, Open, Blocked. TODOs completed on the selected day appear in the ledger column under "Todos closed this day", with star and reopen buttons.
+Shows open TODOs in the user's order (see 9.5). TODOs completed on the selected day appear in the ledger column under "Todos closed this day", with star and reopen buttons.
 
 | ID  | Requirement                                                                                                    |
 | --- | -------------------------------------------------------------------------------------------------------------- |
 | T-1 | User can add a TODO with just a task. It starts `Open`, with no priority, and a created date of today.         |
 | T-2 | `#tags` and `[[goal-links]]` typed in the task are picked up.                                                  |
 | T-3 | The check button marks a TODO done, dated the selected day, or today if the selected day is in the future.     |
-| T-4 | A menu offers Start, Move to open, Mark blocked, Cancel todo (with confirmation), and Edit details.             |
+| T-4 | Each TODO has an Edit details button.                                                                          |
 | T-5 | Edit details opens the TODO's editor on the Todos page and returns to the day afterwards.                      |
 | T-6 | A note under the tray says which day checking a TODO off will count for.                                       |
 | T-7 | A TODO with subtasks shows its progress (`3/5`, every level) on its tag line. Clicking its title opens its subtasks to check off or quick-add. |
-
-Groups show TODOs in the user's order (see 9.5).
 
 Delete and clear-completion live on the Todos page.
 
@@ -338,26 +336,26 @@ Shown under the day title:
 
 | ID   | Requirement                                                                                                      |
 | ---- | ---------------------------------------------------------------------------------------------------------------- |
-| TM-1 | User can view all TODOs grouped by status: In progress, Open, Blocked, Done, Cancelled.                          |
-| TM-2 | Done and Cancelled start collapsed, unless a filter is active or one of their TODOs is being edited.             |
-| TM-3 | User can filter by status, priority (High, Medium, Low, None), tag, and goal.                                    |
+| TM-1 | User can view all TODOs in two groups: Open and Done.                                                            |
+| TM-2 | Done starts collapsed, unless a filter is active or one of its TODOs is being edited.                            |
+| TM-3 | User can filter by priority (High, Medium, Low, None), tag, and goal.                                            |
 | TM-4 | User can search task, notes, `#tags`, and goal links (`/` focuses search).                                       |
 | TM-5 | User can add a TODO with a priority and goal checkboxes. If the filters hide it, a notice says so.               |
-| TM-6 | User can edit task, status, priority, and notes. On a validation error the editor reopens with the typed values. |
-| TM-7 | User can change status from a per-row select, star or unstar, and delete with confirmation (copy kept in trash). |
+| TM-6 | User can edit task, priority, and notes. On a validation error the editor reopens with the typed values.         |
+| TM-7 | User can check a TODO off or reopen it, star or unstar it, and delete it with confirmation (copy kept in trash). |
 | TM-8 | User can clear a completion date with confirmation. The option shows in the editor when a date exists.           |
 | TM-9 | Rows show priority, "Added" date, and "Done Sep 28", or "Kept: done Sep 28" for a reopened TODO.                 |
 | TM-10 | User can add, check, edit, and delete subtasks at any depth. Deleting one removes everything under it (copy kept in trash). |
 | TM-11 | A TODO with subtasks shows its progress (`3/5`, every level) on its tag line. Clicking its title opens its subtasks. Search also matches subtask text. |
-| TM-12 | User can reorder live TODOs, and move, indent, and outdent subtasks, by dragging a grip handle or with hotkeys (20.2). A TODO can't become a subtask, and a subtask can't become a TODO. |
+| TM-12 | User can reorder open TODOs, and move, indent, and outdent subtasks, by dragging a grip handle or with hotkeys (20.2). A TODO can't become a subtask, and a subtask can't become a TODO. |
 
 The header shows counts per status, plus "showing N" when filtering.
 
 **Sort.**
 
-1. Groups in the order In progress, Open, Blocked, Done, Cancelled.
-2. Live groups: the user's order (file order). New TODOs go to the top. Priority is shown, not sorted on.
-3. Done and Cancelled: most recent completion date first.
+1. Groups in the order Open, Done.
+2. Open: the user's order (file order). New TODOs go to the top. Priority is shown, not sorted on.
+3. Done: most recent completion date first.
 4. Subtasks: the user's order.
 
 Marking a TODO done from this page records today.
@@ -522,7 +520,7 @@ Every top-level task line is a TODO. Indented lines (2+ spaces or a tab) directl
 type: todos
 ---
 
-- [/] Fix flaky auth test #bug ⏫ ⭐ ➕ 2026-09-20 ^t8k2m4
+- [ ] Fix flaky auth test #bug ⏫ ⭐ ➕ 2026-09-20 ^t8k2m4
     Repro only on CI. Check the clock mock.
     - [x] Reproduce locally ^q7d3hn
     - [ ] Replace the clock mock ^w2c8rv
@@ -568,10 +566,8 @@ Subtask line: `<indent>- [mark] text ^id`
 | Token              | Meaning                                                                                       |
 | ------------------ | --------------------------------------------------------------------------------------------- |
 | `[ ]`              | Open                                                                                          |
-| `[/]`              | In Progress                                                                                   |
-| `[b]`              | Blocked                                                                                       |
 | `[x]` (or `[X]`)   | Done                                                                                          |
-| `[-]`              | Cancelled                                                                                     |
+| `[/]`, `[b]`, `[-]` | Read as Open (Obsidian Tasks' in progress, blocked, cancelled). Written back as `[ ]` when the app rewrites the line. |
 | `⏫` `🔼` `🔽`     | Priority High, Medium, Low (Obsidian Tasks). `🔺` reads as High and `⏬` as Low; never written. |
 | `➕ YYYY-MM-DD`    | Created date (Obsidian Tasks).                                                                |
 | `✅ YYYY-MM-DD`    | Completion date (Obsidian Tasks).                                                             |
@@ -657,7 +653,7 @@ The line is appended to `.trash/deleted.md`, then removed from the note.
 | ---------- | --------------------------------------------------------- |
 | `task`     | Required after trim. Typed `#tags` and `[[links]]` parsed. |
 | `priority` | Optional: `High`, `Medium`, `Low`, or blank.              |
-| `status`   | Optional. Defaults to `Open`.                             |
+| `status`   | Optional: `Open` or `Done`. Defaults to `Open`.           |
 | `goals`    | Optional checked goal slugs.                              |
 | `notes`    | Optional.                                                 |
 
@@ -683,9 +679,9 @@ if (patch.status === "Done" && next.completedOn === null) {
 - A reopened TODO drops out of review evidence until it is done again.
 - Re-closing reuses the original date.
 
-### 12.7 Cancelling
+### 12.7 Dropping a TODO
 
-`Cancelled` means the task is no longer relevant. It never sets a completion date. A done TODO that is later cancelled keeps its date in the file but stops counting as evidence.
+There is no cancelled state. A TODO that's no longer needed is deleted (12.9), and a copy stays in the trash.
 
 ### 12.8 Clearing a Completion Date
 
@@ -846,7 +842,7 @@ Every page and form goes through `handleRequest` in `src/server.ts`. `HEAD` is t
 | Path                          | Purpose                                                    |
 | ----------------------------- | ---------------------------------------------------------- |
 | `/`                           | Today. `?date=`, `?edit=<entry id>`, `?error=`.            |
-| `/todos`                      | Todos. `?q`, `status`, `priority`, `tag`, `goal`, `edit`, `back`, `added`, `error`. |
+| `/todos`                      | Todos. `?q`, `priority`, `tag`, `goal`, `edit`, `back`, `added`, `error`. |
 | `/goals`                      | Goals. `?cycle=`, `?error=`.                               |
 | `/goals/:slug`                | Goal page. `?edit=1`, `?error=`.                           |
 | `/review`                     | Review page. Parameters in 9.8.                            |
@@ -866,11 +862,17 @@ Anything else, including a path with a malformed `%` escape, returns the "Not fo
 | `/journal/:id/star`               | `date`, `return_to`                                        | Toggle star.                            |
 | `/journal/:id/delete`             | `date`, `return_to`                                        | Delete entry to trash.                  |
 | `/todos`                          | `task`, `priority`, `status`, `goals`*, `notes`, `return_to` | Add TODO.                             |
-| `/todos/:id`                      | `task`, `status`, `priority`, `notes`, `return_to`         | Edit TODO.                              |
-| `/todos/:id/status`               | `status`, `on`, `return_to`                                | Change status.                          |
+| `/todos/:id`                      | `task`, `priority`, `notes`, `return_to`                   | Edit TODO.                              |
+| `/todos/:id/status`               | `status` (`Open` or `Done`), `on`, `return_to`             | Mark done or reopen.                    |
 | `/todos/:id/star`                 | `return_to`                                                | Toggle star.                            |
 | `/todos/:id/clear-completion`     | `return_to`                                                | Clear completion date.                  |
 | `/todos/:id/delete`               | `return_to`                                                | Delete TODO to trash.                   |
+| `/todos/:id/subtasks`             | `text`, `return_to`                                        | Add a subtask at the end of the TODO.   |
+| `/todos/:id/move`                 | `before` or `after` (a TODO id), `return_to`               | Move the TODO.                          |
+| `/subtasks/:id`                   | `text`, `return_to`                                        | Edit subtask text.                      |
+| `/subtasks/:id/done`              | `done` (`1` or blank), `return_to`                         | Check (and everything under it) or uncheck. |
+| `/subtasks/:id/delete`            | `return_to`                                                | Delete subtask and its children to trash. |
+| `/subtasks/:id/move`              | `before`, `after` (a subtask id) or `into` (a TODO or subtask id), `return_to` | Move the subtask. |
 | `/goals`                          | `title`, `cycle`, `body`                                   | Create goal, go to its page.            |
 | `/goals/:slug`                    | `title`, `cycle`, `status`, `body`                         | Save goal.                              |
 
@@ -887,16 +889,15 @@ There is no HTMX and no client framework. The server renders full HTML pages, an
 | Behavior               | Detail                                                                                                   |
 | ---------------------- | -------------------------------------------------------------------------------------------------------- |
 | In-place form posts    | POST forms are sent with `fetch`. The redirected page's `<main>` and nav replace the current ones, and the URL updates. Focus stays on the same control, or the same or a nearby row. New entries are briefly marked. On a network error it falls back to a normal submit. |
-| Confirmations          | Forms with `data-confirm` ask before posting (delete, cancel TODO, clear completion).                     |
+| Confirmations          | Forms with `data-confirm` ask before posting (delete, clear completion).                     |
 | Drafts                 | Capture text saved in `localStorage` per day. Cleared after a successful save.                            |
 | Auto-submit            | Filter selects and checkboxes submit on change. The date picker waits 900ms for typing to stop.           |
 | Copy                   | Writes HTML + Markdown to the clipboard, with fallbacks (14.3). Status is announced to screen readers.    |
 | Print                  | Sets the page title to the suggested PDF name, prints, restores the title.                                |
-| Menus                  | Clicking elsewhere or pressing Esc closes an open TODO menu.                                              |
 | Reordering             | Drag a TODO or subtask by its grip handle, or use the hotkeys in 20.2. Needs the script.                  |
 | Keyboard shortcuts     | See 20.2.                                                                                                 |
 
-Without the script, the date picker shows a "Go" button and status selects show a "Set" button. Destructive actions then post without a confirmation prompt (see 28.3).
+Without the script, the date picker shows a "Go" button. Destructive actions then post without a confirmation prompt (see 28.3).
 
 ---
 
@@ -1056,7 +1057,7 @@ Messages show at the top of the page (`role="alert"`). Capture and edit forms ge
 
 | ID  | Requirement                                                                                      |
 | --- | ------------------------------------------------------------------------------------------------ |
-| A-1 | Actions use real `<button>` elements inside forms, or links. The TODO menu opens from a `<summary>`. |
+| A-1 | Actions use real `<button>` elements inside forms, or links.                                     |
 | A-2 | Inputs have labels (visible or screen-reader only). Icon buttons have `aria-label`.              |
 | A-3 | Focus states are visible. A skip link jumps to the main content.                                 |
 | A-4 | Destructive actions ask for confirmation (with the script).                                      |
@@ -1078,7 +1079,7 @@ Listed in the app's shortcuts dialog (`?`). Single-key shortcuts are ignored whi
 | `Ctrl + Shift + F`      | Today                | Write a new entry in focus mode.                    |
 | `Alt + ↑` / `Alt + ↓`   | Todos                | Move the focused TODO or subtask up or down among its siblings. |
 | `Alt + →` / `Alt + ←`   | Todos                | Indent the focused subtask under the one above, or outdent it.  |
-| `Esc`                   | Any                  | Close the suggestion list, leave focus mode, close a menu, cancel an entry or TODO edit, or leave a text box. |
+| `Esc`                   | Any                  | Close the suggestion list, leave focus mode, cancel an entry or TODO edit, or leave a text box. |
 | `Ctrl + Enter`          | Any form             | Save the form you're in (`Cmd + Enter` also works). |
 | `g` then `t`/`d`/`g`/`r`| Any                  | Go to Today, Todos, Goals, Review.                  |
 | `?`                     | Any                  | Show the shortcut list.                             |
@@ -1231,7 +1232,7 @@ Run against a build from `bun run build`:
 | ID    | Acceptance Criterion                                                    |
 | ----- | ----------------------------------------------------------------------- |
 | AC-8  | User can add a TODO with only a task title.                             |
-| AC-9  | User can update TODO status.                                            |
+| AC-9  | User can mark a TODO done or reopen it.                                 |
 | AC-10 | User can mark a TODO done.                                              |
 | AC-11 | A completed TODO appears on its completion date. Done from a past day dates it to that day, never a future one. |
 | AC-12 | Reopening and re-closing a TODO does not overwrite its completion date. |
@@ -1349,7 +1350,7 @@ If logging consistency is below 50% after a month, the likely issue is UX fricti
 Everything in sections 8 to 24 exists in the code, except items marked "Not yet built". That covers:
 
 - Today: capture, backfill, edit, star, delete to trash, drafts, week strip, TODO tray.
-- Todos: groups, filters, search, edit, status, star, clear completion, delete to trash.
+- Todos: open and done groups, subtasks, manual order, filters, search, edit, star, clear completion, delete to trash.
 - Goals: cycles, statuses, evidence feed, linked open TODOs, review shortcut.
 - Review: eight presets, custom ranges, filters, copy as formatted text, Markdown/JSON/JSONL, print to PDF.
 - Markdown vault storage with Obsidian-compatible syntax.

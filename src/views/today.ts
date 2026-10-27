@@ -35,12 +35,6 @@ export interface TodayViewData {
   retry: URLSearchParams | null;
 }
 
-const TODO_GROUPS = [
-  { status: "In Progress", label: "In progress" },
-  { status: "Open", label: "Open" },
-  { status: "Blocked", label: "Blocked" },
-] as const;
-
 function summaryLine(data: TodayViewData): string {
   const starred = data.entries.filter((e) => e.isHighlight).length + data.closedTodos.filter((t) => t.isHighlight).length;
   const minutes = data.entries.reduce((sum, e) => sum + (e.minutes ?? 0), 0);
@@ -186,32 +180,14 @@ function closedRow(todo: Todo, goals: GoalIndex, returnTo: string): string {
     </li>`;
 }
 
-function statusButton(todo: Todo, status: string, label: string, returnTo: string, date: string, confirm?: string): string {
-  return postButton({
-    action: `/todos/${todo.id}/status`,
-    label: `${label}: ${todo.task}`,
-    body: escapeHtml(label),
-    returnTo,
-    fields: { status, on: date },
-    className: "menu-item",
-    confirm,
-  });
-}
-
 function trayTodo(todo: Todo, goals: GoalIndex, returnTo: string, date: string): string {
   const meta = [
     todo.priority ? `<span class="priority p-${todo.priority.toLowerCase()}">${todo.priority}</span>` : "",
     metaChips({ ...todo, text: todo.task, minutes: null }, goals, subtaskCount(todo)),
   ].join("");
-  const moves = [
-    todo.status !== "In Progress" ? statusButton(todo, "In Progress", "Start", returnTo, date) : "",
-    todo.status !== "Open" ? statusButton(todo, "Open", "Move to open", returnTo, date) : "",
-    todo.status !== "Blocked" ? statusButton(todo, "Blocked", "Mark blocked", returnTo, date) : "",
-    statusButton(todo, "Cancelled", "Cancel todo", returnTo, date, "Cancel this todo? It moves to Cancelled on the Todos page."),
-  ].join("");
   const editHref = `/todos?edit=${todo.id}&back=${encodeURIComponent(returnTo)}#todo-${todo.id}`;
 
-  return `<li class="todo s-${todo.status.toLowerCase().replace(" ", "-")}" id="todo-${todo.id}">
+  return `<li class="todo" id="todo-${todo.id}">
       ${postButton({
         action: `/todos/${todo.id}/status`,
         label: `Mark done: ${todo.task}`,
@@ -227,27 +203,16 @@ function trayTodo(todo: Todo, goals: GoalIndex, returnTo: string, date: string):
         ${meta ? `<div class="todo-meta">${meta}</div>` : ""}
         ${subtaskPanel(todo, goals, { returnTo, full: false })}
       </div>
-      <details class="menu">
-        <summary class="icon-btn" aria-label="More actions: ${escapeHtml(todo.task)}" title="More">${icon("more")}</summary>
-        <div class="menu-panel">
-          ${moves}
-          <a class="menu-item" href="${escapeHtml(editHref)}">Edit details</a>
-        </div>
-      </details>
+      <a class="icon-btn" href="${escapeHtml(editHref)}" aria-label="Edit details: ${escapeHtml(todo.task)}" title="Edit details">${icon("edit")}</a>
     </li>`;
 }
 
 function tray(data: TodayViewData, goals: GoalIndex, returnTo: string): string {
   // On today, send no date (like the capture form) so a window left open overnight dates to the new day.
   const doneOn = data.date === data.today ? "" : data.date;
-  const groups = TODO_GROUPS.map(({ status, label }) => {
-    const todos = data.activeTodos.filter((todo) => todo.status === status);
-    if (todos.length === 0) return "";
-    return `<section class="todo-group g-${status.toLowerCase().replace(" ", "-")}">
-        <h3>${label} <span class="count">${todos.length}</span></h3>
-        <ul class="todo-list">${todos.map((todo) => trayTodo(todo, goals, returnTo, doneOn)).join("")}</ul>
-      </section>`;
-  }).join("");
+  const list = data.activeTodos.length
+    ? `<ul class="todo-list">${data.activeTodos.map((todo) => trayTodo(todo, goals, returnTo, doneOn)).join("")}</ul>`
+    : "";
 
   return `<aside class="tray" aria-labelledby="tray-title">
       <div class="tray-head">
@@ -260,7 +225,7 @@ function tray(data: TodayViewData, goals: GoalIndex, returnTo: string): string {
         <input id="tray-task" name="task" required placeholder="Add a todo" autocomplete="off" data-shortcut="t" data-composer>
         <button class="btn" type="submit">Add</button>
       </form>
-      ${groups || emptyState("Nothing open.", "Todos you add here stay until they're done.")}
+      ${list || emptyState("Nothing open.", "Todos you add here stay until they're done.")}
       <p class="tray-note">Checking one off counts it as done on ${data.date === data.today ? "today" : escapeHtml(monthDay(data.date))}.</p>
     </aside>`;
 }

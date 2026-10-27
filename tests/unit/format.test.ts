@@ -78,7 +78,8 @@ describe("todo blocks", () => {
 
   it("reads status, priority, star, dates, notes and line ranges", () => {
     const blocks = parseTodoBlocks(lines);
-    expect(blocks.map((b) => b.todo.status)).toEqual(["In Progress", "Done", "Blocked", "Cancelled"]);
+    // Todos are open or done. Other Obsidian Tasks marks ([/], [b], [-]) read as open.
+    expect(blocks.map((b) => b.todo.status)).toEqual(["Open", "Done", "Open", "Open"]);
     expect(blocks[0].todo).toMatchObject({
       id: "t8k2m1",
       task: "Fix flaky auth test",
@@ -94,9 +95,13 @@ describe("todo blocks", () => {
     expect(blocks[1].todo).toMatchObject({ priority: "Medium", completedOn: "2026-09-28" });
   });
 
-  it("round-trips a todo with notes", () => {
+  it("round-trips a todo with notes, writing an old mark as open", () => {
     const [first] = parseTodoBlocks(lines);
-    expect(formatTodo(first.todo)).toEqual(lines.slice(4, 7));
+    expect(formatTodo(first.todo)).toEqual([lines[4].replace("[/]", "[ ]"), ...lines.slice(5, 7)]);
+  });
+
+  it("still ignores task lines with a mark it doesn't know", () => {
+    expect(parseTodoBlocks(["- [?] Not a todo ^q1"])).toEqual([]);
   });
 
   it("reads indented task lines as nested subtasks and other indented lines as notes", () => {
