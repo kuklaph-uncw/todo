@@ -1,9 +1,17 @@
 /**
  * Plain-text formats for the vault. Everything the app stores is a Markdown
- * line or file that reads naturally in Obsidian (or any editor):
+ * block or file that reads naturally in Obsidian (or any editor):
  *
  *   Journal entry (journal/YYYY/YYYY-MM-DD.md):
  *     - 09:15 Reviewed the migration plan #review [[reliability]] ⏱ 45m ⭐ ^k3x9qa
+ *         Ran the checklist with **Priya**:
+ *
+ *         - migrated the tables
+ *           - verified row counts
+ *
+ *   Entry metadata lives on the first line. Continuations are indented four
+ *   spaces; internal blank lines are empty. Reading accepts any indentation,
+ *   removes the smallest indent (up to four columns) and keeps blank lines only before continuations.
  *
  *   Todo (todos.md), using Obsidian Tasks plugin emoji where they exist:
  *     - [x] Fix flaky auth test #bug ⏫ ⭐ ➕ 2026-09-20 ✅ 2026-09-28 ^t8k2m1
@@ -15,6 +23,7 @@
  * The trailing `^id` is an Obsidian block ID; the app uses it to find a line again.
  */
 import type { GoalStatus, Priority, Status } from "../lib/validation";
+import { continuationEnd } from "../lib/lines";
 import { isValidGoalStatus } from "../lib/validation";
 
 export interface Entry {
@@ -161,9 +170,10 @@ function trailingMeta(text: string, tags: string[], goals: string[]): string[] {
   ];
 }
 
-/** The text a user edits: the sentence plus its trailing #tags and [[links]]. */
+/** The text a user edits, with trailing #tags and [[links]] on its first line. */
 export function editableText(text: string, tags: string[], goals: string[]): string {
-  return [text, ...trailingMeta(text, tags, goals)].join(" ");
+  const [first, ...body] = text.split("\n");
+  return [[first, ...trailingMeta(text, tags, goals)].join(" "), ...body].join("\n");
 }
 
 const ENTRY_LINE_RE =/^- (?!\[.\] )(.+)$/;
@@ -196,11 +206,64 @@ export function parseEntryLine(line: string, date: string): Entry | null {
 export function formatEntryLine(entry: Entry): string {
   const parts = ["-"];
   if (entry.time) parts.push(entry.time);
-  parts.push(entry.text, ...trailingMeta(entry.text, entry.tags, entry.goals));
+  parts.push(entry.text.split("\n")[0], ...trailingMeta(entry.text, entry.tags, entry.goals));
   if (entry.minutes !== null) parts.push(`⏱ ${entry.minutes}m`);
   if (entry.isHighlight) parts.push("⭐");
   if (entry.id) parts.push(`^${entry.id}`);
   return parts.join(" ");
+}
+
+export interface EntryBlock {
+  entry: Entry;
+  /** Index of the entry's first line. */
+  start: number;
+  /** Index after its last continuation line. */
+  end: number;
+}
+
+/** Removes the smallest indent up to four columns, counting tabs as four spaces; blank lines stay blank. */
+function dedent(lines: string[]): string[] {
+  const indents = lines.filter((line) => line.trim()).map((line) => indentWidth(/^[ \t]*/.exec(line)![0]));
+  const indent = indents.length > 0 ? Math.min(4, ...indents) : 0;
+  return lines.map((line) => {
+    if (!line.trim()) return "";
+    let offset = 0;
+    let width = 0;
+    while (width < indent) width += line[offset++] === "\t" ? 4 : 1;
+    return " ".repeat(width - indent) + line.slice(offset);
+  });
+}
+
+/** Combines first-line metadata with body text, counting every tag and goal link in the body. */
+export function entryContent(first: Pick<Entry, "text" | "tags" | "goals">, body: string[]): Pick<Entry, "text" | "tags" | "goals"> {
+  const text = body.join("\n");
+  return {
+    text: [first.text, ...body].join("\n"),
+    tags: [...new Set([...first.tags, ...findTags(text)])],
+    goals: [...new Set([...first.goals, ...findLinks(text)])],
+  };
+}
+
+/** Finds entries with their indented continuations, following the daily-note format above. */
+export function parseEntryBlocks(lines: string[], date: string): EntryBlock[] {
+  const blocks: EntryBlock[] = [];
+  for (let start = 0; start < lines.length; start++) {
+    const entry = parseEntryLine(lines[start], date);
+    if (!entry) continue;
+
+    const end = continuationEnd(lines, start + 1, 0);
+
+    const body = dedent(lines.slice(start + 1, end));
+    Object.assign(entry, entryContent(entry, body));
+    blocks.push({ entry, start, end });
+    start = end - 1;
+  }
+  return blocks;
+}
+
+/** Writes an entry with first-line metadata and four-space continuations, as in the daily-note format above. */
+export function formatEntry(entry: Entry): string[] {
+  return [formatEntryLine(entry), ...entry.text.split("\n").slice(1).map((line) => line ? `    ${line}` : "")];
 }
 
 const TODO_LINE_RE = /^- \[(.)\] (.+)$/;

@@ -5,6 +5,7 @@ import {
   COMPOSER_HINT,
   composerData,
   emptyState,
+  entryHtml,
   goalIndex,
   hidden,
   icon,
@@ -12,9 +13,9 @@ import {
   notice,
   postButton,
   richText,
+  subtaskButton,
   subtaskCount,
   subtaskPanel,
-  subtaskButton,
   subtaskToggle,
   type GoalIndex,
 } from "./components";
@@ -76,13 +77,13 @@ function captureForm(data: TodayViewData, returnTo: string): string {
       <div class="margin"><span class="capture-mark" aria-hidden="true">new</span></div>
       <div class="entry-body">
       ${hidden("date", isToday ? "" : data.date)}${hidden("return_to", returnTo)}
-      <label class="sr-only" for="capture">What did you get done?</label>
+      <label class="sr-only" for="capture">New ledger entry</label>
       <div class="composer-box">
         <textarea id="capture" name="content" rows="2" required data-draft="draft:${isToday ? "today" : data.date}" data-shortcut="n" data-composer
-          placeholder="What did you get done? One line per entry. Type # for tags, / for goals."></textarea>
+          placeholder="What's worth keeping from the day? Write as much as you like; Markdown works (- lists, **bold**). Type # for tags, / for goals."></textarea>
         <div class="composer-bar">
-          <label class="time-field">${icon("clock")}<span class="sr-only">Time spent</span><input name="minutes" placeholder="Add time" autocomplete="off" title="Time spent, like 45m or 1h 30m. Applies to every line you add." value="${escapeHtml(retry?.get("minutes") ?? "")}"></label>
-          <label class="star-toggle" title="Star as a highlight. Applies to every line you add."><input class="sr-only" type="checkbox" name="star" value="1"${retry?.get("star") === "1" ? " checked" : ""}>${icon("star")}<span class="sr-only">Star as a highlight</span><span class="star-off" aria-hidden="true">Star</span><span class="star-on" aria-hidden="true">Starred</span></label>
+          <label class="time-field">${icon("clock")}<span class="sr-only">Time spent</span><input name="minutes" placeholder="Add time" autocomplete="off" title="Time spent, like 45m or 1h 30m." value="${escapeHtml(retry?.get("minutes") ?? "")}"></label>
+          <label class="star-toggle" title="Star as a highlight"><input class="sr-only" type="checkbox" name="star" value="1"${retry?.get("star") === "1" ? " checked" : ""}>${icon("star")}<span class="sr-only">Star as a highlight</span><span class="star-off" aria-hidden="true">Star</span><span class="star-on" aria-hidden="true">Starred</span></label>
           <span class="spacer"></span>
           <span class="key-hint" aria-hidden="true"><kbd>Ctrl</kbd> <kbd>Enter</kbd></span>
           <button type="button" class="icon-btn" data-focus-mode aria-pressed="false" aria-label="Focus mode" title="Focus mode (Ctrl+Shift+F)" hidden>${icon("expand")}</button>
@@ -117,7 +118,7 @@ function entryRow(entry: Entry, data: TodayViewData, goals: GoalIndex, returnTo:
   const editing = data.editId === entry.id;
   const body = editing
     ? entryEditForm(entry, returnTo, data.retry)
-    : `<p class="entry-text">${richText(entry.text, goals)}</p>${metaChips(entry, goals)}`;
+    : `<div class="entry-text">${entryHtml(entry.text, goals)}</div>${metaChips(entry, goals)}`;
 
   const actions = editing
     ? ""

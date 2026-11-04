@@ -24,6 +24,8 @@
     root.querySelectorAll("[data-focus-mode]").forEach((button) => (button.hidden = false));
     releaseFocusMode();
 
+    root.querySelectorAll('[data-live-search] button[type="submit"]').forEach((button) => (button.hidden = true));
+
     // Subtask lists stay open or closed as the user left them, across updates and pages, for this window.
     const openLists = () => new Set(JSON.parse(sessionStorage.getItem("open-subtasks") || "[]"));
     root.querySelectorAll("details[data-keep-open]").forEach((details) => {
@@ -429,6 +431,7 @@
     row?.querySelector("button") ?? row?.querySelector('a[href], input:not([type="hidden"]), select, textarea');
 
   function swapPage(html, url, { focusCapture, draftKey }) {
+    cancelTodoSearch();
     const doc = new DOMParser().parseFromString(html, "text/html");
     const nextMain = doc.querySelector("main");
     if (!nextMain) {
@@ -480,11 +483,18 @@
 
   document.addEventListener("submit", async (event) => {
     const form = event.target;
-    if (!(form instanceof HTMLFormElement) || form.method.toLowerCase() !== "post") return;
+    if (!(form instanceof HTMLFormElement)) return;
+    if (form.hasAttribute("data-live-search")) {
+      event.preventDefault();
+      updateTodoSearch(form);
+      return;
+    }
+    if (form.method.toLowerCase() !== "post") return;
     event.preventDefault();
 
     if (form.dataset.confirm && !confirm(form.dataset.confirm)) return;
     if (form.dataset.busy) return;
+    cancelTodoSearch();
     form.dataset.busy = "1";
 
     const draftKey = form.querySelector("textarea[data-draft]")?.dataset.draft;
@@ -505,6 +515,75 @@
   });
 
   // ---- Small behaviours ---------------------------------------------------
+
+  let todoSearchTimer = 0;
+  let todoSearchRequest = null;
+
+  /** Ends pending search work when input changes or another page update takes over. */
+  function cancelTodoSearch() {
+    clearTimeout(todoSearchTimer);
+    todoSearchRequest?.controller.abort();
+    todoSearchRequest = null;
+  }
+
+  /** Fetches changed filters once, allowing only the current request to swap the page. */
+  async function updateTodoSearch(form, replaceHistory = false) {
+    clearTimeout(todoSearchTimer);
+    const filters = new URLSearchParams(new FormData(form));
+    const query = filters.toString();
+    if (query === todoSearchRequest?.query) {
+      todoSearchRequest.replaceHistory = replaceHistory;
+      return;
+    }
+    cancelTodoSearch();
+    const shown = new URLSearchParams(location.search);
+    const unchanged = [...filters].every(([name, value]) => {
+      const current = shown.get(name) ?? "";
+      return name === "q" ? value.trim() === current.trim() : value === current;
+    });
+    if (unchanged) return;
+
+    const request = { query, replaceHistory, controller: new AbortController() };
+    todoSearchRequest = request;
+    const url = new URL(form.action);
+    url.search = query;
+    try {
+      const response = await fetch(url, { signal: request.controller.signal });
+      const html = await response.text();
+      if (request.controller.signal.aborted || !form.isConnected) return;
+
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      for (const selector of [".page-sub", ".filter-actions", "#todo-results"]) {
+        const next = doc.querySelector(selector);
+        document.querySelector(selector).replaceWith(next);
+        initPage(next);
+      }
+      const returnToSelector = 'form.todo-add input[name="return_to"]';
+      document.querySelector(returnToSelector).value = doc.querySelector(returnToSelector).value;
+      const target = new URL(response.url);
+      if (target.pathname + target.search !== location.pathname + location.search) {
+        if (request.replaceHistory) history.replaceState(null, "", target.pathname + target.search);
+        else history.pushState(null, "", target.pathname + target.search);
+      }
+    } catch {
+      if (!request.controller.signal.aborted && form.isConnected) form.submit();
+    } finally {
+      if (todoSearchRequest === request) todoSearchRequest = null;
+    }
+  }
+
+  /** Debounces committed search text without discarding an open todo editor. */
+  function scheduleTodoSearch(event) {
+    const search = event.target;
+    if (!(search instanceof HTMLInputElement) || !search.form?.hasAttribute("data-live-search")) return;
+    cancelTodoSearch();
+    if (event.type === "compositionstart" || event.isComposing || document.querySelector(".todo-edit")) return;
+    todoSearchTimer = setTimeout(() => updateTodoSearch(search.form, true), 250);
+  }
+
+  document.addEventListener("input", scheduleTodoSearch);
+  document.addEventListener("compositionstart", scheduleTodoSearch);
+  document.addEventListener("compositionend", scheduleTodoSearch);
 
   let dateTimer = 0;
   document.addEventListener("change", (event) => {

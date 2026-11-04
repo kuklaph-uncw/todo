@@ -119,10 +119,7 @@ describe("exports", () => {
     expect(markdownToHtml("# Title\n\n- one & two\n- <three>\n\n_Nothing recorded._\n\nPlain line")).toBe(
       [
         "<h1>Title</h1>",
-        "<ul>",
-        "<li>one &amp; two</li>",
-        "<li>&lt;three&gt;</li>",
-        "</ul>",
+        "<ul><li>one &amp; two</li><li>&lt;three&gt;</li></ul>",
         "<p><em>Nothing recorded.</em></p>",
         "<p>Plain line</p>",
       ].join("\n"),
@@ -135,11 +132,33 @@ describe("exports", () => {
     expect(reviewToJsonl(empty, goals)).toBe("");
   });
 
+  it("indents entry continuations in every exported list, keeping blank lines empty", () => {
+    const multiline = buildReview([item({ text: "Retro\nNotes\n\n- **Check**\n  - nested", isHighlight: true, goals: ["reliability"] })], goals, filters, "");
+    expect(reviewToMarkdown(multiline, goals)).toBe([
+      "# Accomplishments: 2026-09-01 to 2026-09-30", "", "## Summary", "",
+      "- Journal entries: 1", "- TODOs completed: 0", "- Highlights: 1", "- Active logging days: 1",
+      "", "## Highlights", "", "- 2026-09-01 — Retro", "  Notes", "", "  - **Check**", "    - nested",
+      "", "## By goal", "", "### Improve reliability", "", "- 2026-09-01 — ★ Retro", "  Notes", "", "  - **Check**", "    - nested",
+      "", "## Daily Accomplishments", "", "### 2026-09-01", "", "#### Journal", "",
+      "- ★ Retro", "  Notes", "", "  - **Check**", "    - nested", "",
+    ].join("\n"));
+  });
+
+  it("renders the whole indented export item while keeping simple items unwrapped", () => {
+    expect(markdownToHtml("# Title\n\n- Retro\n  Notes\n\n  - **Check**\n    - nested\n\n  Next\n- Simple\n\n## End")).toBe([
+      "<h1>Title</h1>",
+      "<ul><li>Retro<br>Notes<ul><li><strong>Check</strong><ul><li>nested</li></ul></li></ul><p>Next</p></li><li>Simple</li></ul>",
+      "<h2>End</h2>",
+    ].join("\n"));
+  });
+
   it("JSON carries range, stats, goals and items with resolved goal titles", () => {
     const json = reviewToJson(review, goals);
     expect(json.range).toEqual({ from: "2026-09-01", to: "2026-09-30" });
     expect(json.stats).toEqual({ journalEntries: 2, completedTodos: 1, highlights: 1, activeDays: 2, minutesLogged: 90 });
     expect(json.items[2]).toMatchObject({ type: "journal", id: "a", goals: [{ slug: "reliability", title: "Improve reliability" }] });
+    const multiline = buildReview([item({ text: "First\n\nSecond" })], goals, filters, "");
+    expect([reviewToJson(multiline, goals).items[0].text, JSON.parse(reviewToJsonl(multiline, goals)).text]).toEqual(["First\n\nSecond", "First\n\nSecond"]);
   });
 
   it("JSONL writes one self-contained item per line", () => {

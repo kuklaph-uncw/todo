@@ -1,0 +1,58 @@
+import { describe, expect, it } from "bun:test";
+import { renderEntryMarkdown } from "../../src/lib/markdown";
+import { entryHtml, goalIndex } from "../../src/views/components";
+
+describe("entry Markdown", () => {
+  it("groups paragraphs and keeps single line breaks", () => {
+    expect(renderEntryMarkdown("First\nsecond\n\nLast")).toBe("<p>First<br>second</p><p>Last</p>");
+  });
+
+  it("nests lists by indentation and separates ordered from unordered lists", () => {
+    expect(renderEntryMarkdown("- Parent\n  3. Child\n    + Grandchild\n  4. Next\n* Sibling\n+ Last\n1. Ordered")).toBe(
+      '<ul><li>Parent<ol start="3"><li>Child<ul><li>Grandchild</li></ul></li><li>Next</li></ol></li><li>Sibling</li><li>Last</li></ul><ol><li>Ordered</li></ol>',
+    );
+  });
+
+  it("offsets headings by two and caps their level at six", () => {
+    expect(renderEntryMarkdown("# One\n## Two\n### Three\n#### Four\n###### Six")).toBe(
+      "<h3>One</h3><h4>Two</h4><h5>Three</h5><h6>Four</h6><h6>Six</h6>",
+    );
+  });
+
+  it("escapes text before adding emphasis", () => {
+    expect(renderEntryMarkdown("<script>alert(1)</script>\n\n**<b>x</b>** *yes* _also_")).toBe(
+      "<p>&lt;script&gt;alert(1)&lt;/script&gt;</p><p><strong>&lt;b&gt;x&lt;/b&gt;</strong> <em>yes</em> <em>also</em></p>",
+    );
+  });
+
+  it("keeps underscores inside words literal while allowing intraword asterisk emphasis", () => {
+    expect(renderEntryMarkdown("retry_backoff_math file_name.txt a1_mid_2end pré_nom_é x*mid*y (_yes_) _also_")).toBe(
+      "<p>retry_backoff_math file_name.txt a1_mid_2end pré_nom_é x<em>mid</em>y (<em>yes</em>) <em>also</em></p>",
+    );
+  });
+
+  it("decorates an underscored tag and goal label as whole tokens", () => {
+    const goals = goalIndex([{ slug: "slug", title: "Goal", cycle: "2026", status: "active", body: "" }]);
+    expect(entryHtml("#on_call_rota [[slug|some_label_here]]", goals)).toBe(
+      '<p><span class="tag">#on_call_rota</span> <a class="goal-link" href="/goals/slug">some_label_here</a></p>',
+    );
+  });
+
+  it("decorates escaped text outside code spans only", () => {
+    const runs: string[] = [];
+    expect(renderEntryMarkdown("**#ops** `<b>#ops</b>`", (run) => {
+      runs.push(run);
+      return run.replace(/#ops/g, "<mark>#ops</mark>");
+    })).toBe("<p><strong><mark>#ops</mark></strong> <code>&lt;b&gt;#ops&lt;/b&gt;</code></p>");
+    expect(runs.join("")).not.toContain("&lt;b&gt;");
+  });
+
+  it("keeps unsupported links, images, checkboxes and fenced blocks literal", () => {
+    expect(entryHtml("[link](https://example.com) ![image](x)\n- [ ] task\n*\n_\n`\n\n```\n#include <x>\n**literal**\n```", new Map())).toBe(
+      "<p>[link](https://example.com) ![image](x)<br>- [ ] task<br>*<br>_<br>`</p><p>```<br>#include &lt;x&gt;<br>**literal**<br>```</p>",
+    );
+    expect(entryHtml("  ````\n#ops **literal**\n   ````\n**After**", new Map())).toBe(
+      "<p>  ````<br>#ops **literal**<br>   ````</p><p><strong>After</strong></p>",
+    );
+  });
+});

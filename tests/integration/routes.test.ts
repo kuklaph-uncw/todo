@@ -51,7 +51,7 @@ describe("pages", () => {
 });
 
 describe("journal capture", () => {
-  it("splits multi-line capture into entries, stamps the time today, and redirects back", async () => {
+  it("stores one multi-line entry per capture, stamps the time today, and redirects back", async () => {
     const res = await send(
       formPost("/journal", {
         date: "2026-09-28",
@@ -66,8 +66,7 @@ describe("journal capture", () => {
 
     const entries = ctx.vault.getEntries("2026-09-28");
     expect(entries.map((e) => [e.time, e.text, e.tags, e.minutes, e.isHighlight])).toEqual([
-      ["14:05", "Reviewed the API proposal", ["support"], 90, true],
-      ["14:05", "Helped Sam debug staging", ["support"], 90, true],
+      ["14:05", "Reviewed the API proposal\n\n  Helped Sam debug staging #support", ["support"], 90, true],
     ]);
   });
 
@@ -77,9 +76,9 @@ describe("journal capture", () => {
     expect(ctx.vault.getEntries("2026-09-28")[0]?.text).toBe("Morning standup");
   });
 
-  it("drops pasted list markers and checkboxes from capture lines", async () => {
+  it("keeps Markdown list markers and body checkboxes in one capture entry", async () => {
     await send(formPost("/journal", { date: "2026-09-28", content: "- Fixed the build\n* [x] Shipped docs\n• Paired with Sam", return_to: "/" }));
-    expect(ctx.vault.getEntries("2026-09-28").map((e) => e.text)).toEqual(["Fixed the build", "Shipped docs", "Paired with Sam"]);
+    expect(ctx.vault.getEntries("2026-09-28").map((e) => e.text)).toEqual(["- Fixed the build\n* [x] Shipped docs\n• Paired with Sam"]);
   });
 
   it("sends typed values back after an error so nothing is lost", async () => {
@@ -106,6 +105,8 @@ describe("journal capture", () => {
   it("rejects blank capture and bad time with a message", async () => {
     const blank = await send(formPost("/journal", { date: "2026-09-28", content: "   \n ", return_to: "/?date=2026-09-28" }));
     expect(blank.headers.get("location")).toContain("error=Write+something");
+    const checkbox = await send(formPost("/journal", { date: "2026-09-28", content: "[x]", return_to: "/" }));
+    expect(checkbox.headers.get("location")).toContain("error=Write+something");
 
     const badTime = await send(formPost("/journal", { date: "2026-09-28", content: "x", minutes: "soon", return_to: "/" }));
     expect(badTime.headers.get("location")).toContain("error=Time+spent");
@@ -114,9 +115,9 @@ describe("journal capture", () => {
 
   it("edits, stars and deletes an entry", async () => {
     const [entry] = ctx.vault.addEntries("2026-09-28", ["Draft"], { tags: [], goals: [], minutes: null, isHighlight: false, time: null });
-    await send(formPost(`/journal/${entry.id}`, { date: "2026-09-28", content: "Final #ops", minutes: "20" }));
+    await send(formPost(`/journal/${entry.id}`, { date: "2026-09-28", content: "Final #ops\n\n- **Checks** passed", minutes: "20" }));
     await send(formPost(`/journal/${entry.id}/star`, { date: "2026-09-28" }));
-    expect(ctx.vault.getEntries("2026-09-28")[0]).toMatchObject({ text: "Final", tags: ["ops"], minutes: 20, isHighlight: true });
+    expect(ctx.vault.getEntries("2026-09-28")[0]).toMatchObject({ text: "Final\n\n- **Checks** passed", tags: ["ops"], minutes: 20, isHighlight: true });
 
     await send(formPost(`/journal/${entry.id}/delete`, { date: "2026-09-28" }));
     expect(ctx.vault.getEntries("2026-09-28")).toEqual([]);
@@ -128,6 +129,20 @@ describe("journal capture", () => {
     const page = await html("/");
     expect(page).not.toContain("<script>alert(1)</script>");
     expect(page).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+  });
+
+  it("renders entry Markdown and inline metadata across Today, goal evidence and review, leaving todos inline", async () => {
+    const goal = ctx.vault.createGoal({ title: "Delivery", cycle: "2026", body: "" });
+    const text = "Retro\n\n- **Checks** #ops [[delivery]]\n- `#literal`";
+    ctx.vault.addEntries("2026-09-28", [text], { tags: [], goals: [], minutes: null, isHighlight: false, time: null });
+    const todo = ctx.vault.addTodo({ task: "**Todo**", priority: null, status: "Open", tags: [], goals: [goal.slug], notes: "" }, "2026-09-28");
+    ctx.vault.updateTodo(todo.id, { status: "Done" }, "2026-09-28");
+    for (const path of ["/", "/goals/delivery", "/review"]) {
+      const page = await html(path);
+      const className = path === "/review" ? "sheet-text" : "entry-text";
+      expect(page).toContain(`<div class="${className}"><p>Retro</p><ul><li><strong>Checks</strong> <span class="tag">#ops</span> <a class="goal-link" href="/goals/delivery">Delivery</a></li><li><code>#literal</code></li></ul></div>`);
+      expect(page).toContain(path === "/review" ? '<span class="sheet-text">**Todo**</span>' : '<p class="entry-text">**Todo**</p>');
+    }
   });
 });
 

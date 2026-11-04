@@ -3,7 +3,7 @@ import { monthYear, shortMonthDay } from "../lib/date";
 import { GOAL_STATUSES } from "../lib/validation";
 import type { Goal } from "../vault/format";
 import type { ReviewItem } from "../review";
-import { emptyState, goalIndex, hidden, icon, metaChips, notice, richText, type GoalIndex } from "./components";
+import { emptyState, entryHtml, goalIndex, hidden, icon, metaChips, notice, richText, type GoalIndex } from "./components";
 
 export interface GoalStats {
   entries: number;
@@ -127,7 +127,7 @@ function evidenceFeed(items: ReviewItem[], goals: GoalIndex, slug: string): stri
           .map(
             (item) => `<li class="entry${item.isHighlight ? " is-starred" : ""}${item.kind === "todo" ? " is-todo" : ""}">
               <div class="margin"><time datetime="${item.date}">${shortMonthDay(item.date)}</time>${item.kind === "todo" ? `<span class="done-mark" title="Completed todo">${icon("check")}</span>` : ""}</div>
-              <div class="entry-body"><p class="entry-text">${richText(item.text, goals)}</p>${metaChips({ ...item, goals: item.goals.filter((g) => g !== slug) }, goals)}</div>
+              <div class="entry-body">${item.kind === "entry" ? `<div class="entry-text">${entryHtml(item.text, goals)}</div>` : `<p class="entry-text">${richText(item.text, goals)}</p>`}${metaChips({ ...item, goals: item.goals.filter((g) => g !== slug) }, goals)}</div>
               <a class="icon-btn" href="/?date=${item.date}#${item.kind === "todo" ? "todo" : "entry"}-${item.id}" aria-label="Open ${item.date}" title="Open day">${icon("arrow")}</a>
             </li>`,
           )

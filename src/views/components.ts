@@ -1,4 +1,5 @@
 import { escapeHtml } from "../lib/html";
+import { renderEntryMarkdown } from "../lib/markdown";
 import { formatMinutes } from "../lib/date";
 import { allSubtasks, findLinks, findTags, type Goal, type Subtask, type Todo } from "../vault/format";
 
@@ -43,7 +44,16 @@ export function goalTitle(slug: string, goals: GoalIndex): string {
  * user typed. Runs on escaped text, so no raw HTML can get through.
  */
 export function richText(text: string, goals: GoalIndex): string {
-  return escapeHtml(text)
+  return decorateEntryText(escapeHtml(text), goals);
+}
+
+/** Renders entry Markdown with the same inline metadata as todo text. */
+export function entryHtml(text: string, goals: GoalIndex): string {
+  return renderEntryMarkdown(text, (escaped) => decorateEntryText(escaped, goals));
+}
+
+function decorateEntryText(escaped: string, goals: GoalIndex): string {
+  return escaped
     .replace(/(^|\s)#([\p{L}\p{N}_/-]+)/gu, (match, lead, name) =>
       /^\d+$/.test(name) ? match : `${lead}<span class="tag">#${name}</span>`,
     )

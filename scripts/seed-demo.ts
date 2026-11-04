@@ -80,6 +80,16 @@ vault.addEntries(today, ["Walked the team through the billing cutover checklist"
 vault.addEntries(today, ["Unblocked Priya on the retry backoff math"], {
   tags: ["mentoring"], goals: [mentoring], minutes: 20, isHighlight: false, time: "11:15",
 });
+vault.addEntries(today, [`Billing cutover retro
+Went smoother than planned. Two things worth keeping:
+
+- **Dry run the day before** caught the missing index
+- Paging on-call early meant no surprises
+  - they had the dashboards open before we started
+
+Next: turn the checklist into a runbook #ops`], {
+  tags: [], goals: [], minutes: null, isHighlight: false, time: null,
+});
 
 const todo = (task: string, priority: "High" | "Medium" | "Low" | null, goals: string[] = []) =>
   vault.addTodo({ task, priority, status: "Open", tags: [], goals, notes: "" }, addDays(today, -20));

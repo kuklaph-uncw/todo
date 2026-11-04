@@ -139,7 +139,7 @@ No telemetry. No cloud dependency. No account.
 
 ### 5.7 The Files Are the Truth
 
-The notes folder (the "vault") is the source of truth. Everything the app writes is a Markdown line or file that reads naturally in a text editor or Obsidian. Hand edits made outside the app should survive, and backing up means copying the folder.
+The notes folder (the "vault") is the source of truth. Everything the app writes is a Markdown block or file that reads naturally in a text editor or Obsidian. Hand edits made outside the app should survive, and backing up means copying the folder.
 
 ---
 
@@ -155,17 +155,19 @@ The app is intentionally optimized for a single-user workflow.
 
 ### 7.1 Daily Capture
 
-The user opens the app, types one or more accomplishments, saves them, and closes the window.
+The user opens the app, writes a journal entry, saves it, and closes the window.
 
 Example input:
 
 ```txt
 Reviewed API migration proposal #review
-Helped Alex debug staging auth issue [[improve-reliability]]
-Cleaned up flaky billing test
+
+Two things to follow up:
+- Check the rollback plan
+- Ask Alex about staging auth [[improve-reliability]]
 ```
 
-Each line becomes its own journal entry for the selected date. Entries logged for today get the current clock time.
+One submit becomes one journal entry for the selected date, with paragraphs and Markdown kept. Entries logged for today get the current clock time.
 
 ---
 
@@ -279,10 +281,10 @@ The default landing page. It answers:
 
 | ID   | Requirement                                                                                                  |
 | ---- | ------------------------------------------------------------------------------------------------------------ |
-| J-1  | User can add one or more entries for the selected date. Each non-blank line becomes one entry.               |
-| J-2  | Pasted list markers (`- `, `* `, `• `, `[x] `) are dropped from the start of each line.                       |
+| J-1  | One submit adds one entry for the selected date. An entry can contain several paragraphs of Markdown.      |
+| J-2  | Markdown list markers and body checkboxes are kept. A leading single-character checkbox marker on the first line (`[ ]`, `[x]`, `[-]`, `[/]`, `[!]`, etc.) is dropped. |
 | J-3  | User can edit an entry inline (`?edit=<id>`): its text, trailing `#tags` and `[[links]]`, and time spent.     |
-| J-4  | User can delete an entry after confirming. The deleted line is appended to `.trash/deleted.md`.               |
+| J-4  | User can delete an entry after confirming. The whole block is appended to `.trash/deleted.md`.             |
 | J-5  | User can star or unstar an entry as a highlight.                                                              |
 | J-6  | User can add tags by typing `#` (suggests existing tags, most used first) or typing `#tag` in full.          |
 | J-7  | User can link goals by typing `/` (suggests active goals) or typing `[[goal-slug]]` in full.                  |
@@ -292,13 +294,13 @@ The default landing page. It answers:
 | J-11 | Past and future dates are editable. Entries added to today get an `HH:MM` clock time; other days get none.    |
 | J-12 | On today, the capture form sends no date, so the server uses the real current day.                           |
 
-**Quick capture.** One bordered box: the text ("What did you get done? One line per entry. Type # for tags, / for goals.") with a toolbar inside it holding time spent ("Add time"), a star toggle, and "Add to ledger". Time and star apply to every line added. The box is two lines tall at rest, about six while focus is inside it, and grows with the text up to 75% of the window. Focus mode (the expand button or `Ctrl + Shift + F`) fills the window with the box; `Esc` or saving leaves it.
+**Quick capture.** One bordered box: the text ("`What's worth keeping from the day? Write as much as you like; Markdown works (- lists, **bold**). Type # for tags, / for goals.`") with a toolbar inside it holding time spent ("Add time"), a star toggle, and "Add to ledger". Time and star apply to the entry. The box is two lines tall at rest, about six while focus is inside it, and grows with the text up to 75% of the window. Focus mode (the expand button or `Ctrl + Shift + F`) fills the window with the box; `Esc` or saving leaves it.
 
 **Inline tags and goals.** With the script, each field that takes `#tags` (capture, entry edit, TODO add and edit) becomes an editor where tags and goal links show as pills; goal pills show the goal's title. Typing `#` or `/` at the start of a word opens suggestions at the caret (arrows move, `Tab`/`Enter` pick, `Esc` closes). When nothing matches, the list says why (no goals yet, no match). The hidden original field always holds the plain text that is saved (`#tag`, `[[slug]]`), so drafts and the server see no difference.
 
 **Draft protection.** Unsent capture text is saved in `localStorage` (key `draft:today` on today, `draft:YYYY-MM-DD` on other days). It restores after a reload and clears after a successful save.
 
-**Display.** Inline `#tags` and `[[links]]` are styled in place. Tags and links not written inline, and time spent, show as chips under the entry. A `[[link]]` that matches no goal is dimmed with a hint to check the spelling.
+**Display.** On Today, goal evidence and Review, entries render paragraphs (single line breaks become `<br>`), `-`, `*` or `+` bullets and `1.` numbered lists nested by indent, `#` headings shifted down two levels (at most `h6`), `**bold**`, `*italic*` or `_italic_`, and backtick code spans. Underscores inside words stay literal; asterisks can emphasize part of a word. Other Markdown, including ordinary links, images, HTML, fenced code and checkboxes, stays literal. All text is HTML-escaped first. Inline `#tags` and `[[links]]` are styled outside code spans. Tags and links not written inline, and time spent, show as chips under the entry. A `[[link]]` that matches no goal is dimmed with a hint to check the spelling. TODO text keeps its inline tags and links without Markdown formatting.
 
 ---
 
@@ -350,6 +352,8 @@ Shown under the day title:
 | TM-12 | User can reorder open TODOs, and move, indent, and outdent subtasks, by dragging a grip handle or with hotkeys (20.2). A TODO can't become a subtask, and a subtask can't become a TODO. |
 
 The header shows counts per status, plus "showing N" when filtering.
+
+With `app.js`, search updates as the user types and the priority, tag and goal selects apply in place (section 16). Without it, the filter form's Apply button submits normally.
 
 **Sort.**
 
@@ -491,7 +495,7 @@ All data lives in one folder of Markdown files. There is no database and no cach
 ├── goals/
 │   └── <slug>.md               one file per goal
 ├── .trash/
-│   └── deleted.md              append-only log of deleted lines
+│   └── deleted.md              append-only log of deleted items
 └── .workledger/
     └── error.log               the installed app's error log (not notes)
 ```
@@ -500,7 +504,7 @@ Files and folders are created on first write.
 
 ### 10.2 Journal Note
 
-`journal/YYYY/YYYY-MM-DD.md`. The app creates it with `date` frontmatter. Every top-level `- ` line that is not a task (`- [ ] `) is an entry. Headings, paragraphs and other text are left alone.
+`journal/YYYY/YYYY-MM-DD.md`. The app creates it with `date` frontmatter. Every top-level `- ` line that is not a task (`- [ ] `) starts an entry. Text outside entry blocks is left alone.
 
 ```md
 ---
@@ -508,8 +512,15 @@ date: 2026-09-28
 ---
 
 - 09:15 Reviewed the migration plan #review [[improve-reliability]] ⏱ 45m ⭐ ^k3x9qa
+    Two things to follow up:
+
+    - Check the **rollback plan**
+      - Verify the staging checklist
+    - Ask Alex about staging auth
 - Helped support with an escalation ^m7p2rd
 ```
+
+Metadata is parsed only on the first line. The app writes non-blank continuation lines with four spaces added to their typed indentation; internal blank lines stay empty. The reader accepts any space or tab indentation and ends an entry at the next non-blank, unindented line or end of file. Blank lines belong to the entry only when another indented line follows. It removes the smallest indent across non-blank body lines, but never more than four columns, counting a tab as four spaces. Indentation relative to the first line survives; hand-written two-space or tab-indented notes still dedent to zero. Tags and goal links anywhere in the body count alongside the first line's metadata, but remain in the body text.
 
 ### 10.3 `todos.md`
 
@@ -548,7 +559,7 @@ A missing title falls back to the slug. A missing or unknown status reads as `ac
 
 ### 10.5 Trash
 
-`.trash/deleted.md`. Each delete appends the removed line (and a TODO's notes and subtasks, or a subtask's children), with a UTC timestamp and the source file. Nothing is lost, but there is no restore button.
+`.trash/deleted.md`. Each delete appends the whole entry block, or the task line with its notes and subtasks, or a subtask with its children, with a UTC timestamp and the source file. Nothing is lost, but there is no restore button.
 
 ```md
 - Deleted 2026-09-28T18:42:15.123Z from journal/2026/2026-09-28.md
@@ -557,7 +568,7 @@ A missing title falls back to the slug. A missing or unknown status reads as `ac
 
 ### 10.6 Line Grammar
 
-Entry line: `- [HH:MM] text [#tags] [[[links]]] [⏱ Nm] [⭐] ^id`
+Entry first line: `- [HH:MM] text [#tags] [[[links]]] [⏱ Nm] [⭐] ^id`. Continuations follow the block rules in 10.2.
 
 TODO line: `- [mark] task [#tags] [[[links]]] [⏱ Nm] [priority] [⭐] [➕ created] [✅ completed] ^id`
 
@@ -575,21 +586,21 @@ Subtask line: `<indent>- [mark] text ^id`
 | `⏱ Nm`             | Time spent in minutes (app-specific). Counted for entries. On a TODO line it is kept but not shown or counted. |
 | `#tag`             | Tag. Letters, numbers, `_`, `/`, `-`. Lowercased. Number-only tags like `#892` are plain text, as in Obsidian. |
 | `[[slug]]`, `[[slug\|label]]` | Goal link (wikilink).                                                              |
-| `^id`              | Obsidian block ID. The app uses it to find the line again.                                    |
+| `^id`              | Obsidian block ID. The app uses it to find the entry or task again.                           |
 | `HH:MM`            | Local clock time, entries only.                                                               |
 
 Rules:
 
-- `#tags` and `[[links]]` at the end of a line are metadata and are not shown as part of the text. Ones mid-sentence stay in the text and still count. A labeled link `[[slug|label]]` always stays in the text, and so does anything written before it.
-- When the app rewrites a line, it never duplicates a tag or link already written inline.
+- `#tags` and `[[links]]` at the end of an entry's first line or a TODO line are metadata and are not shown as part of the text. Ones mid-sentence stay in the text and still count. A labeled link `[[slug|label]]` always stays in the text, and so does anything written before it.
+- When the app rewrites an item, it never duplicates a tag or link already written inline, including in an entry's body.
 - Emoji variation selectors written by other editors are ignored.
 
 ### 10.7 IDs and Hand Edits
 
 - IDs are 6 random characters from `a-z` and `2-9`, excluding look-alikes (`l`, `o`, `0`, `1`), unique within the file.
-- A hand-written entry or TODO line without `^id` gets one the first time the app reads the file. That line is rewritten in the app's canonical token order. Other lines are untouched.
+- A hand-written entry without `^id` gets one appended to its first line on first read; its body and existing token order are untouched. A TODO without `^id` gets one by rewriting its task line in canonical token order.
 - Lines the app doesn't recognize are preserved as written.
-- Rewrites happen on first read (missing ID), star, edit, and status change. They keep a trailing labeled link `[[slug|label]]` as written, and any `⏱ Nm` on a TODO line.
+- Rewrites happen on first read (missing ID), star, edit, and status change. Entry edits and star changes rewrite the whole block. They keep a trailing labeled link `[[slug|label]]` as written, and any `⏱ Nm` on a TODO line.
 
 ### 10.8 Writes
 
@@ -629,23 +640,23 @@ Date strings are parsed as local dates. Impossible dates such as `2026-02-30` ar
 ### 12.1 Creating Journal Entries
 
 1. Use the form's date, or today if blank. Reject an invalid date.
-2. Split the text on line breaks, trim, drop list markers and blank lines. Reject if nothing is left.
+2. Parse the whole input as one entry: normalize line endings, trim outer blank lines and line ends, and drop a leading first-line checkbox (J-2). Normalize whitespace on the first line; keep body line breaks and indentation as typed, without dedenting. Reject empty parsed text, including a lone checkbox marker.
 3. Parse time spent. Reject unreadable input.
-4. For each line, pull out typed `#tags` and `[[links]]`.
+4. Collect tags and goal links under the entry metadata rules (10.2).
 5. Add the clock time only when the date is today.
-6. Write the lines after the day's last entry (or create the note with frontmatter).
+6. Write one block after the day's last entry (or create the note with frontmatter).
 7. Redirect back (303).
 
 ### 12.2 Updating Journal Entries
 
-- Editable: text (including trailing tags and links) and time spent.
+- Editable: text (including trailing tags and links) and time spent. Edits use the same input normalization as capture and keep the entry's line breaks.
 - Star and unstar are a separate action.
 - Empty text is rejected: "An entry can't be empty. Delete it instead."
 - Moving an entry to another date is not supported.
 
 ### 12.3 Deleting Journal Entries
 
-The line is appended to `.trash/deleted.md`, then removed from the note.
+The whole entry block is appended to `.trash/deleted.md`, then removed from the note. Neighboring entries and other notes stay untouched.
 
 ### 12.4 Creating TODOs
 
@@ -786,11 +797,12 @@ Exports take the same parameters as `/review`. Downloads are named `accomplishme
 - Highlights is omitted in starred-only mode.
 - `★` marks starred items in By goal and the daily lists. TODOs show `[Priority]`.
 - `[[links]]` become their label, else the goal's title, else the slug.
+- In Highlights, By goal and the daily journal list, an entry's continuation lines are indented two spaces under its bullet, preserving relative indentation. Blank lines stay empty.
 - An empty result ends with `_Nothing recorded in this range._`
 
 ### 14.3 Copy the Document
 
-The server puts the same Markdown in the collapsed "Markdown source" textarea, and a minimal HTML version (headings, lists, paragraphs) in a `<template>`. The copy button writes both to the clipboard, so it pastes as formatted text in Word or Google Docs and as Markdown in plain text boxes. If the clipboard API fails, it falls back to plain text. If that fails too, it opens the Markdown source, selects it, and asks the user to press Ctrl+C.
+The server puts the same Markdown in the collapsed "Markdown source" textarea, and a minimal HTML version in a `<template>`. List blocks use the entry renderer (9.2), including indented continuations; each item's first paragraph has no extra `<p>` wrapper inside its `<li>`. The copy button writes both to the clipboard, so it pastes as formatted text in Word or Google Docs and as Markdown in plain text boxes. If the clipboard API fails, it falls back to plain text. If that fails too, it opens the Markdown source, selects it, and asks the user to press Ctrl+C.
 
 ### 14.4 JSON
 
@@ -819,7 +831,7 @@ The server puts the same Markdown in the collapsed "Markdown source" textarea, a
 }
 ```
 
-`goals` lists every goal, not only those in range. Item `type` is `journal` or `todo`. Item goals carry `{ slug, title }`.
+`goals` lists every goal, not only those in range. Item `type` is `journal` or `todo`. Item goals carry `{ slug, title }`. Entry `text` keeps its line breaks in JSON and JSONL, encoded as `\n` within the string.
 
 ### 14.5 JSONL
 
@@ -857,7 +869,7 @@ Anything else, including a path with a malformed `%` escape, returns the "Not fo
 
 | Path                              | Fields                                                     | Action                                  |
 | --------------------------------- | ---------------------------------------------------------- | --------------------------------------- |
-| `/journal`                        | `date`, `content`, `tags`, `minutes`, `star`, `goals`*, `return_to` | Add entries.                  |
+| `/journal`                        | `date`, `content`, `tags`, `minutes`, `star`, `goals`*, `return_to` | Add one entry.                |
 | `/journal/:id`                    | `date`, `content`, `minutes`, `return_to`                  | Edit entry.                             |
 | `/journal/:id/star`               | `date`, `return_to`                                        | Toggle star.                            |
 | `/journal/:id/delete`             | `date`, `return_to`                                        | Delete entry to trash.                  |
@@ -889,6 +901,7 @@ There is no HTMX and no client framework. The server renders full HTML pages, an
 | Behavior               | Detail                                                                                                   |
 | ---------------------- | -------------------------------------------------------------------------------------------------------- |
 | In-place form posts    | POST forms are sent with `fetch`. The redirected page's `<main>` and nav replace the current ones, and the URL updates. Focus stays on the same control, or the same or a nearby row. New entries are briefly marked. On a network error it falls back to a normal submit. |
+| Live TODO filters      | The `data-live-search` form waits 250ms after the last committed keystroke, then fetches its GET URL. Only `.page-sub`, `.filter-actions` and `#todo-results` are replaced and initialized, leaving unsent add-TODO text and the search field intact. Typing pauses live search while a `.todo-edit` is open; Enter or a select change still submits. Composing input is ignored; composition end schedules the committed text. Unchanged filters skip the fetch; new input aborts pending requests so stale responses cannot swap. Debounced typing uses `replaceState`; explicit submits use `pushState`. Apply is hidden. Network errors fall back to a normal submit. |
 | Confirmations          | Forms with `data-confirm` ask before posting (delete, clear completion).                     |
 | Drafts                 | Capture text saved in `localStorage` per day. Cleared after a successful save.                            |
 | Auto-submit            | Filter selects and checkboxes submit on change. The date picker waits 900ms for typing to stop.           |
@@ -897,7 +910,7 @@ There is no HTMX and no client framework. The server renders full HTML pages, an
 | Reordering             | Drag a TODO or subtask by its grip handle, or use the hotkeys in 20.2. Needs the script.                  |
 | Keyboard shortcuts     | See 20.2.                                                                                                 |
 
-Without the script, the date picker shows a "Go" button. Destructive actions then post without a confirmation prompt (see 28.3).
+Without the script, the date picker shows a "Go" button and TODO filters keep their Apply button. Destructive actions then post without a confirmation prompt (see 28.3).
 
 ---
 
@@ -1017,10 +1030,12 @@ todo/
 │   └── lib/
 │       ├── date.ts
 │       ├── html.ts
+│       ├── lines.ts              # indented continuation boundaries
+│       ├── markdown.ts           # safe entry Markdown subset
 │       └── validation.ts
 └── tests/
     ├── helpers/test-vault.ts
-    ├── unit/                     # date, format, html, review, validation
+    ├── unit/                     # date, format, html, markdown, review, validation
     └── integration/              # vault, routes, server, app-protocol, launch
 ```
 
@@ -1159,7 +1174,7 @@ Copy-Item -Recurse "$HOME\Work Ledger" "$HOME\Backups\Work Ledger $(Get-Date -Fo
 
 **Restore.** Close the app, then copy a backup over the folder (or point `VAULT_PATH` at it).
 
-**Deleted items.** Find the line in `.trash/deleted.md` and paste it back into its file. There is no restore button.
+**Deleted items.** Find the deleted item in `.trash/deleted.md` and paste it back into its file, including an entry's continuation lines. There is no restore button.
 
 **Not yet built.** A `bun run backup` command that copies the vault to a configured folder.
 
@@ -1167,24 +1182,25 @@ Copy-Item -Recurse "$HOME\Work Ledger" "$HOME\Backups\Work Ledger $(Get-Date -Fo
 
 ## 23. Testing
 
-`bun test` runs 152 tests across 10 files. Tests use a temp vault and a clock pinned to 2026-09-28 14:05.
+`bun test` runs 222 tests across 11 files. Tests use a temp vault and a clock pinned to 2026-09-28 14:05.
 
 ### 23.1 Unit (`tests/unit/`)
 
 | File                   | Covers                                                                                  |
 | ---------------------- | --------------------------------------------------------------------------------------- |
 | `date.test.ts`         | Local dates, validation, `addDays`, `startOfWeek`, every preset, last quarter across a year boundary, `formatMinutes`. |
-| `format.test.ts`       | Entry and TODO line parsing and round-trips, mid-sentence vs trailing tags, number-only hashtags, variation selectors, notes, frontmatter quoting, goal defaults. |
+| `format.test.ts`       | Entry blocks and TODO lines: parsing and round-trips, continuation boundaries, dedent with spaces and tabs, editable text, multi-line input normalization, tags and goals across the body, list markers and first-line checkboxes, number-only hashtags, variation selectors, notes, frontmatter quoting, goal defaults. |
 | `html.test.ts`         | `escapeHtml`.                                                                           |
-| `review.test.ts`       | Grouping, ordering, stats, goal grouping, filters, newest first, exact Markdown output, Markdown to HTML, empty range, JSON and JSONL shape, filter parsing and the 12-month default. |
+| `markdown.test.ts`     | Paragraph breaks, nested ordered and unordered lists, heading levels, escaping before emphasis, code-span isolation, literal unsupported syntax, intraword underscore and asterisk rules, underscored tags and goal labels. |
+| `review.test.ts`       | Grouping, ordering, stats, goal grouping, filters, newest first, exact Markdown output with multi-line entries in every list, whole-item HTML and single-paragraph spacing, empty range, JSON and JSONL shape and preserved line breaks, filter parsing and the 12-month default. |
 | `validation.test.ts`   | Tags, priority, status, time-spent parsing, slugs, `safeReturnPath`.                    |
 
 ### 23.2 Integration (`tests/integration/`)
 
 | File                     | Covers                                                                                 |
 | ------------------------ | -------------------------------------------------------------------------------------- |
-| `vault.test.ts`          | Daily note creation, appending after existing entries, ID assignment on read, update and delete with trash, date listing across years, TODO completion freezing and clearing, notes, goal slugs. |
-| `routes.test.ts`         | Pages, 404s, multi-line capture with clock time, overnight-window date, list-marker stripping, error round-trips, backfill, edit/star/delete, escaping, past-day check-off, TODO filters and edits, goal evidence, review downloads, filtered naming, dev request guard, `return_to`. |
+| `vault.test.ts`          | Daily note creation, normalized multi-line blocks returned as read back, appending after whole entries, ID assignment changing only the first line, whole-block update and delete with trash, neighboring notes preserved, date listing across years, TODO completion freezing and clearing, notes, goal slugs. |
+| `routes.test.ts`         | Pages, 404s, one multi-line entry per submit with clock time, overnight-window date, Markdown markers kept, blank and checkbox-only capture rejected, error round-trips, backfill, multi-line edit/star/delete, entry Markdown across Today, goal evidence and Review while TODOs stay inline, escaping, past-day check-off, TODO filters and edits, review downloads, filtered naming, dev request guard, `return_to`. |
 | `server.test.ts`         | Dev server over real HTTP: CSP, assets, form post and redirect, 404, path traversal.   |
 | `app-protocol.test.ts`   | `app://` handler: CSP and nosniff, host check, origin check for posts, assets, traversal. |
 | `launch.test.ts`         | Vault path resolution, error log writing.                                              |
@@ -1198,8 +1214,8 @@ Run against a build from `bun run build`:
 1. Install from the NSIS installer without admin rights.
 2. Launch. One window opens on Today. The rail shows the notes path, `C:\Users\<name>\Work Ledger`.
 3. Launch again. The existing window comes forward. No second window.
-4. Add three entries with multi-line capture. Add one for yesterday.
-5. Add three TODOs. Mark two done, one while viewing yesterday. It counts on yesterday.
+4. Submit an entry with several paragraphs and a nested Markdown list. Confirm it stays one entry, edit it and confirm its line breaks survive. Add two more entries in separate submits and one for yesterday.
+5. Add three TODOs. On Todos, type in search and change each filter select; results update in place, focus and caret stay put, and typing adds no history entries. With the script off, confirm Apply works. Mark two TODOs done, one while viewing yesterday. It counts on yesterday.
 6. Star one entry. Confirm the day summary counts.
 7. Add a goal. Link an entry to it. Confirm it on the goal page.
 8. Open Review, This week. Confirm dates. Copy the document and paste into Word (formatted) and Notepad (Markdown).
@@ -1220,10 +1236,10 @@ Run against a build from `bun run build`:
 | ID   | Acceptance Criterion                                             |
 | ---- | ---------------------------------------------------------------- |
 | AC-1 | User can add a journal entry for today in under 10 seconds.      |
-| AC-2 | User can paste multiple lines and save them as separate entries. |
+| AC-2 | User can submit several paragraphs of Markdown as one entry.    |
 | AC-3 | User can add entries for a previous date.                        |
 | AC-4 | User can edit journal entries.                                   |
-| AC-5 | User can delete journal entries. The deleted line is kept in trash. |
+| AC-5 | User can delete journal entries. The whole block is kept in trash. |
 | AC-6 | User can star important entries.                                 |
 | AC-7 | Draft journal text survives page reload before submission.       |
 
@@ -1309,7 +1325,7 @@ If logging consistency is below 50% after a month, the likely issue is UX fricti
 | Capture feels too structured       | Keep metadata optional and out of the way. Suggest `#tags` and goals inline. |
 | TODOs dominate the app             | Keep Today journal-first.                                                   |
 | Review output is noisy             | Stars, starred-only mode, tag and goal filters.                             |
-| Accidental deletion loses history  | Confirm deletes. Append deleted lines to `.trash/deleted.md`.               |
+| Accidental deletion loses history  | Confirm deletes. Append whole deleted items to `.trash/deleted.md`.         |
 | Completion dates become unreliable | Freeze completion dates. Never date a TODO in the future.                   |
 | Vault is lost                      | Show the vault path on every page. Backup is a folder copy.                 |
 | Hand edits break the app           | Unrecognized lines are left alone. Missing IDs are added on read. Writes are atomic. |
@@ -1327,7 +1343,6 @@ If logging consistency is below 50% after a month, the likely issue is UX fricti
 - Restore deleted items from the trash in the app.
 - Delete or archive a goal in the app.
 - Move a journal entry to another date.
-- "Save as one entry" option for multi-line capture.
 - Backup command (`bun run backup`).
 - CSV exports and a raw data page (D-6 to D-9).
 - JSON or CSV import.
@@ -1355,7 +1370,7 @@ Everything in sections 8 to 24 exists in the code, except items marked "Not yet 
 - Review: eight presets, custom ranges, filters, copy as formatted text, Markdown/JSON/JSONL, print to PDF.
 - Markdown vault storage with Obsidian-compatible syntax.
 - Windows desktop app with the security model in section 21.
-- 152 automated tests.
+- Automated tests (section 23).
 
 `planning/*.html` holds the original milestone plans (`milestone-01-foundation.html` to `milestone-07-polish-backup.html`), the acceptance matrix, and UI mockups. They describe the earlier SQLite and HTMX design and are kept as history.
 
@@ -1367,7 +1382,6 @@ Everything in sections 8 to 24 exists in the code, except items marked "Not yet 
 | Restore from trash                     | Original plan deferred it. Today a manual copy-paste.                |
 | Backup command                         | Original "future enhancement". Today a manual folder copy.           |
 | Move an entry to another date          | Original plan said "may be supported". Not built.                    |
-| "Save as one entry"                    | Original plan said "a later version may add". Not built.             |
 | README                                 | There is no README. Setup, commands, and backup steps live only in this document. |
 | Goal delete or archive                 | No UI. Delete the file by hand.                                      |
 | Tests for `app.js` and `main.ts`       | Covered only by the manual smoke test.                               |
@@ -1376,3 +1390,4 @@ Everything in sections 8 to 24 exists in the code, except items marked "Not yet 
 
 - Without `app.js`, destructive actions post without a confirmation prompt. The desktop app always runs the script, so this only affects the dev server with scripts off.
 - Adding a TODO doesn't return typed values after a server-side error. That only happens for a blank task or a tampered field, so nothing of value is lost.
+- Tag extraction still counts tags inside code, even though code renders without tag pills. Changing extraction is deferred by the master agent; revisit if code pasted into entries shows up in tag stats.

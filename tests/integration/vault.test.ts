@@ -28,35 +28,61 @@ describe("journal", () => {
     ]);
   });
 
+  it("stores each multi-line input as one block and normalizes its input boundary", () => {
+    const [entry] = vault.addEntries("2026-09-28", ["\n[x] Shipped #ops \n  Ran **checks**:  \n\n  - tables #data [[delivery]]\n    - counts \n\n"], { ...noMeta, time: "09:15", minutes: 45 });
+    expect(read("journal", "2026", "2026-09-28.md")).toBe([
+      "---", "date: 2026-09-28", "---", "", `- 09:15 Shipped #ops ⏱ 45m ^${entry.id}`,
+      "      Ran **checks**:", "", "      - tables #data [[delivery]]", "        - counts", "",
+    ].join("\n"));
+    expect(vault.getEntries("2026-09-28")).toEqual([entry]);
+    const texts = ["Title\n\n  Body", "- Parent\n  - Child"];
+    const created = vault.addEntries("2026-09-29", texts, noMeta);
+    expect(created.map((item) => item.text)).toEqual(texts);
+    expect(vault.getEntries("2026-09-29")).toEqual(created);
+  });
+
   it("adds new entries after existing ones, leaving the user's other notes alone", () => {
     const dir = join(root, "journal", "2026");
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, "2026-09-28.md"), "# Monday\n\n- First thing\n\nFree-form notes stay here.\n");
+    writeFileSync(join(dir, "2026-09-28.md"), "# Monday\n\n- First thing\n    A paragraph\n\n    - a bullet\n\nFree-form notes stay here.\n");
     vault.addEntries("2026-09-28", ["Second thing"], noMeta);
     const lines = read("journal", "2026", "2026-09-28.md").split("\n");
     expect(lines[0]).toBe("# Monday");
     expect(lines[2]).toMatch(/^- First thing \^\w+$/);
-    expect(lines[3]).toMatch(/^- Second thing \^\w+$/);
-    expect(lines[5]).toBe("Free-form notes stay here.");
+    expect(lines.slice(3, 6)).toEqual(["    A paragraph", "", "    - a bullet"]);
+    expect(lines[6]).toMatch(/^- Second thing \^\w+$/);
+    expect(lines.slice(7)).toEqual(["", "Free-form notes stay here.", ""]);
   });
 
-  it("gives hand-written lines a block id the first time they're read", () => {
+  it("gives hand-written blocks an id by changing only their first line", () => {
     const dir = join(root, "journal", "2026");
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, "2026-09-27.md"), "- Typed in another editor\n");
+    const body = "\n  - Nested list #ops\n\n    - Child [[delivery]]\n\nOther notes\n";
+    writeFileSync(join(dir, "2026-09-27.md"), `- Typed in another editor${body}`);
     const [entry] = vault.getEntries("2026-09-27");
     expect(entry.id).toMatch(/^\w{6}$/);
-    expect(read("journal", "2026", "2026-09-27.md")).toBe(`- Typed in another editor ^${entry.id}\n`);
+    expect(entry.text).toBe("Typed in another editor\n- Nested list #ops\n\n  - Child [[delivery]]");
+    expect(read("journal", "2026", "2026-09-27.md")).toBe(`- Typed in another editor ^${entry.id}${body}`);
+    expect(vault.getEntries("2026-09-27")).toEqual([entry]);
   });
 
   it("updates and deletes by id; deletes are logged to .trash", () => {
-    const [entry] = vault.addEntries("2026-09-28", ["Draft"], noMeta);
-    vault.updateEntry("2026-09-28", entry.id, (e) => ({ ...e, text: "Final", isHighlight: true }));
-    expect(vault.getEntries("2026-09-28")[0]).toMatchObject({ text: "Final", isHighlight: true });
+    const dir = join(root, "journal", "2026");
+    mkdirSync(dir, { recursive: true });
+    const before = "# Monday\n\n";
+    const after = "\n\nFree-form notes\n- Neighbour ^next\n    Keep this body\n";
+    writeFileSync(join(dir, "2026-09-28.md"), `${before}- Draft ^draft\n    Old paragraph\n\n    - old bullet${after}`);
+    const [entry, neighbour] = vault.getEntries("2026-09-28");
+    vault.updateEntry("2026-09-28", entry.id, (e) => ({ ...e, text: "Final\nNew paragraph\n\n- new bullet\n  - nested", isHighlight: true }));
+    const updated = `- Final ⭐ ^${entry.id}\n    New paragraph\n\n    - new bullet\n      - nested`;
+    expect(read("journal", "2026", "2026-09-28.md")).toBe(`${before}${updated}${after}`);
 
     expect(vault.deleteEntry("2026-09-28", entry.id)).toBe(true);
-    expect(vault.getEntries("2026-09-28")).toEqual([]);
-    expect(read(".trash", "deleted.md")).toContain(`- Final ⭐ ^${entry.id}`);
+    expect(read("journal", "2026", "2026-09-28.md")).toBe(`${before}${after.slice(1)}`);
+    expect(vault.getEntries("2026-09-28")).toEqual([neighbour]);
+    expect(read(".trash", "deleted.md").split("\n").slice(1)).toEqual([
+      `    - Final ⭐ ^${entry.id}`, "        New paragraph", "    ", "        - new bullet", "          - nested", "",
+    ]);
     expect(vault.deleteEntry("2026-09-28", entry.id)).toBe(false);
   });
 

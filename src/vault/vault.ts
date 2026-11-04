@@ -16,14 +16,17 @@ import type { GoalStatus, Priority, Status } from "../lib/validation";
 import { slugify } from "../lib/validation";
 import {
   allSubtasks,
-  formatEntryLine,
+  entryContent,
+  formatEntry,
   formatGoal,
   formatSubtasks,
   formatTodo,
+  parseEntryBlocks,
   parseEntryLine,
   parseGoal,
   parseTodoBlocks,
   type Entry,
+  type EntryBlock,
   type Goal,
   type Subtask,
   type Todo,
@@ -82,6 +85,18 @@ export function applyTodoPatch(todo: Todo, patch: TodoPatch, today: string): Tod
 export function parseTaskInput(raw: string): { task: string; tags: string[]; goals: string[] } {
   const parsed = parseEntryLine(`- ${raw.replace(/\s+/g, " ").trim()}`, "");
   return { task: parsed?.text ?? "", tags: parsed?.tags ?? [], goals: parsed?.goals ?? [] };
+}
+
+/** Trims outer blank lines and line ends while keeping body indentation and breaks as typed. */
+export function parseEntryInput(raw: string): { text: string; tags: string[]; goals: string[] } {
+  const lines = raw.replace(/\r\n/g, "\n").split("\n").map((line) => line.trimEnd());
+  while (lines.length > 0 && !lines[0]) lines.shift();
+  while (lines.length > 0 && !lines[lines.length - 1]) lines.pop();
+  if (lines.length === 0) return { text: "", tags: [], goals: [] };
+
+  lines[0] = lines[0].trimStart().replace(/^\[.\](?:[ \t]+|$)/, "");
+  const first = parseEntryLine(`- ${lines[0]}`, "");
+  return entryContent(first ?? { text: "", tags: [], goals: [] }, lines.slice(1));
 }
 
 /** Done is done all the way down: checking an item checks everything under it. */
@@ -152,7 +167,7 @@ function writeLines(path: string, lines: string[]): void {
 
 interface DayFile {
   lines: string[];
-  items: { entry: Entry; index: number }[];
+  blocks: EntryBlock[];
 }
 
 interface TodoFile {
@@ -184,27 +199,23 @@ export class Vault {
 
   // ---- Journal -------------------------------------------------------------
 
-  /** Reads a daily note, giving any hand-written entry lines a block ID. */
+  /** Reads a daily note, assigning missing IDs by rewriting only each entry's first line. */
   private readDay(date: string): DayFile {
     const path = this.dayPath(date);
     const lines = readLines(path);
-    const items: DayFile["items"] = [];
-    lines.forEach((line, index) => {
-      const entry = parseEntryLine(line, date);
-      if (entry && entry.text) items.push({ entry, index });
-    });
+    const blocks = parseEntryBlocks(lines, date).filter((block) => block.entry.text);
 
-    const taken = new Set(items.map((item) => item.entry.id).filter(Boolean));
-    const missing = items.filter((item) => !item.entry.id);
+    const taken = new Set(blocks.map((block) => block.entry.id).filter(Boolean));
+    const missing = blocks.filter((block) => !block.entry.id);
     if (missing.length > 0) {
-      for (const item of missing) {
-        item.entry.id = newId(taken);
-        taken.add(item.entry.id);
-        lines[item.index] = formatEntryLine(item.entry);
+      for (const block of missing) {
+        block.entry.id = newId(taken);
+        taken.add(block.entry.id);
+        lines[block.start] = `${lines[block.start].trimEnd()} ^${block.entry.id}`;
       }
       writeLines(path, lines);
     }
-    return { lines, items };
+    return { lines, blocks };
   }
 
   /** Every date that has a daily note, ascending. */
@@ -224,7 +235,7 @@ export class Vault {
   }
 
   getEntries(date: string): Entry[] {
-    return this.readDay(date).items.map((item) => item.entry);
+    return this.readDay(date).blocks.map((block) => block.entry);
   }
 
   getEntriesInRange(from: string, to: string): Entry[] {
@@ -240,16 +251,16 @@ export class Vault {
   /** Appends one entry per text, right after the day's existing entries. */
   addEntries(date: string, texts: string[], meta: NewEntryMeta): Entry[] {
     const path = this.dayPath(date);
-    const { lines, items } = this.readDay(date);
-    const taken = new Set(items.map((item) => item.entry.id));
+    const { lines, blocks } = this.readDay(date);
+    const taken = new Set(blocks.map((block) => block.entry.id));
 
     const created = texts.map((raw) => {
-      const input = parseTaskInput(raw);
+      const input = parseEntryInput(raw);
       const entry: Entry = {
         id: newId(taken),
         date,
         time: meta.time,
-        text: input.task,
+        text: input.text,
         tags: [...new Set([...input.tags, ...meta.tags])],
         goals: [...new Set([...input.goals, ...meta.goals])],
         minutes: meta.minutes,
@@ -259,11 +270,11 @@ export class Vault {
       return entry;
     });
 
-    const newLines = created.map(formatEntryLine);
+    const newLines = created.flatMap(formatEntry);
     if (lines.length === 0) {
       writeLines(path, [`---`, `date: ${date}`, `---`, ``, ...newLines]);
     } else {
-      const at = items.length > 0 ? items[items.length - 1].index + 1 : lines.length;
+      const at = blocks.length > 0 ? blocks[blocks.length - 1].end : lines.length;
       lines.splice(at, 0, ...newLines);
       writeLines(path, lines);
     }
@@ -271,22 +282,22 @@ export class Vault {
   }
 
   updateEntry(date: string, id: string, change: (entry: Entry) => Entry): Entry | null {
-    const { lines, items } = this.readDay(date);
-    const item = items.find((candidate) => candidate.entry.id === id);
-    if (!item) return null;
-    const next = change({ ...item.entry });
-    lines[item.index] = formatEntryLine(next);
+    const { lines, blocks } = this.readDay(date);
+    const block = blocks.find((candidate) => candidate.entry.id === id);
+    if (!block) return null;
+    const next = change({ ...block.entry });
+    lines.splice(block.start, block.end - block.start, ...formatEntry(next));
     writeLines(this.dayPath(date), lines);
     return next;
   }
 
   deleteEntry(date: string, id: string): boolean {
     const path = this.dayPath(date);
-    const { lines, items } = this.readDay(date);
-    const item = items.find((candidate) => candidate.entry.id === id);
-    if (!item) return false;
-    this.trash(path, [lines[item.index]]);
-    lines.splice(item.index, 1);
+    const { lines, blocks } = this.readDay(date);
+    const block = blocks.find((candidate) => candidate.entry.id === id);
+    if (!block) return false;
+    this.trash(path, lines.slice(block.start, block.end));
+    lines.splice(block.start, block.end - block.start);
     writeLines(path, lines);
     return true;
   }

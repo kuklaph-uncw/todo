@@ -205,9 +205,9 @@ function goalOptionLabel(goal: Goal, goals: Goal[]): string {
 function filterBar(data: TodosViewData): string {
   const f = data.filters;
   const anyFilter = f.q || f.priority || f.tag || f.goal;
-  return `<form class="filter-bar" method="get" action="/todos" role="search">
+  return `<form class="filter-bar" method="get" action="/todos" role="search" data-live-search>
       <label class="field grow"><span>Search</span>
-        <input type="search" name="q" value="${escapeHtml(f.q)}" placeholder="Task, notes, #tag or goal" data-shortcut="/">
+        <input id="todo-search" type="search" name="q" value="${escapeHtml(f.q)}" placeholder="Task, notes, #tag or goal" data-shortcut="/">
       </label>
       <label class="field"><span>Priority</span><select name="priority" data-autosubmit>
         <option value="">Any</option>${PRIORITIES.map((p) => `<option${f.priority === p ? " selected" : ""}>${p}</option>`).join("")}
@@ -283,7 +283,7 @@ export function renderTodos(data: TodosViewData): string {
     ${hiddenNotice}
     ${addForm(data)}
     ${filterBar(data)}
-    ${body}
+    <div id="todo-results">${body}</div>
     ${composerData(data.tagCounts, data.goals)}
   </div>`;
 }

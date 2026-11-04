@@ -3,6 +3,7 @@
  * JSONL exports all read from `buildReview`, so they can never disagree.
  */
 import { escapeHtml } from "./lib/html";
+import { renderEntryMarkdown } from "./lib/markdown";
 import { formatMinutes, isValidDateString, presetRange, RANGE_PRESETS, type RangePreset } from "./lib/date";
 import type { Priority, Status } from "./lib/validation";
 import { plainText, type Goal } from "./vault/format";
@@ -227,6 +228,12 @@ function itemLine(item: ReviewItem, titleOf: TitleOf): string {
 /** Starred work is marked in every list, not only under Highlights. */
 const star = (item: ReviewItem) => (item.isHighlight ? "★ " : "");
 
+/** Keeps continuation text under its export bullet without adding spaces to blank lines. */
+function reviewBullet(text: string): string {
+  const [first, ...body] = text.split("\n");
+  return [`- ${first}`, ...body.map((line) => line ? `  ${line}` : "")].join("\n");
+}
+
 export function reviewToMarkdown(review: Review, goals: Goal[]): string {
   const { filters, stats } = review;
   const titleOf = titleLookup(goals);
@@ -249,14 +256,14 @@ export function reviewToMarkdown(review: Review, goals: Goal[]): string {
 
   if (review.highlights.length > 0 && !filters.highlightsOnly) {
     out.push("", "## Highlights", "");
-    for (const item of review.highlights) out.push(`- ${item.date} — ${itemLine(item, titleOf)}`);
+    for (const item of review.highlights) out.push(reviewBullet(`${item.date} — ${itemLine(item, titleOf)}`));
   }
 
   if (review.byGoal.length > 0) {
     out.push("", "## By goal");
     for (const group of review.byGoal) {
       out.push("", `### ${group.goal.title}`, "");
-      for (const item of group.items) out.push(`- ${item.date} — ${star(item)}${itemLine(item, titleOf)}`);
+      for (const item of group.items) out.push(reviewBullet(`${item.date} — ${star(item)}${itemLine(item, titleOf)}`));
     }
   }
 
@@ -265,7 +272,7 @@ export function reviewToMarkdown(review: Review, goals: Goal[]): string {
     out.push("", `### ${day.date}`);
     if (day.entries.length > 0) {
       out.push("", "#### Journal", "");
-      for (const item of day.entries) out.push(`- ${star(item)}${plainText(item.text, titleOf)}`);
+      for (const item of day.entries) out.push(reviewBullet(`${star(item)}${plainText(item.text, titleOf)}`));
     }
     if (day.todos.length > 0) {
       out.push("", "#### Completed TODOs", "");
@@ -283,28 +290,23 @@ export function reviewToMarkdown(review: Review, goals: Goal[]): string {
  */
 export function markdownToHtml(markdown: string): string {
   const out: string[] = [];
-  let inList = false;
-  for (const line of markdown.split("\n")) {
+  const lines = markdown.split("\n");
+  for (let at = 0; at < lines.length; at++) {
+    const line = lines[at];
     const heading = /^(#{1,4}) (.*)$/.exec(line);
-    const item = /^- (.*)$/.exec(line);
-    if (!item && inList) {
-      out.push("</ul>");
-      inList = false;
-    }
     if (heading) {
       const level = heading[1].length;
       out.push(`<h${level}>${escapeHtml(heading[2])}</h${level}>`);
-    } else if (item) {
-      if (!inList) out.push("<ul>");
-      inList = true;
-      out.push(`<li>${escapeHtml(item[1])}</li>`);
+    } else if (line.startsWith("- ")) {
+      const start = at;
+      while (at + 1 < lines.length && (/^- |^[ \t]/.test(lines[at + 1]) || !lines[at + 1].trim())) at++;
+      out.push(renderEntryMarkdown(lines.slice(start, at + 1).join("\n")));
     } else if (/^_.*_$/.test(line)) {
       out.push(`<p><em>${escapeHtml(line.slice(1, -1))}</em></p>`);
     } else if (line.trim()) {
       out.push(`<p>${escapeHtml(line)}</p>`);
     }
   }
-  if (inList) out.push("</ul>");
   return out.join("\n");
 }
 

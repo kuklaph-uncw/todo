@@ -767,6 +767,54 @@ a.goal-link:hover {
   color: var(--ink-2);
 }
 
+/* An entry is the user's own Markdown: short paragraphs, lists and headings, set like a notebook page. */
+:is(.entry-text, .sheet-text) > * + * {
+  margin-top: 0.5em;
+}
+
+:is(.entry-text, .sheet-text) :is(ul, ol) {
+  padding-left: 1.4em;
+}
+
+:is(.entry-text, .sheet-text) ul {
+  list-style: "– ";
+}
+
+:is(.entry-text, .sheet-text) ul ul {
+  list-style: "· ";
+}
+
+:is(.entry-text, .sheet-text) ol {
+  list-style: decimal;
+}
+
+:is(.entry-text, .sheet-text) li::marker {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+:is(.entry-text, .sheet-text) li + li,
+:is(.entry-text, .sheet-text) li > :is(ul, ol) {
+  margin-top: 0.15em;
+}
+
+:is(.entry-text, .sheet-text) :is(h3, h4, h5, h6) {
+  font: 600 1em/1.4 var(--serif);
+  color: var(--ink);
+}
+
+:is(.entry-text, .sheet-text) :is(h4, h5, h6) {
+  color: var(--ink-2);
+}
+
+:is(.entry-text, .sheet-text) > :is(h3, h4, h5, h6):not(:first-child) {
+  margin-top: 0.8em;
+}
+
+:is(.entry-text, .sheet-text) strong {
+  font-weight: 600;
+}
+
 .done-mark {
   display: inline-grid;
   color: var(--sage);
@@ -1962,6 +2010,25 @@ li.is-dragging {
   display: inline-flex;
   margin: 0 0 0 0.5rem;
   vertical-align: 0.1em;
+}
+
+/* A journal entry can run to several paragraphs: the date keeps its column and the chips sit under the text. */
+.sheet-item:has(> div.sheet-text) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.sheet-item:has(> div.sheet-text) > :not(.item-date) {
+  grid-column: 2;
+}
+
+.sheet-item:has(> div.sheet-text) > .item-date {
+  padding-top: 0.25em;
+}
+
+.sheet-item:has(> div.sheet-text) > .chips {
+  display: flex;
+  margin: 0.3rem 0 0;
 }
 
 .item-date {

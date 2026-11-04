@@ -2,7 +2,7 @@ import { escapeHtml } from "../lib/html";
 import { formatMinutes, monthYear, RANGE_PRESETS, shortMonthDay, weekdayName } from "../lib/date";
 import type { Goal } from "../vault/format";
 import { filterSummary, markdownToHtml, reviewFileName, reviewQuery, type Review, type ReviewFilters, type ReviewItem } from "../review";
-import { emptyState, goalIndex, icon, metaChips, richText, type GoalIndex } from "./components";
+import { emptyState, entryHtml, goalIndex, icon, metaChips, richText, type GoalIndex } from "./components";
 
 export interface ReviewViewData {
   review: Review;
@@ -32,7 +32,7 @@ function sheetItem(item: ReviewItem, goals: GoalIndex, withDate: boolean): strin
   const priority = item.priority ? `<span class="priority p-${item.priority.toLowerCase()}">${item.priority}</span>` : "";
   const date = withDate ? `<time class="item-date" datetime="${item.date}">${shortMonthDay(item.date)}</time>` : "";
   return `<li class="sheet-item${item.isHighlight ? " is-starred" : ""}${item.kind === "todo" ? " is-todo" : ""}">
-      ${date}${marker}<span class="sheet-text">${richText(item.text, goals)}</span>${priority}
+      ${date}${marker}${item.kind === "entry" ? `<div class="sheet-text">${entryHtml(item.text, goals)}</div>` : `<span class="sheet-text">${richText(item.text, goals)}</span>`}${priority}
       ${metaChips({ ...item, minutes: null }, goals)}
     </li>`;
 }
