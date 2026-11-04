@@ -87,5 +87,5 @@ if (import.meta.main) {
   const vaultPath = resolveVaultPath({ envPath: process.env.VAULT_PATH, standalone: false, home: homedir(), cwd: process.cwd() });
   const ctx: AppContext = { vault: new Vault(vaultPath), vaultPath, clock: () => new Date() };
   const server = Bun.serve({ hostname: "127.0.0.1", port: Number(process.env.PORT ?? 41820), fetch: devFetch(ctx) });
-  console.log(`Work Ledger (development) is running at ${server.url}\nNotes: ${vaultPath}`);
+  console.log(`ToDo (development) is running at ${server.url}\nNotes: ${vaultPath}`);
 }

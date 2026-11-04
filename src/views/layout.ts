@@ -48,7 +48,7 @@ export function renderLayout(options: LayoutOptions): string {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <title>${escapeHtml(options.title)} · Work Ledger</title>
+  <title>${escapeHtml(options.title)} · ToDo</title>
   <meta name="theme-color" content="#141311">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
@@ -58,7 +58,7 @@ export function renderLayout(options: LayoutOptions): string {
   <a class="skip-link" href="#main">Skip to content</a>
   <div class="shell">
     <header class="rail">
-      <a class="wordmark" href="/"><span class="wordmark-rule" aria-hidden="true"></span>Work Ledger</a>
+      <a class="wordmark" href="/"><span class="wordmark-rule" aria-hidden="true"></span>ToDo</a>
       <nav class="nav" aria-label="Main">${nav}</nav>
       <div class="rail-foot">
         <p class="rail-label">Vault</p>

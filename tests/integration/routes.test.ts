@@ -18,6 +18,9 @@ describe("pages", () => {
     const res = await send(get(path));
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/html");
+    const page = await res.text();
+    expect(page).toMatch(/<title>[^<]+ · ToDo<\/title>/);
+    expect(page).toContain('<span class="wordmark-rule" aria-hidden="true"></span>ToDo</a>');
   });
 
   it("falls back to today for an invalid date", async () => {

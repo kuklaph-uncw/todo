@@ -4,6 +4,7 @@
  * Security follows https://www.electronjs.org/docs/latest/tutorial/security.
  */
 import { app, BrowserWindow, dialog, Menu, protocol, session } from "electron";
+import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { logErrorsTo, resolveVaultPath } from "../launch";
@@ -15,6 +16,10 @@ import { APP_ORIGIN, isAppUrl, serveAppRequest } from "./protocol";
 const APP_ID = "com.workledger.app";
 
 // These must run before the app is ready.
+// Keep existing localStorage drafts when the displayed product name changes.
+const profilePath = join(app.getPath("appData"), "Work Ledger");
+mkdirSync(profilePath, { recursive: true });
+app.setPath("userData", profilePath);
 // standard: storage and relative links work. secure: clipboard works. supportFetchAPI: app.js can post forms.
 protocol.registerSchemesAsPrivileged([{ scheme: "app", privileges: { standard: true, secure: true, supportFetchAPI: true, codeCache: true } }]);
 app.setAppUserModelId(APP_ID);
@@ -47,7 +52,7 @@ async function start(): Promise<void> {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 860,
-    title: "Work Ledger",
+    title: "ToDo",
     backgroundColor: "#141311",
     webPreferences: {
       // Electron's defaults, stated so they're visible: pages get no Node or file access.
@@ -86,7 +91,7 @@ if ((app.isPackaged && debugSwitch) || !app.requestSingleInstanceLock()) {
   // With no "window-all-closed" handler, closing the window quits the app.
   start().catch((error: unknown) => {
     console.error(error);
-    dialog.showErrorBox("Work Ledger couldn't start", error instanceof Error ? error.message : String(error));
+    dialog.showErrorBox("ToDo couldn't start", error instanceof Error ? error.message : String(error));
     app.quit();
   });
 }

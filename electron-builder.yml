@@ -1,6 +1,6 @@
 # Packaging for Windows: `bun run build` writes a per-user installer and a zip to dist/.
 appId: com.workledger.app # must match APP_ID in src/electron/main.ts; changing it breaks taskbar pins
-productName: Work Ledger
+productName: ToDo
 directories:
   output: dist
 files:
