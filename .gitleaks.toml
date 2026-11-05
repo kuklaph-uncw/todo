@@ -1,0 +1,13 @@
+title = "ToDo local secret scanning"
+
+[extend]
+useDefault = true
+
+# Skip dependencies, tool binaries, installers, disposable files, and personal data.
+# Keep source (including src/vault) and the generated out/ bundle in scope.
+[allowlist]
+description = "Non-source directories at the repository root"
+paths = [
+  '''(?i)^(?:\.[\\/])?(?:node_modules|\.git|\.tools|vault|demo-vault|dist|tmp|\.serena)(?:[\\/]|$)''',
+  '''(?i)\.db(?:-wal|-shm|-journal)?$''',
+]

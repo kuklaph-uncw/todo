@@ -79,7 +79,10 @@ export function collectItems(vault: Vault, from: string, to: string): ReviewItem
 
   const todos: ReviewItem[] = vault
     .getTodos()
-    .filter((todo) => todo.status === "Done" && todo.completedOn !== null && todo.completedOn >= from && todo.completedOn <= to)
+    .filter(
+      (todo) =>
+        todo.status === "Done" && todo.completedOn !== null && todo.completedOn >= from && todo.completedOn <= to,
+    )
     .map((todo) => ({
       kind: "todo",
       id: todo.id,
@@ -214,7 +217,10 @@ export function reviewFileName(filters: ReviewFilters): string {
 
 type TitleOf = (slug: string) => string | undefined;
 
-const titleLookup = (goals: Goal[]): TitleOf => (slug) => goals.find((g) => g.slug === slug)?.title;
+const titleLookup =
+  (goals: Goal[]): TitleOf =>
+  (slug) =>
+    goals.find((g) => g.slug === slug)?.title;
 
 function todoLine(item: ReviewItem, titleOf: TitleOf): string {
   const text = plainText(item.text, titleOf);
@@ -231,7 +237,7 @@ const star = (item: ReviewItem) => (item.isHighlight ? "★ " : "");
 /** Keeps continuation text under its export bullet without adding spaces to blank lines. */
 function reviewBullet(text: string): string {
   const [first, ...body] = text.split("\n");
-  return [`- ${first}`, ...body.map((line) => line ? `  ${line}` : "")].join("\n");
+  return [`- ${first}`, ...body.map((line) => (line ? `  ${line}` : ""))].join("\n");
 }
 
 export function reviewToMarkdown(review: Review, goals: Goal[]): string {
@@ -244,7 +250,12 @@ export function reviewToMarkdown(review: Review, goals: Goal[]): string {
   out.push(`- Active logging days: ${stats.activeDays}`);
   if (stats.minutes > 0) out.push(`- Time logged: ${formatMinutes(stats.minutes)}`);
   if (stats.tags.length > 0) {
-    out.push(`- Top tags: ${stats.tags.slice(0, 8).map((t) => `#${t.name} (${t.count})`).join(", ")}`);
+    out.push(
+      `- Top tags: ${stats.tags
+        .slice(0, 8)
+        .map((t) => `#${t.name} (${t.count})`)
+        .join(", ")}`,
+    );
   }
   const filterText = filterSummary(filters, goals);
   if (filterText.length > 0) out.push(`- Filters: ${filterText.join("; ")}`);
@@ -353,5 +364,8 @@ export function reviewToJson(review: Review, goals: Goal[]) {
 /** One item per line; each line carries the range so it stands alone when chunked. */
 export function reviewToJsonl(review: Review, goals: Goal[]): string {
   const range = { from: review.filters.from, to: review.filters.to };
-  return review.items.map((item) => JSON.stringify({ ...itemJson(item, goals), range })).join("\n") + (review.items.length ? "\n" : "");
+  return (
+    review.items.map((item) => JSON.stringify({ ...itemJson(item, goals), range })).join("\n") +
+    (review.items.length ? "\n" : "")
+  );
 }

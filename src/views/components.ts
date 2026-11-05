@@ -2,6 +2,7 @@ import { escapeHtml } from "../lib/html";
 import { renderEntryMarkdown } from "../lib/markdown";
 import { formatMinutes } from "../lib/date";
 import { allSubtasks, findLinks, findTags, type Goal, type Subtask, type Todo } from "../vault/format";
+import { contentRevision } from "../vault/revision";
 
 /** Small inline icons; stroke uses currentColor so they follow text color. */
 const ICON_PATHS: Record<string, string> = {
@@ -29,7 +30,8 @@ export function icon(name: keyof typeof ICON_PATHS | string, filled = false): st
 export type GoalIndex = Map<string, Goal>;
 
 /** Shown on a [[link]] that matches no goal, which otherwise fails silently. */
-const UNKNOWN_GOAL_TITLE = "No goal has this link, so this doesn't count toward a goal. Check the spelling on the Goals page.";
+const UNKNOWN_GOAL_TITLE =
+  "No goal has this link, so this doesn't count toward a goal. Check the spelling on the Goals page.";
 
 export function goalIndex(goals: Goal[]): GoalIndex {
   return new Map(goals.map((goal) => [goal.slug, goal]));
@@ -138,7 +140,7 @@ export function subtaskPanel(
     const editing = opts.full && opts.editId === subtask.id;
     const body = editing
       ? `<form class="edit-form subtask-edit" method="post" action="/subtasks/${subtask.id}">
-          ${hidden("return_to", back)}
+          ${hidden("return_to", back)}${hidden("expected_revision", contentRevision(todo))}
           <label class="sr-only" for="sub-text-${subtask.id}">Subtask</label>
           <input id="sub-text-${subtask.id}" name="text" required value="${text}" autocomplete="off" autofocus>
           <button class="btn primary" type="submit">Save</button>
@@ -150,6 +152,7 @@ export function subtaskPanel(
         ? `<div class="row-actions">
             <a class="icon-btn" href="${escapeHtml(linkTo(subtask.id))}" aria-label="Edit: ${text}" title="Edit">${icon("edit")}</a>
             ${postButton({
+              todo,
               action: `/subtasks/${subtask.id}/delete`,
               label: `Delete: ${subtask.text}`,
               body: icon("trash"),
@@ -166,6 +169,7 @@ export function subtaskPanel(
         <div class="subtask-line">
           ${opts.full ? grip(subtask.id, subtask.text) : ""}
           ${postButton({
+            todo,
             action: `/subtasks/${subtask.id}/done`,
             label: subtask.done ? `Uncheck: ${subtask.text}` : `Check: ${subtask.text}`,
             body: icon("check"),
@@ -187,7 +191,7 @@ export function subtaskPanel(
       <summary hidden></summary>
       ${todo.subtasks.length ? `<ul class="subtask-list">${todo.subtasks.map(row).join("")}</ul>` : ""}
       <form class="subtask-add" method="post" action="/todos/${todo.id}/subtasks">
-        ${hidden("return_to", back)}
+        ${hidden("return_to", back)}${hidden("expected_revision", contentRevision(todo))}
         <label class="sr-only" for="add-sub-${todo.id}">Add a subtask to: ${escapeHtml(todo.task)}</label>
         <input id="add-sub-${todo.id}" name="text" required placeholder="Add a subtask" autocomplete="off">
       </form>
@@ -209,8 +213,13 @@ export function postButton(opts: {
   confirm?: string;
   pressed?: boolean;
   id?: string;
+  todo?: Todo;
 }): string {
-  const hidden = Object.entries({ return_to: opts.returnTo, ...opts.fields })
+  const hidden = Object.entries({
+    return_to: opts.returnTo,
+    ...(opts.todo ? { expected_revision: contentRevision(opts.todo) } : {}),
+    ...opts.fields,
+  })
     .map(([name, value]) => `<input type="hidden" name="${escapeHtml(name)}" value="${escapeHtml(value)}">`)
     .join("");
   const confirm = opts.confirm ? ` data-confirm="${escapeHtml(opts.confirm)}"` : "";
@@ -228,7 +237,10 @@ export function options(values: readonly string[], selected: string | null, blan
   return (
     blank +
     values
-      .map((value) => `<option value="${escapeHtml(value)}"${value === selected ? " selected" : ""}>${escapeHtml(value)}</option>`)
+      .map(
+        (value) =>
+          `<option value="${escapeHtml(value)}"${value === selected ? " selected" : ""}>${escapeHtml(value)}</option>`,
+      )
       .join("")
   );
 }

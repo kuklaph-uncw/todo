@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { applyTodoPatch, Vault } from "../../src/vault/vault";
+import { applyTodoPatch, type Vault } from "../../src/vault/vault";
 import type { Todo } from "../../src/vault/format";
 import { createTestVault } from "../helpers/test-vault";
 
@@ -29,11 +29,25 @@ describe("journal", () => {
   });
 
   it("stores each multi-line input as one block and normalizes its input boundary", () => {
-    const [entry] = vault.addEntries("2026-09-28", ["\n[x] Shipped #ops \n  Ran **checks**:  \n\n  - tables #data [[delivery]]\n    - counts \n\n"], { ...noMeta, time: "09:15", minutes: 45 });
-    expect(read("journal", "2026", "2026-09-28.md")).toBe([
-      "---", "date: 2026-09-28", "---", "", `- 09:15 Shipped #ops ⏱ 45m ^${entry.id}`,
-      "      Ran **checks**:", "", "      - tables #data [[delivery]]", "        - counts", "",
-    ].join("\n"));
+    const [entry] = vault.addEntries(
+      "2026-09-28",
+      ["\n[x] Shipped #ops \n  Ran **checks**:  \n\n  - tables #data [[delivery]]\n    - counts \n\n"],
+      { ...noMeta, time: "09:15", minutes: 45 },
+    );
+    expect(read("journal", "2026", "2026-09-28.md")).toBe(
+      [
+        "---",
+        "date: 2026-09-28",
+        "---",
+        "",
+        `- 09:15 Shipped #ops ⏱ 45m ^${entry.id}`,
+        "      Ran **checks**:",
+        "",
+        "      - tables #data [[delivery]]",
+        "        - counts",
+        "",
+      ].join("\n"),
+    );
     expect(vault.getEntries("2026-09-28")).toEqual([entry]);
     const texts = ["Title\n\n  Body", "- Parent\n  - Child"];
     const created = vault.addEntries("2026-09-29", texts, noMeta);
@@ -44,7 +58,10 @@ describe("journal", () => {
   it("adds new entries after existing ones, leaving the user's other notes alone", () => {
     const dir = join(root, "journal", "2026");
     mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, "2026-09-28.md"), "# Monday\n\n- First thing\n    A paragraph\n\n    - a bullet\n\nFree-form notes stay here.\n");
+    writeFileSync(
+      join(dir, "2026-09-28.md"),
+      "# Monday\n\n- First thing\n    A paragraph\n\n    - a bullet\n\nFree-form notes stay here.\n",
+    );
     vault.addEntries("2026-09-28", ["Second thing"], noMeta);
     const lines = read("journal", "2026", "2026-09-28.md").split("\n");
     expect(lines[0]).toBe("# Monday");
@@ -73,7 +90,11 @@ describe("journal", () => {
     const after = "\n\nFree-form notes\n- Neighbour ^next\n    Keep this body\n";
     writeFileSync(join(dir, "2026-09-28.md"), `${before}- Draft ^draft\n    Old paragraph\n\n    - old bullet${after}`);
     const [entry, neighbour] = vault.getEntries("2026-09-28");
-    vault.updateEntry("2026-09-28", entry.id, (e) => ({ ...e, text: "Final\nNew paragraph\n\n- new bullet\n  - nested", isHighlight: true }));
+    vault.updateEntry("2026-09-28", entry.id, (e) => ({
+      ...e,
+      text: "Final\nNew paragraph\n\n- new bullet\n  - nested",
+      isHighlight: true,
+    }));
     const updated = `- Final ⭐ ^${entry.id}\n    New paragraph\n\n    - new bullet\n      - nested`;
     expect(read("journal", "2026", "2026-09-28.md")).toBe(`${before}${updated}${after}`);
 
@@ -81,7 +102,12 @@ describe("journal", () => {
     expect(read("journal", "2026", "2026-09-28.md")).toBe(`${before}${after.slice(1)}`);
     expect(vault.getEntries("2026-09-28")).toEqual([neighbour]);
     expect(read(".trash", "deleted.md").split("\n").slice(1)).toEqual([
-      `    - Final ⭐ ^${entry.id}`, "        New paragraph", "    ", "        - new bullet", "          - nested", "",
+      `    - Final ⭐ ^${entry.id}`,
+      "        New paragraph",
+      "    ",
+      "        - new bullet",
+      "          - nested",
+      "",
     ]);
     expect(vault.deleteEntry("2026-09-28", entry.id)).toBe(false);
   });
@@ -97,13 +123,25 @@ describe("journal", () => {
 
 describe("todos", () => {
   it("adds a todo with a created date and inline tags", () => {
-    const todo = vault.addTodo({ task: "Fix auth test #bug", priority: "High", status: "Open", tags: [], goals: ["reliability"], notes: "" }, "2026-09-20");
-    expect(todo).toMatchObject({ task: "Fix auth test", tags: ["bug"], goals: ["reliability"], createdOn: "2026-09-20", completedOn: null });
+    const todo = vault.addTodo(
+      { task: "Fix auth test #bug", priority: "High", status: "Open", tags: [], goals: ["reliability"], notes: "" },
+      "2026-09-20",
+    );
+    expect(todo).toMatchObject({
+      task: "Fix auth test",
+      tags: ["bug"],
+      goals: ["reliability"],
+      createdOn: "2026-09-20",
+      completedOn: null,
+    });
     expect(read("todos.md")).toContain(`- [ ] Fix auth test #bug [[reliability]] ⏫ ➕ 2026-09-20 ^${todo.id}`);
   });
 
   it("freezes the first completion date through reopen and re-close", () => {
-    const todo = vault.addTodo({ task: "Ship", priority: null, status: "Open", tags: [], goals: [], notes: "" }, "2026-09-20");
+    const todo = vault.addTodo(
+      { task: "Ship", priority: null, status: "Open", tags: [], goals: [], notes: "" },
+      "2026-09-20",
+    );
     vault.updateTodo(todo.id, { status: "Done" }, "2026-09-21");
     vault.updateTodo(todo.id, { status: "Open" }, "2026-09-22");
     expect(vault.getTodo(todo.id)).toMatchObject({ status: "Open", completedOn: "2026-09-21" });
@@ -112,14 +150,24 @@ describe("todos", () => {
   });
 
   it("clears the completion date only when asked", () => {
-    const todo = vault.addTodo({ task: "Ship", priority: null, status: "Done", tags: [], goals: [], notes: "" }, "2026-09-20");
+    const todo = vault.addTodo(
+      { task: "Ship", priority: null, status: "Done", tags: [], goals: [], notes: "" },
+      "2026-09-20",
+    );
     expect(todo.completedOn).toBe("2026-09-20");
     vault.updateTodo(todo.id, { clearCompletion: true });
     expect(vault.getTodo(todo.id)?.completedOn).toBeNull();
   });
 
   it("keeps notes attached when editing and removes them with the todo", () => {
-    const a = vault.addTodo({ task: "A", priority: null, status: "Open", tags: [], goals: [], notes: "line one\nline two" });
+    const a = vault.addTodo({
+      task: "A",
+      priority: null,
+      status: "Open",
+      tags: [],
+      goals: [],
+      notes: "line one\nline two",
+    });
     const b = vault.addTodo({ task: "B", priority: null, status: "Open", tags: [], goals: [], notes: "" });
     vault.updateTodo(a.id, { task: "A edited" });
     expect(vault.getTodo(a.id)).toMatchObject({ task: "A edited", notes: "line one\nline two" });
@@ -167,10 +215,13 @@ describe("subtasks", () => {
     todo = vault.addTodo({ task: "Set up the org", priority: null, status: "Open", tags: [], goals: [], notes: "" });
   });
   const tree = () =>
-    vault.getTodos().map((t) => [t.task, ...t.subtasks.map(function show(s): unknown {
-      const label = `${s.done ? "x " : ""}${s.text}`;
-      return s.children.length ? [label, ...s.children.map(show)] : label;
-    })]);
+    vault.getTodos().map((t) => [
+      t.task,
+      ...t.subtasks.map(function show(s): unknown {
+        const label = `${s.done ? "x " : ""}${s.text}`;
+        return s.children.length ? [label, ...s.children.map(show)] : label;
+      }),
+    ]);
 
   it("adds subtasks at the end of a todo with ids from the file's id space", () => {
     const a = vault.addSubtask(todo.id, "Pick a name #naming")!;
@@ -250,7 +301,10 @@ describe("subtasks", () => {
     // Outdent: B becomes the sibling right after its parent.
     expect(vault.moveSubtask(b.id, { after: c.id })).toBe(true);
     expect(vault.moveSubtask(a.id, { into: other.id })).toBe(true);
-    expect(tree()).toEqual([["Other", "A"], ["Set up the org", "C", "B"]]);
+    expect(tree()).toEqual([
+      ["Other", "A"],
+      ["Set up the org", "C", "B"],
+    ]);
   });
 
   it("refuses moves into itself, under its own children, or next to a todo", () => {
@@ -282,12 +336,24 @@ describe("subtasks", () => {
 
 describe("applyTodoPatch", () => {
   const base: Todo = {
-    id: "x", status: "Open", task: "T", tags: [], goals: [], priority: null, minutes: null,
-    isHighlight: false, createdOn: null, completedOn: null, notes: "", subtasks: [],
+    id: "x",
+    status: "Open",
+    task: "T",
+    tags: [],
+    goals: [],
+    priority: null,
+    minutes: null,
+    isHighlight: false,
+    createdOn: null,
+    completedOn: null,
+    notes: "",
+    subtasks: [],
   };
 
   it("uses an explicit completion day when given (backfilling)", () => {
-    expect(applyTodoPatch(base, { status: "Done", completedOn: "2026-09-25" }, "2026-09-28").completedOn).toBe("2026-09-25");
+    expect(applyTodoPatch(base, { status: "Done", completedOn: "2026-09-25" }, "2026-09-28").completedOn).toBe(
+      "2026-09-25",
+    );
   });
 });
 
@@ -297,8 +363,17 @@ describe("goals", () => {
     const second = vault.createGoal({ title: "Improve reliability", cycle: "2026", body: "" });
     expect([first.slug, second.slug]).toEqual(["improve-reliability", "improve-reliability-2"]);
 
-    vault.saveGoal(first.slug, { title: "Improve platform reliability", cycle: "2026", status: "achieved", body: "Done." });
-    expect(vault.getGoal("improve-reliability")).toMatchObject({ title: "Improve platform reliability", status: "achieved", body: "Done." });
+    vault.saveGoal(first.slug, {
+      title: "Improve platform reliability",
+      cycle: "2026",
+      status: "achieved",
+      body: "Done.",
+    });
+    expect(vault.getGoal("improve-reliability")).toMatchObject({
+      title: "Improve platform reliability",
+      status: "achieved",
+      body: "Done.",
+    });
   });
 
   it("finds a long duplicate-titled goal by its suffixed slug", () => {
@@ -311,7 +386,9 @@ describe("goals", () => {
 
   it("names a goal reused in a new cycle after that cycle", () => {
     vault.createGoal({ title: "Improve reliability", cycle: "2026", body: "" });
-    expect(vault.createGoal({ title: "Improve reliability", cycle: "2027", body: "" }).slug).toBe("improve-reliability-2027");
+    expect(vault.createGoal({ title: "Improve reliability", cycle: "2027", body: "" }).slug).toBe(
+      "improve-reliability-2027",
+    );
   });
 
   it("refuses slugs that aren't plain slugs", () => {

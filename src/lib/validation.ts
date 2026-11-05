@@ -58,6 +58,6 @@ export function slugify(title: string): string {
 
 /** Only same-origin absolute paths, so a form can't redirect off-site. */
 export function safeReturnPath(raw: string | null | undefined, fallback: string): string {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) return fallback;
+  if (!raw?.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) return fallback;
   return raw;
 }

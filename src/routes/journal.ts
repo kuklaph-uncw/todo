@@ -19,7 +19,8 @@ export async function createEntries(req: Request, ctx: AppContext): Promise<Resp
     ["star", form.text("star")],
   ];
   const content = form.text("content");
-  if (!parseEntryInput(content).text) return redirectWithError(back, "Write something before adding it to the ledger.", keep);
+  if (!parseEntryInput(content).text)
+    return redirectWithError(back, "Write something before adding it to the ledger.", keep);
   const minutes = parseMinutes(form.text("minutes"));
   if (minutes === undefined) return redirectWithError(back, TIME_HELP, keep);
 
@@ -35,7 +36,12 @@ export async function createEntries(req: Request, ctx: AppContext): Promise<Resp
 }
 
 /** POST /journal/:id, /journal/:id/star, /journal/:id/delete */
-export async function changeEntry(req: Request, ctx: AppContext, id: string, action: string | undefined): Promise<Response> {
+export async function changeEntry(
+  req: Request,
+  ctx: AppContext,
+  id: string,
+  action: string | undefined,
+): Promise<Response> {
   const form = await readForm(req);
   const date = form.text("date");
   const back = form.returnTo(`/?date=${date}`);

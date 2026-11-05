@@ -13,7 +13,7 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renam
 import { dirname, join, relative } from "node:path";
 import { isValidDateString, localDateString, nowUtcIso } from "../lib/date";
 import type { GoalStatus, Priority, Status } from "../lib/validation";
-import { slugify } from "../lib/validation";
+import { isValidPriority, isValidStatus, slugify } from "../lib/validation";
 import {
   allSubtasks,
   entryContent,
@@ -89,7 +89,10 @@ export function parseTaskInput(raw: string): { task: string; tags: string[]; goa
 
 /** Trims outer blank lines and line ends while keeping body indentation and breaks as typed. */
 export function parseEntryInput(raw: string): { text: string; tags: string[]; goals: string[] } {
-  const lines = raw.replace(/\r\n/g, "\n").split("\n").map((line) => line.trimEnd());
+  const lines = raw
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => line.trimEnd());
   while (lines.length > 0 && !lines[0]) lines.shift();
   while (lines.length > 0 && !lines[lines.length - 1]) lines.pop();
   if (lines.length === 0) return { text: "", tags: [], goals: [] };
@@ -137,7 +140,9 @@ function findSubtask(blocks: TodoBlock[], id: string): FoundSubtask | null {
 
 /** Todos and subtasks share one id space per file. */
 function takenIds(blocks: TodoBlock[]): Set<string> {
-  return new Set(blocks.flatMap((block) => [block.todo.id, ...allSubtasks(block.todo.subtasks).map((s) => s.id)]).filter(Boolean));
+  return new Set(
+    blocks.flatMap((block) => [block.todo.id, ...allSubtasks(block.todo.subtasks).map((s) => s.id)]).filter(Boolean),
+  );
 }
 
 function newId(taken: Set<string>): string {
@@ -194,7 +199,11 @@ export class Vault {
     const path = join(this.root, ".trash", "deleted.md");
     mkdirSync(dirname(path), { recursive: true });
     const where = relative(this.root, source).replaceAll("\\", "/");
-    appendFileSync(path, `- Deleted ${nowUtcIso()} from ${where}\n${lines.map((l) => `    ${l}`).join("\n")}\n`, "utf8");
+    appendFileSync(
+      path,
+      `- Deleted ${nowUtcIso()} from ${where}\n${lines.map((l) => `    ${l}`).join("\n")}\n`,
+      "utf8",
+    );
   }
 
   // ---- Journal -------------------------------------------------------------
@@ -342,6 +351,13 @@ export class Vault {
     return this.readTodoFile().blocks.map((block) => block.todo);
   }
 
+  /** A true read: MCP reads must not assign IDs or rewrite hand-written tasks. */
+  peekTodos(): Todo[] {
+    return parseTodoBlocks(readLines(this.todosPath))
+      .map((block) => block.todo)
+      .filter((todo) => todo.task);
+  }
+
   /** Every tag on an entry or todo with how often it's used, most used first. */
   getTagCounts(): [string, number][] {
     const counts = new Map<string, number>();
@@ -360,6 +376,9 @@ export class Vault {
   }
 
   addTodo(input: NewTodo, today: string = localDateString()): Todo {
+    if (!parseTaskInput(input.task).task) throw new Error("A todo needs a task.");
+    if (!isValidPriority(input.priority)) throw new Error("Pick High, Medium, Low or no priority.");
+    if (!isValidStatus(input.status)) throw new Error("That status isn't one the app knows.");
     const { lines, blocks } = this.readTodoFile();
     const parsed = parseTaskInput(input.task);
     const todo: Todo = {
@@ -389,6 +408,14 @@ export class Vault {
   }
 
   updateTodo(id: string, patch: TodoPatch, today: string = localDateString()): Todo | null {
+    if (patch.task !== undefined && !parseTaskInput(patch.task).task) throw new Error("A todo needs a task.");
+    if (patch.priority !== undefined && !isValidPriority(patch.priority))
+      throw new Error("Pick High, Medium, Low or no priority.");
+    if (patch.status !== undefined && !isValidStatus(patch.status))
+      throw new Error("That status isn't one the app knows.");
+    if (patch.completedOn !== undefined && (!isValidDateString(patch.completedOn) || patch.completedOn > today)) {
+      throw new Error("Completion date must be a valid date on or before today.");
+    }
     const { lines, blocks } = this.readTodoFile();
     const block = blocks.find((candidate) => candidate.todo.id === id);
     if (!block) return null;
@@ -413,10 +440,16 @@ export class Vault {
 
   /** Adds a subtask at the end of a todo's list. */
   addSubtask(todoId: string, text: string): Subtask | null {
+    if (!text.trim()) throw new Error("A subtask needs some text.");
     const { lines, blocks } = this.readTodoFile();
     const block = blocks.find((candidate) => candidate.todo.id === todoId);
     if (!block) return null;
-    const subtask: Subtask = { id: newId(takenIds(blocks)), text: text.replace(/\s+/g, " ").trim(), done: false, children: [] };
+    const subtask: Subtask = {
+      id: newId(takenIds(blocks)),
+      text: text.replace(/\s+/g, " ").trim(),
+      done: false,
+      children: [],
+    };
     block.todo.subtasks.push(subtask);
     this.writeTodoBlocks(lines, [block]);
     return subtask;
@@ -434,6 +467,7 @@ export class Vault {
   }
 
   editSubtask(id: string, text: string): boolean {
+    if (!text.trim()) throw new Error("A subtask needs some text.");
     const { lines, blocks } = this.readTodoFile();
     const found = findSubtask(blocks, id);
     if (!found) return false;
@@ -528,7 +562,13 @@ export class Vault {
     const otherCycle = taken(base) && this.getGoal(base)?.cycle !== input.cycle.trim();
     let slug = otherCycle && withCycle && !taken(withCycle) ? withCycle : base;
     for (let n = 2; taken(slug); n++) slug = `${base}-${n}`;
-    const goal: Goal = { slug, title: input.title.trim(), cycle: input.cycle.trim(), status: "active", body: input.body };
+    const goal: Goal = {
+      slug,
+      title: input.title.trim(),
+      cycle: input.cycle.trim(),
+      status: "active",
+      body: input.body,
+    };
     writeAtomic(join(this.goalsDir, `${slug}.md`), formatGoal(goal));
     return goal;
   }

@@ -50,7 +50,9 @@ describe("development server", () => {
   });
 
   it("adds the live-reload script to pages and serves its event stream", async () => {
-    expect(await (await fetch(`${baseUrl}/`)).text()).toContain('<script src="/__dev/reload.js" defer></script>\n</head>');
+    expect(await (await fetch(`${baseUrl}/`)).text()).toContain(
+      '<script src="/__dev/reload.js" defer></script>\n</head>',
+    );
     expect(await (await fetch(`${baseUrl}/__dev/reload.js`)).text()).toContain('new EventSource("/__dev/events")');
 
     const events = await fetch(`${baseUrl}/__dev/events`);

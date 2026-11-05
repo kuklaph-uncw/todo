@@ -25,7 +25,11 @@ export function formPost(path: string, fields: Record<string, string | string[]>
   return new Request(`http://127.0.0.1:3000${path}`, {
     method: "POST",
     body,
-    headers: { "content-type": "application/x-www-form-urlencoded", origin: "http://127.0.0.1:3000", host: "127.0.0.1:3000" },
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      origin: "http://127.0.0.1:3000",
+      host: "127.0.0.1:3000",
+    },
   });
 }
 

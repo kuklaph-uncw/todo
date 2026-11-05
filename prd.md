@@ -68,7 +68,7 @@ The system should make daily capture easy enough to become a habit and make hist
 | Project/OKR hierarchy       | Goals are one flat list per review cycle. No projects, key results, or nested goals. |
 | Recurring TODOs             | Useful later, not needed now.                                                       |
 | Obsidian dependency         | The files read well in Obsidian, but the app needs neither Obsidian nor its plugins. |
-| Code signing, auto-update   | The build is unsigned. The app never checks for updates.                            |
+| Code signing                | The build is unsigned. Windows or organization policy may warn or block it.        |
 
 ---
 
@@ -131,7 +131,7 @@ Completion dates are frozen once set, unless explicitly cleared by the user.
 
 ### 5.6 Local and Private by Default
 
-The app runs as a desktop window on the user's machine, stores data in a local folder, and requires no external services. It opens no network port and makes no network calls.
+The app runs as a desktop window on the user's machine and stores data in a local folder. It opens no network port. Installed builds contact GitHub for updates; notes stay local, and the app works offline.
 
 No telemetry. No cloud dependency. No account.
 
@@ -294,7 +294,9 @@ The default landing page. It answers:
 | J-11 | Past and future dates are editable. Entries added to today get an `HH:MM` clock time; other days get none.    |
 | J-12 | On today, the capture form sends no date, so the server uses the real current day.                           |
 
-**Quick capture.** One bordered box: the text ("`What's worth keeping from the day? Write as much as you like; Markdown works (- lists, **bold**). Type # for tags, / for goals.`") with a toolbar inside it holding time spent ("Add time"), a star toggle, and "Add to ledger". Time and star apply to the entry. The box is two lines tall at rest, about six while focus is inside it, and grows with the text up to 75% of the window. Focus mode (the expand button or `Ctrl + Shift + F`) fills the window with the box; `Esc` or saving leaves it.
+**Quick capture.** One bordered box with formatting controls, time spent ("Add time"), a star toggle, and "Add to ledger". Time and star apply to the entry. The box grows with the text up to 75% of the window. Focus mode (the expand button or `Ctrl + Shift + F`) fills the window with the box; `Esc` or saving leaves it.
+
+**Rich-text writing.** Every editable multiline field uses the same visual editor: journal capture and edits, goal descriptions, and TODO notes. The toolbar provides bold, italic, inline code, heading, subheading, normal text, bulleted and numbered lists, and Markdown source. Text remains Markdown on disk and in journal drafts. Existing text that cannot round-trip exactly opens in source mode, where its syntax is preserved. Pasted HTML keeps supported text structure; scripts, images, styling, and unsupported formatting are discarded. `Ctrl+Shift+V` pastes literal text. Single-line titles keep their existing behavior. Without the script, multiline fields remain ordinary textareas.
 
 **Inline tags and goals.** With the script, each field that takes `#tags` (capture, entry edit, TODO add and edit) becomes an editor where tags and goal links show as pills; goal pills show the goal's title. Typing `#` or `/` at the start of a word opens suggestions at the caret (arrows move, `Tab`/`Enter` pick, `Esc` closes). When nothing matches, the list says why (no goals yet, no match). The hidden original field always holds the plain text that is saved (`#tag`, `[[slug]]`), so drafts and the server see no difference.
 
@@ -343,7 +345,7 @@ Shown under the day title:
 | TM-3 | User can filter by priority (High, Medium, Low, None), tag, and goal.                                            |
 | TM-4 | User can search task, notes, `#tags`, and goal links (`/` focuses search).                                       |
 | TM-5 | User can add a TODO with a priority and goal checkboxes. If the filters hide it, a notice says so.               |
-| TM-6 | User can edit task, priority, and notes. On a validation error the editor reopens with the typed values.         |
+| TM-6 | User can edit task, priority, and rich-text notes. Notes retain paragraphs and nested-list indentation separately from subtasks. On a validation error the editor reopens with the typed values. |
 | TM-7 | User can check a TODO off or reopen it, star or unstar it, and delete it with confirmation (copy kept in trash). |
 | TM-8 | User can clear a completion date with confirmation. The option shows in the editor when a date exists.           |
 | TM-9 | Rows show priority, "Added" date, and "Done Sep 28", or "Kept: done Sep 28" for a reopened TODO.                 |
@@ -388,7 +390,7 @@ A review cycle is a free-text label, usually a year.
 | GL-7  | Evidence feed: every linked journal entry and done TODO, all time, newest month first. Each links to its day.  |
 | GL-8  | Shows how many linked TODOs are still open, linking to `/todos?goal=<slug>`. They aren't evidence until done.   |
 | GL-9  | User can edit name, cycle, status (Active, Achieved, Dropped), and the description.                           |
-| GL-10 | The description holds success criteria, progress notes, and the self-assessment. It displays as plain text.    |
+| GL-10 | The description holds success criteria, progress notes, and the self-assessment. It uses the shared rich-text editor and safe Markdown display. |
 | GL-11 | The slug never changes on edit, so existing `[[links]]` keep working. A blank name or cycle keeps the old one.  |
 | GL-12 | "Review this goal" opens `/review` filtered to the goal, from the first to the last evidence date.             |
 
@@ -540,6 +542,8 @@ type: todos
 ```
 
 A subtask is a checklist item: text, done or not, and an `^id`. `[x]` or `[X]` is done; any other mark reads as not done. Subtasks have no priority, star, goals, or dates. `#tags` and `[[links]]` in their text are shown but don't count toward tags, goals, or filters. A hand-written subtask without `^id` gets one on first read, changing only that line. When the app rewrites a TODO, it writes the notes first and then the subtasks, and a subtask mark other than `x` is written back as `[ ]`.
+
+Notes needing blank lines, indentation, or literal checkboxes use a four-space-indented block between `<!-- todo-notes -->` and `<!-- /todo-notes -->`. Every content line has four spaces added, including empty lines. The reader removes exactly those four spaces and does not interpret checkboxes inside the block as subtasks. If a closing marker occurs in the notes, both delimiters receive an unused numeric suffix such as `:1`. Simple notes keep the legacy format. These blocks require ToDo 1.3.0 or newer; older versions can lose formatting when rewriting them.
 
 ### 10.4 Goal File
 
@@ -861,7 +865,9 @@ Every page and form goes through `handleRequest` in `src/server.ts`. `HEAD` is t
 | `/review/export.md`           | Markdown download.                                         |
 | `/review/export.json`         | JSON download.                                             |
 | `/review/export.jsonl`        | JSONL download.                                            |
-| `/styles.css`, `/app.js`, `/icon.svg` | Bundled assets (exact paths only).                 |
+| `/settings`                   | Desktop agent access settings, status, and connection examples. |
+| `/todo-version`               | Read-only todo revision for a draft-safe change notice.    |
+| `/styles.css`, `/app.js`, `/rich-text.js`, `/icon.svg` | Bundled assets (exact paths only).                 |
 
 Anything else, including a path with a malformed `%` escape, returns the "Not found" page (404).
 
@@ -874,6 +880,7 @@ Anything else, including a path with a malformed `%` escape, returns the "Not fo
 | `/journal/:id/star`               | `date`, `return_to`                                        | Toggle star.                            |
 | `/journal/:id/delete`             | `date`, `return_to`                                        | Delete entry to trash.                  |
 | `/todos`                          | `task`, `priority`, `status`, `goals`*, `notes`, `return_to` | Add TODO.                             |
+| `/settings`                       | `intent=save`, `enabled`, `background`, `port`; or `intent=token` | Save desktop preferences or replace access token. |
 | `/todos/:id`                      | `task`, `priority`, `notes`, `return_to`                   | Edit TODO.                              |
 | `/todos/:id/status`               | `status` (`Open` or `Done`), `on`, `return_to`             | Mark done or reopen.                    |
 | `/todos/:id/star`                 | `return_to`                                                | Toggle star.                            |
@@ -904,6 +911,7 @@ There is no HTMX and no client framework. The server renders full HTML pages, an
 | Live TODO filters      | The `data-live-search` form waits 250ms after the last committed keystroke, then fetches its GET URL. Only `.page-sub`, `.filter-actions` and `#todo-results` are replaced and initialized, leaving unsent add-TODO text and the search field intact. Typing pauses live search while a `.todo-edit` is open; Enter or a select change still submits. Composing input is ignored; composition end schedules the committed text. Unchanged filters skip the fetch; new input aborts pending requests so stale responses cannot swap. Debounced typing uses `replaceState`; explicit submits use `pushState`. Apply is hidden. Network errors fall back to a normal submit. |
 | Confirmations          | Forms with `data-confirm` ask before posting (delete, clear completion).                     |
 | Drafts                 | Capture text saved in `localStorage` per day. Cleared after a successful save.                            |
+| Rich-text editor       | All editable multiline fields use the same toolbar and Markdown serializer. Source mode protects existing syntax that cannot round-trip. Dirty multiline edits survive Escape; unchanged edits can still be cancelled with it. |
 | Auto-submit            | Filter selects and checkboxes submit on change. The date picker waits 900ms for typing to stop.           |
 | Copy                   | Writes HTML + Markdown to the clipboard, with fallbacks (14.3). Status is announced to screen readers.    |
 | Print                  | Sets the page title to the suggested PDF name, prints, restores the title.                                |
@@ -920,33 +928,38 @@ Without the script, the date picker shows a "Go" button and TODO filters keep th
 
 | Layer               | Choice                                                                               |
 | ------------------- | ------------------------------------------------------------------------------------ |
-| Desktop shell       | Electron 44 (pinned `44.5.1`)                                                        |
-| Packaging           | electron-builder `26.17.0`: per-user NSIS installer and zip, Windows only            |
-| Main process build  | `bun build src/electron/main.ts --target=node --format=esm --external electron` to `out/main.js` |
+| Desktop shell       | Electron 44 (pinned `44.9.1`)                                                        |
+| Packaging           | electron-builder `26.18.0`: per-user NSIS installer and zip, Windows only            |
+| Main process build  | `bun build src/electron/main.ts --target=node --format=esm --external electron --external electron-updater` to `out/main.js` |
 | Dev server, tests   | Bun (`Bun.serve()`, `bun test`). Bun is also the package manager.                    |
 | Request handling    | One function, `handleRequest(req, ctx): Promise<Response>`, using the Fetch API      |
 | Storage             | Markdown files via `node:fs`                                                         |
 | Rendering           | Server-rendered HTML from template strings, escaped with `escapeHtml`                |
-| Interactivity       | `public/app.js`, plain JavaScript                                                    |
+| Interactivity       | `public/app.js`, plain JavaScript module; shared Markdown rendering and editor serialization in `public/rich-text.js` |
 | Styling             | One stylesheet, `public/styles.css`. Dark theme only.                                |
-| Static assets       | `styles.css`, `app.js`, `icon.svg` imported as text and bundled. No disk reads at runtime. |
-| Dependencies        | Dev only: `@types/bun`, `electron`, `electron-builder`. No runtime packages.         |
+| Static assets       | `styles.css`, `app.js`, and `icon.svg` imported as text. A Bun macro embeds `rich-text.js` while also allowing its renderer to run on the server. No asset disk reads at runtime. |
+| Dependencies        | Runtime: `electron-updater` `6.8.11`. Dev: `@types/bun`, `electron`, `electron-builder`, `playwright` `1.64.1`. |
+| Agent access        | Official MCP TypeScript SDK v2: `@modelcontextprotocol/server` `2.4.0`, Node adapter `2.1.2`, Zod `4.2.0`. Bundled in Electron; no separate runtime installation. |
 
 ### 17.2 Request Flow
 
 ```txt
 Desktop app:  window → app://local/... → protocol.handle("app") → serveAppRequest → handleRequest → Vault
 Development:  browser → http://127.0.0.1:41820/... → devFetch → handleRequest → Vault
+Agent access: local MCP client → authenticated 127.0.0.1:<port>/mcp → task operations → same Vault
 ```
 
 `handleRequest` doesn't know which one called it. Each entry point checks where the request came from first and adds security headers: CSP and `nosniff` in the app, CSP in development (section 21).
 
 ### 17.3 Desktop App Behavior
 
-- Double-click opens one window (1280×860). Closing it quits. Nothing runs in the background.
+- Double-click opens one window (1280×860). Closing it quits by default.
+- Settings can enable agent access and optionally keep MCP running when the window is closed. With both enabled and the listener running, closing hides the window and leaves a system tray icon. Open ToDo restores it; Quit ToDo exits and stops MCP. A tray failure preserves close-to-quit behavior. Nothing starts automatically at Windows sign-in.
 - A second launch focuses the existing window instead of opening another.
-- Startup failures show an error box ("Work Ledger couldn't start") and quit.
+- Startup failures show an error box ("ToDo couldn't start") and quit.
 - The app ID `com.workledger.app` matches in `electron-builder.yml` and `main.ts`. Changing it breaks taskbar pins.
+- Installed builds check stable releases in `kuklaph-uncw/todo` on launch and download newer versions. A native dialog offers Restart now or Later. Later leaves the app running and asks again on the next launch; closing normally does not install the update.
+- Update failures are logged without stopping the app. Source/development runs do not check for updates.
 
 ### 17.4 Where Notes Live
 
@@ -975,7 +988,7 @@ A print stylesheet turns the review into a plain black-on-white document.
 | `bun run dev`        | Copies your notes into `./vault` (skipped when `VAULT_PATH` is set), then serves `http://127.0.0.1:41820` (`PORT` overrides). Restarts on code changes and reloads open pages. |
 | `bun run demo`       | Same as `bun run dev`, but on fresh sample data: replaces `./demo-vault` with a new `seed:demo` run each start. |
 | `bun run start`      | Builds the main process and opens the Electron window.                  |
-| `bun run build`      | Builds the main process and writes the installer and zip to `dist/`.    |
+| `bun run build`      | Builds the main process, Windows x64 installer, zip, and update metadata in `dist/`. Never uploads. |
 | `bun test`           | Runs all tests.                                                         |
 | `bun run seed:demo`  | Fills `./demo-vault` (or `VAULT_PATH`) with about 10 weeks of sample work. Refuses a non-empty folder. |
 
@@ -995,6 +1008,7 @@ todo/
 ├── planning/                     # original milestone plans and mockups (history)
 ├── public/
 │   ├── app.js                    # progressive enhancement
+│   ├── rich-text.js              # shared safe Markdown renderer and DOM serializer
 │   ├── styles.css
 │   ├── icon.svg                  # in-app icon
 │   └── favicon.ico               # Windows app icon
@@ -1031,7 +1045,7 @@ todo/
 │       ├── date.ts
 │       ├── html.ts
 │       ├── lines.ts              # indented continuation boundaries
-│       ├── markdown.ts           # safe entry Markdown subset
+│       ├── markdown.ts           # re-exports the shared Markdown renderer
 │       └── validation.ts
 └── tests/
     ├── helpers/test-vault.ts
@@ -1107,9 +1121,9 @@ Listed in the app's shortcuts dialog (`?`). Single-key shortcuts are ignored whi
 
 | Area            | Requirement                                                                   |
 | --------------- | ----------------------------------------------------------------------------- |
-| Network         | The shipped app opens no port. Pages come through a custom `app://` scheme.   |
-| Outbound calls  | None. No auto-update, no telemetry.                                           |
-| Auth            | None. Single user, no network listener.                                       |
+| Network         | Pages use `app://`. No listener by default. Opt-in MCP binds only `127.0.0.1`, default port 41821. |
+| Outbound calls  | GitHub update checks/downloads. No telemetry or app-initiated notes uploads. Authorized MCP clients receive todo data and may send it to their agent provider. |
+| Auth            | MCP requires a revocable bearer token on every request. Settings and UI mutations retain `app://local` origin checks. |
 | Data            | Plain Markdown files in a local folder. Not encrypted at rest.                |
 | Backups         | Copy the folder.                                                              |
 
@@ -1140,10 +1154,22 @@ default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; form-ac
 - DevTools off and no menu (so no reload or DevTools shortcuts).
 - Refuses to start when launched with `--remote-debugging-port` or `--remote-debugging-pipe`.
 - Electron fuses: `runAsNode` off, cookie encryption on, `NODE_OPTIONS` off, `--inspect` arguments off, embedded asar integrity validation on, only load app from asar, file protocol extra privileges off.
-- `publish: null`, so nothing is uploaded and no update feed exists.
+- GitHub update feed is `kuklaph-uncw/todo`. `bun run build` uses `--publish never`; publishing is a separate action. See [release steps](docs/releases.md).
 - Unsigned. Windows SmartScreen or IT policy may warn or block the installer.
 
-### 21.3 Development Server
+### 21.3 Agent access and background operation
+
+Agent access is disabled by default. The Settings link is in the rail footer. Preferences and a SHA-256 token hash are stored in `<userData>/mcp.json`, outside the Markdown vault. The plaintext token appears only in the response that generates it, with `Cache-Control: no-store`; it is never placed in a URL or retained for later display. Generating a replacement revokes the previous token. The app provides connection examples but does not modify agent configuration files.
+
+The MCP listener and UI share one synchronous Vault in the Electron main process. MCP serves only `POST /mcp`, with the official SDK's stateless handler and legacy-client compatibility. Requests require the configured loopback Host and bearer token. Requests with an Origin header or cross-site fetch metadata are refused, CORS is not enabled, and JSON request bodies are limited to 1 MiB. Bind failures leave the app usable and show an error in Settings. Disabling access or quitting closes the listener.
+
+Tools are `list_todos`, `get_todo`, `add_todo`, `update_todo`, `set_todo_status`, `add_subtask`, `set_subtask_done`, and `delete_todo`. They preserve the app's completion dates, Markdown notes, subtasks, and trash behavior. Every mutation of an existing todo requires its current content revision; stale requests are rejected. Writes require a unique `requestId`; exact retries of the most recent 1024 successful calls reuse their results while this app process runs, including listener restarts. This is not a durable exactly-once guarantee: after an app restart, read current state before retrying a create. Reusing a remembered ID with different arguments is rejected.
+
+Read tools do not assign IDs or change files. A hand-written todo with no block ID can be read, but must be opened in ToDo before editing through MCP. Task forms include revisions too; stale forms return a conflict with submitted text retained for recovery. Older callers omitting the form revision retain their previous behavior. External editor writes are not coordinated by a cross-process lock.
+
+Visible pages check the todo revision every five seconds and on focus. Changes show a notice without replacing page content or moving focus. Refresh is explicit and warns before discarding typed edits. Ledger capture drafts keep their existing localStorage protection. MCP access is local to this computer; remote agents need a separately designed connection.
+
+### 21.4 Development server request guards
 
 `bun run dev` only. Never shipped.
 
@@ -1166,13 +1192,13 @@ default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; form-ac
 
 The vault folder is the source of truth. The rail shows its path on every page.
 
-**Backup.** Copy the folder. Closing the app first avoids copying mid-write, though writes are atomic per file.
+**Backup.** Quit ToDo before copying the folder. With background mode enabled, use **Quit ToDo** from the system tray; closing the window leaves MCP writes active. Writes are atomic per file, but quitting avoids copying mid-write.
 
 ```powershell
 Copy-Item -Recurse "$HOME\Work Ledger" "$HOME\Backups\Work Ledger $(Get-Date -Format yyyy-MM-dd)"
 ```
 
-**Restore.** Close the app, then copy a backup over the folder (or point `VAULT_PATH` at it).
+**Restore.** Quit ToDo, using the system tray's **Quit ToDo** command if background mode is enabled, then copy a backup over the folder (or point `VAULT_PATH` at it). Closing the window alone does not stop background writes.
 
 **Deleted items.** Find the deleted item in `.trash/deleted.md` and paste it back into its file, including an entry's continuation lines. There is no restore button.
 
@@ -1182,7 +1208,7 @@ Copy-Item -Recurse "$HOME\Work Ledger" "$HOME\Backups\Work Ledger $(Get-Date -Fo
 
 ## 23. Testing
 
-`bun test` runs 222 tests across 11 files. Tests use a temp vault and a clock pinned to 2026-09-28 14:05.
+`bun test` runs unit, integration, and browser tests. Tests use a temp vault and a clock pinned to 2026-09-28 14:05. Browser tests use Playwright with locally installed Microsoft Edge in headless mode; Edge must be installed before running the full suite.
 
 ### 23.1 Unit (`tests/unit/`)
 
@@ -1194,6 +1220,7 @@ Copy-Item -Recurse "$HOME\Work Ledger" "$HOME\Backups\Work Ledger $(Get-Date -Fo
 | `markdown.test.ts`     | Paragraph breaks, nested ordered and unordered lists, heading levels, escaping before emphasis, code-span isolation, literal unsupported syntax, intraword underscore and asterisk rules, underscored tags and goal labels. |
 | `review.test.ts`       | Grouping, ordering, stats, goal grouping, filters, newest first, exact Markdown output with multi-line entries in every list, whole-item HTML and single-paragraph spacing, empty range, JSON and JSONL shape and preserved line breaks, filter parsing and the 12-month default. |
 | `validation.test.ts`   | Tags, priority, status, time-spent parsing, slugs, `safeReturnPath`.                    |
+| `updates.test.ts`      | Stable update checks, automatic downloads, restart permission, and check/download/prompt failures. |
 
 ### 23.2 Integration (`tests/integration/`)
 
@@ -1205,9 +1232,13 @@ Copy-Item -Recurse "$HOME\Work Ledger" "$HOME\Backups\Work Ledger $(Get-Date -Fo
 | `app-protocol.test.ts`   | `app://` handler: CSP and nosniff, host check, origin check for posts, assets, traversal. |
 | `launch.test.ts`         | Vault path resolution, error log writing.                                              |
 
-Not covered by automated tests: `public/app.js`, `src/electron/main.ts`, and the packaged build.
+### 23.3 Browser (`tests/browser/`)
 
-### 23.3 Manual Smoke Test (Desktop App)
+`rich-text.test.ts` exercises journal capture, goal descriptions, TODO notes, formatting round trips, pasted HTML filtering, undo, draft restoration, source fallback, formatted tag metadata, keyboard toolbar navigation, and narrow layouts. It uses a disposable vault through the real development request handler.
+
+The native Electron window, installer, and installed-to-installed updater are not covered by these browser tests.
+
+### 23.4 Manual Smoke Test (Desktop App)
 
 Run against a build from `bun run build`:
 
@@ -1281,13 +1312,15 @@ Run against a build from `bun run build`:
 
 | ID    | Acceptance Criterion                                                        |
 | ----- | --------------------------------------------------------------------------- |
-| AC-22 | The installed app opens with a double-click. Closing the window quits it.   |
+| AC-22 | Double-click opens the app. Closing quits by default; optional MCP background mode hides to tray. Explicit Quit always stops the app and MCP. |
 | AC-23 | A second launch focuses the existing window.                                |
 | AC-24 | Data persists in the vault folder after restart.                            |
-| AC-25 | The shipped app opens no network port and makes no network calls.           |
+| AC-25 | No network listener by default. Enabled MCP listens only on authenticated loopback; authorized clients can read/write todos. UI remains on `app://`. |
 | AC-26 | The vault can be backed up and restored by copying the folder.              |
 | AC-27 | The vault reads as plain Markdown. Hand edits are picked up and kept.       |
 | AC-28 | The installer needs no admin rights.                                        |
+| AC-29 | Agent access and background preferences persist. Tokens are shown once, stored as hashes, and replaceable. |
+| AC-30 | MCP and task forms reject stale edits. Agent changes never automatically replace typed text. |
 
 ### Tags and AI Export
 
@@ -1384,10 +1417,9 @@ Everything in sections 8 to 24 exists in the code, except items marked "Not yet 
 | Move an entry to another date          | Original plan said "may be supported". Not built.                    |
 | README                                 | There is no README. Setup, commands, and backup steps live only in this document. |
 | Goal delete or archive                 | No UI. Delete the file by hand.                                      |
-| Tests for `app.js` and `main.ts`       | Covered only by the manual smoke test.                               |
+| Desktop shell automation             | Native Electron window and installed update behavior still need the manual smoke test. |
 
 ### 28.3 Known Gaps
 
 - Without `app.js`, destructive actions post without a confirmation prompt. The desktop app always runs the script, so this only affects the dev server with scripts off.
 - Adding a TODO doesn't return typed values after a server-side error. That only happens for a blank task or a tampered field, so nothing of value is lost.
-- Tag extraction still counts tags inside code, even though code renders without tag pills. Changing extraction is deferred by the master agent; revisit if code pasted into entries shows up in tag stats.

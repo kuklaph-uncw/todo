@@ -34,7 +34,11 @@ async function allowedResponse(req: Request, initiatorOrigin: string | undefined
  * Viewing pages is open; changes must come from the app's own pages. Electron
  * sets `initiatorOrigin` itself, so a page can't fake it.
  */
-export async function serveAppRequest(req: Request, initiatorOrigin: string | undefined, ctx: AppContext): Promise<Response> {
+export async function serveAppRequest(
+  req: Request,
+  initiatorOrigin: string | undefined,
+  ctx: AppContext,
+): Promise<Response> {
   const res = await allowedResponse(req, initiatorOrigin, ctx);
   const headers = new Headers(res.headers);
   headers.set("content-security-policy", CSP);

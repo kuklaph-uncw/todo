@@ -1,9 +1,5 @@
 import { describe, it, expect } from "bun:test";
-import {
-  isNonEmptyText,
-  isValidPriority,
-  isValidStatus,
-} from "../../src/lib/validation";
+import { isNonEmptyText, isValidPriority, isValidStatus } from "../../src/lib/validation";
 
 describe("isNonEmptyText", () => {
   it("rejects whitespace-only strings", () => {

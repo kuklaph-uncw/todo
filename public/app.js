@@ -1,3 +1,5 @@
+import { renderEntryMarkdown, editorMarkdown } from "./rich-text.js";
+
 // Progressive enhancement only. Every form and link works without this file;
 // with it, form posts update the page in place, keyboard shortcuts work, and
 // todos and subtasks can be reordered.
@@ -21,10 +23,14 @@
 
     // Focus mode needs this script, so its button only shows when it runs.
     // Posting from focus mode swaps the page, which ends it.
-    root.querySelectorAll("[data-focus-mode]").forEach((button) => (button.hidden = false));
+    root.querySelectorAll("[data-focus-mode]").forEach((button) => {
+      button.hidden = false;
+    });
     releaseFocusMode();
 
-    root.querySelectorAll('[data-live-search] button[type="submit"]').forEach((button) => (button.hidden = true));
+    root.querySelectorAll('[data-live-search] button[type="submit"]').forEach((button) => {
+      button.hidden = true;
+    });
 
     // Subtask lists stay open or closed as the user left them, across updates and pages, for this window.
     const openLists = () => new Set(JSON.parse(sessionStorage.getItem("open-subtasks") || "[]"));
@@ -45,7 +51,7 @@
     // After drafts, so a restored draft shows up with its pills.
     const data = document.getElementById("composer-data");
     if (data) composerData = JSON.parse(data.textContent);
-    root.querySelectorAll("[data-composer]").forEach(enhanceComposer);
+    root.querySelectorAll("input[data-composer], textarea:not([readonly])").forEach(enhanceComposer);
   }
 
   // ---- Inline #tags and /goals --------------------------------------------
@@ -54,6 +60,7 @@
   // holds the plain text that gets saved ("#tag", "[[goal-slug]]").
 
   let composerData = { tags: [], goals: [] };
+  let editorCount = 0;
   const goalFor = (slug) => composerData.goals.find((goal) => goal.slug === slug);
   const escapeHtml = (text) =>
     text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -87,7 +94,9 @@
       const [, lead = "", tag, slug] = match;
       if (tag !== undefined && (!isTagName(tag) || (joinsWord && match.index === 0 && lead === ""))) continue;
       const start = match.index + lead.length;
-      html += escapeHtml(text.slice(last, start)) + (tag !== undefined ? pillHtml("tag", tag) : pillHtml("goal", slug.trim()));
+      html +=
+        escapeHtml(text.slice(last, start)) +
+        (tag !== undefined ? pillHtml("tag", tag) : pillHtml("goal", slug.trim()));
       last = match.index + match[0].length;
     }
     return (html + escapeHtml(text.slice(last))).replace(/\n/g, "<br>");
@@ -164,7 +173,11 @@
     }
     // Match the start of a word, so "/api" doesn't pick "Rapid delivery".
     const startsWord = (goal) =>
-      goal.slug.startsWith(q) || `${goal.title} ${goal.slug}`.toLowerCase().split(/[\s-]+/).some((word) => word.startsWith(q));
+      goal.slug.startsWith(q) ||
+      `${goal.title} ${goal.slug}`
+        .toLowerCase()
+        .split(/[\s-]+/)
+        .some((word) => word.startsWith(q));
     return composerData.goals
       .filter((goal) => goal.active && startsWord(goal))
       .map((goal) => ({ kind: "goal", value: goal.slug, label: goal.title, note: `[[${goal.slug}]]` }));
@@ -202,7 +215,9 @@
 
   function highlightSuggestion(index) {
     suggesting.index = (index + suggesting.items.length) % suggesting.items.length;
-    suggestBox.querySelectorAll('[role="option"]').forEach((option, i) => option.setAttribute("aria-selected", String(i === suggesting.index)));
+    suggestBox.querySelectorAll('[role="option"]').forEach((option, i) => {
+      option.setAttribute("aria-selected", String(i === suggesting.index));
+    });
     suggesting.editor.setAttribute("aria-activedescendant", `suggest-${suggesting.index}`);
   }
 
@@ -236,12 +251,19 @@
     range.setStart(at.node, start);
     range.setEnd(at.node, at.offset);
     const empty = isTag
-      ? query ? "Number-only tags like #123 aren't tags." : "Type a name for a new tag."
+      ? query
+        ? "Number-only tags like #123 aren't tags."
+        : "Type a name for a new tag."
       : composerData.goals.some((goal) => goal.active)
         ? `No active goal matches “${query}”.`
         : "No active goals yet. Add one on the Goals page.";
-    showSuggestions(editor, suggestions(isTag, query), range.getBoundingClientRect(), isTag ? "Tags" : "Goals", (item) =>
-      insertPill(at.node, start, at.offset, item.kind, item.value), empty,
+    showSuggestions(
+      editor,
+      suggestions(isTag, query),
+      range.getBoundingClientRect(),
+      isTag ? "Tags" : "Goals",
+      (item) => insertPill(at.node, start, at.offset, item.kind, item.value),
+      empty,
     );
   }
 
@@ -252,19 +274,46 @@
     if (!match || (match[2] !== undefined && !isTagName(match[2]))) return;
     const end = at.offset - 1; // the typed space goes too; insertPill adds it back
     if (end - match[1].length < 0) return;
-    insertPill(at.node, end - match[1].length, end, match[2] !== undefined ? "tag" : "goal", (match[2] ?? match[3]).trim());
+    insertPill(
+      at.node,
+      end - match[1].length,
+      end,
+      match[2] !== undefined ? "tag" : "goal",
+      (match[2] ?? match[3]).trim(),
+    );
   }
 
   function enhanceComposer(field) {
     const single = field instanceof HTMLInputElement;
+    const tokens = field.hasAttribute("data-composer");
+    let sourceMode = false;
+    let literalPaste = false;
+    let lastRange = null;
+    const richHtml = (text) => {
+      const content = document.createElement("div");
+      content.innerHTML = renderEntryMarkdown(text);
+      if (tokens) {
+        const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+        const nodes = [];
+        while (walker.nextNode()) if (!walker.currentNode.parentElement.closest("code")) nodes.push(walker.currentNode);
+        for (const node of nodes) {
+          const template = document.createElement("template");
+          template.innerHTML = textToHtml(node.data);
+          node.replaceWith(template.content);
+        }
+      }
+      return content;
+    };
     const editor = document.createElement("div");
     editor.className = single ? "composer is-single" : "composer";
     editor.contentEditable = "true";
     editor.spellcheck = true;
     editor.setAttribute("role", "textbox");
     if (!single) editor.setAttribute("aria-multiline", "true");
-    editor.setAttribute("aria-autocomplete", "list");
-    editor.setAttribute("aria-controls", "suggest");
+    if (tokens) {
+      editor.setAttribute("aria-autocomplete", "list");
+      editor.setAttribute("aria-controls", "suggest");
+    }
     const labelledBy = field.getAttribute("aria-labelledby");
     if (labelledBy) editor.setAttribute("aria-labelledby", labelledBy);
     else editor.setAttribute("aria-label", field.labels?.[0]?.textContent.trim() || field.placeholder);
@@ -277,32 +326,244 @@
       editor.setAttribute(name, field.getAttribute(name));
       field.removeAttribute(name);
     }
+    if (!editor.id) editor.id = `writer-${++editorCount}`;
     const hadFocus = document.activeElement === field || field.autofocus;
     field.hidden = true;
     field.required = false; // a hidden field can't show the browser's "fill this in" bubble
     field.after(editor);
-    editor.innerHTML = textToHtml(single ? field.value.replace(/\s*\n\s*/g, " ") : field.value);
+    if (!single) sourceMode = editorMarkdown(richHtml(field.value)) !== field.value;
+    const showContent = () => {
+      editor.classList.toggle("is-source", sourceMode);
+      editor.classList.toggle("is-rich", !single && !sourceMode);
+      editor.innerHTML = single
+        ? textToHtml(field.value.replace(/\s*\n\s*/g, " "))
+        : sourceMode
+          ? escapeHtml(field.value).replace(/\n/g, "<br>")
+          : richHtml(field.value).innerHTML || "<p><br></p>";
+    };
+    showContent();
+
+    const rememberSelection = () => {
+      const selection = getSelection();
+      if (selection.rangeCount && editor.contains(selection.anchorNode) && editor.contains(selection.focusNode))
+        lastRange = selection.getRangeAt(0).cloneRange();
+    };
 
     const sync = () => {
-      const text = editorText(editor).replace(/\n+$/, "");
+      const text = single || sourceMode ? editorText(editor).replace(/\n+$/, "") : editorMarkdown(editor);
       editor.classList.toggle("is-empty", text === "");
       if (text === field.value) return;
       field.value = text;
       field.dispatchEvent(new Event("input", { bubbles: true })); // saves the draft
     };
-    sync();
+    editor.classList.toggle("is-empty", !field.value);
+
+    let toolbar;
+    let sourceNote;
+    const runFormat = (command, value) => {
+      if (command === "source") {
+        if (sourceMode && editorMarkdown(richHtml(field.value)) !== field.value) {
+          sourceNote.hidden = false;
+          return;
+        }
+        sourceMode = !sourceMode;
+        showContent();
+        sourceNote.hidden = !sourceMode;
+        focusAtEnd(editor);
+      } else {
+        if (sourceMode) return;
+        editor.focus();
+        if (lastRange && editor.contains(lastRange.commonAncestorContainer)) {
+          getSelection().removeAllRanges();
+          getSelection().addRange(lastRange);
+        }
+        const selectedCode = getSelection().anchorNode?.parentElement?.closest("code");
+        if (command !== "code" && selectedCode && editor.contains(selectedCode)) return;
+        if (command === "code") {
+          const selection = getSelection();
+          const parent = selection.anchorNode?.parentElement?.closest("code");
+          if (parent && editor.contains(parent)) {
+            const range = document.createRange();
+            range.selectNode(parent);
+            selection.removeAllRanges();
+            selection.addRange(range);
+            document.execCommand("insertHTML", false, escapeHtml(parent.textContent));
+          } else if (!selection.isCollapsed) {
+            document.execCommand("insertHTML", false, `<code>${escapeHtml(selection.toString())}</code>&nbsp;`);
+          }
+        } else document.execCommand(command, false, value);
+        sync();
+        rememberSelection();
+      }
+      updateToolbar();
+    };
+    const updateToolbar = () => {
+      if (!toolbar) return;
+      for (const button of toolbar.querySelectorAll("button")) {
+        const command = button.dataset.command;
+        const inCode = getSelection().anchorNode?.parentElement?.closest("code");
+        const disabled =
+          command !== "source" && (sourceMode || Boolean(inCode && editor.contains(inCode) && command !== "code"));
+        button.setAttribute("aria-disabled", String(disabled));
+        const active =
+          command === "source"
+            ? sourceMode
+            : command === "code"
+              ? Boolean(inCode && editor.contains(inCode))
+              : command === "formatBlock"
+                ? document.queryCommandValue(command).toLowerCase() === button.dataset.value
+                : document.queryCommandState(command);
+        button.setAttribute("aria-pressed", String((!sourceMode && active) || (command === "source" && sourceMode)));
+      }
+    };
+    if (!single) {
+      let box = field.closest(".composer-box");
+      if (!box) {
+        box = document.createElement("div");
+        box.className = "composer-box";
+        field.before(box);
+        box.append(field, editor);
+      }
+      let bar = box.querySelector(".composer-bar");
+      if (!bar) {
+        bar = document.createElement("div");
+        bar.className = "composer-bar";
+        box.append(bar);
+      }
+      toolbar = document.createElement("div");
+      toolbar.className = "format-toolbar";
+      toolbar.setAttribute("role", "toolbar");
+      toolbar.setAttribute("aria-label", "Formatting");
+      toolbar.setAttribute("aria-controls", editor.id);
+      const formats = [
+        ["B", "Bold", "bold"],
+        ["I", "Italic", "italic"],
+        ["‹›", "Inline code", "code"],
+        ["H1", "Heading", "formatBlock", "h3"],
+        ["H2", "Subheading", "formatBlock", "h4"],
+        ["¶", "Normal text", "formatBlock", "p"],
+        ["•", "Bulleted list", "insertUnorderedList"],
+        ["1.", "Numbered list", "insertOrderedList"],
+        ["MD", "Markdown source", "source"],
+      ];
+      formats.forEach(([text, label, command, value], index) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = text;
+        button.className = "format-button";
+        button.setAttribute("aria-label", label);
+        button.title = label;
+        button.tabIndex = index ? -1 : 0;
+        button.dataset.command = command;
+        if (value) button.dataset.value = value;
+        button.addEventListener("mousedown", (event) => event.preventDefault());
+        button.addEventListener("click", () => {
+          if (button.getAttribute("aria-disabled") !== "true") runFormat(command, value);
+        });
+        toolbar.append(button);
+      });
+      toolbar.addEventListener("keydown", (event) => {
+        const buttons = [...toolbar.querySelectorAll("button")];
+        let next = buttons.indexOf(document.activeElement);
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          editor.focus();
+          return;
+        }
+        if (!/^(ArrowLeft|ArrowRight|Home|End)$/.test(event.key)) return;
+        event.preventDefault();
+        next =
+          event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? buttons.length - 1
+              : (next + (event.key === "ArrowRight" ? 1 : -1) + buttons.length) % buttons.length;
+        buttons.forEach((button, index) => {
+          button.tabIndex = index === next ? 0 : -1;
+        });
+        buttons[next].focus();
+      });
+      bar.prepend(toolbar);
+      sourceNote = document.createElement("p");
+      sourceNote.className = "editor-source-note";
+      sourceNote.textContent =
+        "Markdown source. Existing syntax is kept as written; visual mode is available when it can preserve this text.";
+      sourceNote.hidden = !sourceMode;
+      box.after(sourceNote);
+      const selectionChanged = () => {
+        if (!editor.isConnected) {
+          document.removeEventListener("selectionchange", selectionChanged);
+          return;
+        }
+        rememberSelection();
+        updateToolbar();
+      };
+      document.addEventListener("selectionchange", selectionChanged);
+      updateToolbar();
+    }
 
     editor.addEventListener("beforeinput", (event) => {
-      // No bold, italics and the like: this is plain text with pills.
-      if (event.inputType.startsWith("format")) event.preventDefault();
+      if (
+        event.inputType.startsWith("format") &&
+        (single || sourceMode || !["formatBold", "formatItalic"].includes(event.inputType))
+      )
+        event.preventDefault();
     });
     editor.addEventListener("input", (event) => {
-      if (event.inputType === "insertText" && event.data === " ") pillTyped(editor);
+      if (
+        tokens &&
+        event.inputType === "insertText" &&
+        event.data === " " &&
+        !getSelection().anchorNode?.parentElement?.closest("code")
+      )
+        pillTyped(editor);
       sync();
-      checkTrigger(editor);
+      rememberSelection();
+      updateToolbar();
+      if (tokens && !getSelection().anchorNode?.parentElement?.closest("code")) checkTrigger(editor);
     });
     editor.addEventListener("keydown", (event) => {
       if (event.isComposing) return;
+      literalPaste = Boolean((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "v");
+      if (!single && !sourceMode && (event.ctrlKey || event.metaKey)) {
+        if (event.altKey && /^[012]$/.test(event.key)) {
+          event.preventDefault();
+          runFormat("formatBlock", { 0: "p", 1: "h3", 2: "h4" }[event.key]);
+          return;
+        }
+        if (event.shiftKey && ["7", "8", "&", "*"].includes(event.key)) {
+          event.preventDefault();
+          runFormat(["7", "&"].includes(event.key) ? "insertOrderedList" : "insertUnorderedList");
+          return;
+        }
+      }
+      if (
+        !single &&
+        !sourceMode &&
+        event.key === "Tab" &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        suggestBox.hidden &&
+        getSelection().anchorNode?.parentElement?.closest("li")
+      ) {
+        event.preventDefault();
+        document.execCommand(event.shiftKey ? "outdent" : "indent");
+        sync();
+        return;
+      }
+      if (
+        !single &&
+        !sourceMode &&
+        (event.ctrlKey || event.metaKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        /^[bie]$/i.test(event.key)
+      ) {
+        event.preventDefault();
+        runFormat({ b: "bold", i: "italic", e: "code" }[event.key.toLowerCase()]);
+        return;
+      }
       const plain = !event.ctrlKey && !event.metaKey && !event.altKey;
       if (plain && event.key === "Escape" && !suggestBox.hidden) {
         event.preventDefault();
@@ -320,7 +581,7 @@
           return;
         }
       }
-      if (event.key === "Enter" && !event.ctrlKey && !event.metaKey) {
+      if (event.key === "Enter" && !event.ctrlKey && !event.metaKey && (single || sourceMode)) {
         event.preventDefault();
         // A one-line field submits on Enter, like the input it replaced.
         if (single) field.form?.requestSubmit();
@@ -329,25 +590,44 @@
     });
     editor.addEventListener("keyup", (event) => {
       // Up/Down move through the list when it has items, so only recheck when it doesn't.
-      const moved = /^(ArrowLeft|ArrowRight|Home|End)$/.test(event.key) || (!suggesting && /^(ArrowUp|ArrowDown|PageUp|PageDown)$/.test(event.key));
-      if (moved) checkTrigger(editor);
+      const moved =
+        /^(ArrowLeft|ArrowRight|Home|End)$/.test(event.key) ||
+        (!suggesting && /^(ArrowUp|ArrowDown|PageUp|PageDown)$/.test(event.key));
+      rememberSelection();
+      updateToolbar();
+      if (moved && tokens && !getSelection().anchorNode?.parentElement?.closest("code")) checkTrigger(editor);
     });
-    editor.addEventListener("click", () => checkTrigger(editor));
+    editor.addEventListener("click", () => {
+      rememberSelection();
+      updateToolbar();
+      if (tokens) checkTrigger(editor);
+    });
     editor.addEventListener("blur", hideSuggestions);
 
-    // Pasted or dropped text arrives as plain text, with its tags and links as pills.
+    // Source and single-line fields insert text without interpreting Markdown.
     const insertPlain = (text) => {
       if (single) text = text.replace(/\s*\n\s*/g, " ");
       const range = getSelection().getRangeAt(0);
       const joinsWord = /\S$/.test(textBefore(editor, range.startContainer, range.startOffset));
-      if (text) document.execCommand("insertHTML", false, textToHtml(text, joinsWord));
+      if (text)
+        document.execCommand(
+          "insertHTML",
+          false,
+          tokens && !sourceMode ? textToHtml(text, joinsWord) : escapeHtml(text).replace(/\n/g, "<br>"),
+        );
     };
     // Copy and cut the saved text, so a goal pill keeps its [[link]].
     const copySelection = (event) => {
       const selection = getSelection();
       if (!selection.rangeCount || selection.isCollapsed) return;
       event.preventDefault();
-      event.clipboardData.setData("text/plain", editorText(selection.getRangeAt(0).cloneContents()));
+      const fragment = selection.getRangeAt(0).cloneContents();
+      event.clipboardData.setData("text/plain", single || sourceMode ? editorText(fragment) : editorMarkdown(fragment));
+      if (!single && !sourceMode) {
+        const safe = document.createElement("div");
+        safe.append(fragment);
+        event.clipboardData.setData("text/html", renderEntryMarkdown(editorMarkdown(safe)));
+      }
       if (event.type === "cut") document.execCommand("delete");
     };
     editor.addEventListener("copy", copySelection);
@@ -357,7 +637,24 @@
     editor.addEventListener("dragstart", (event) => event.preventDefault());
     editor.addEventListener("paste", (event) => {
       event.preventDefault();
-      insertPlain(event.clipboardData.getData("text/plain"));
+      if (!single && !sourceMode) {
+        const html = event.clipboardData.getData("text/html");
+        const content = document.createElement("template");
+        if (html) content.innerHTML = html;
+        content.content.querySelectorAll("[data-token]").forEach((node) => {
+          node.removeAttribute("data-token");
+        });
+        const markdown = html ? editorMarkdown(content.content) : event.clipboardData.getData("text/plain");
+        document.execCommand(
+          "insertHTML",
+          false,
+          literalPaste
+            ? escapeHtml(event.clipboardData.getData("text/plain")).replace(/\n/g, "<br>")
+            : richHtml(markdown).innerHTML,
+        );
+        literalPaste = false;
+        sync();
+      } else insertPlain(event.clipboardData.getData("text/plain"));
     });
     editor.addEventListener("drop", (event) => {
       event.preventDefault();
@@ -365,10 +662,15 @@
       if (!range || !editor.contains(range.startContainer)) return;
       getSelection().removeAllRanges();
       getSelection().addRange(range);
-      insertPlain(event.dataTransfer.getData("text/plain"));
+      const text = event.dataTransfer.getData("text/plain");
+      if (!single && !sourceMode) {
+        document.execCommand("insertHTML", false, richHtml(text).innerHTML);
+        sync();
+      } else insertPlain(text);
     });
 
     field.form?.addEventListener("submit", (event) => {
+      sync();
       if (!required || field.value.trim()) return;
       // Nothing written: stay put instead of posting an empty form.
       event.preventDefault();
@@ -422,7 +724,7 @@
 
   /** Visible, so focusing it makes sense (not inside a collapsed section). */
   const canFocus = (el) => {
-    if (!el || !el.isConnected) return false;
+    if (!el?.isConnected) return false;
     const closed = el.closest("details:not([open])");
     return !closed || closed.querySelector(":scope > summary")?.contains(el);
   };
@@ -443,16 +745,22 @@
     // Remember where focus was, and the rows around it, in case that element goes away.
     const active = document.activeElement;
     const row = active?.closest("li[id]");
-    const focusIds = [active?.id, row?.id, row?.nextElementSibling?.id, row?.previousElementSibling?.id].filter(Boolean);
+    const focusIds = [active?.id, row?.id, row?.nextElementSibling?.id, row?.previousElementSibling?.id].filter(
+      Boolean,
+    );
     const trayScroll = document.querySelector(".tray")?.scrollTop ?? 0;
 
     document.querySelector("main").replaceWith(nextMain);
     const nextNav = doc.querySelector(".nav");
     if (nextNav) document.querySelector(".nav")?.replaceWith(nextNav);
+    const settingsLink = doc.querySelector(".agent-settings-link");
+    if (settingsLink) document.querySelector(".agent-settings-link")?.replaceWith(settingsLink);
+    document.getElementById("change-notice").hidden = true;
     document.title = doc.title;
 
     const target = new URL(url);
     target.searchParams.delete("error");
+    target.searchParams.delete("saved");
     if (target.pathname + target.search !== location.pathname + location.search) {
       history.pushState(null, "", target.pathname + target.search);
     }
@@ -588,7 +896,8 @@
   let dateTimer = 0;
   document.addEventListener("change", (event) => {
     const el = event.target;
-    if (!(el instanceof HTMLInputElement || el instanceof HTMLSelectElement) || !el.hasAttribute("data-autosubmit")) return;
+    if (!(el instanceof HTMLInputElement || el instanceof HTMLSelectElement) || !el.hasAttribute("data-autosubmit"))
+      return;
     // Typing a date fires "change" on every valid keystroke (e.g. while typing
     // the year), so wait until the user pauses before jumping there.
     if (el.type === "date") {
@@ -606,9 +915,55 @@
     requestAnimationFrame(() => (status.textContent = text));
   };
 
+  function formValues(main) {
+    return JSON.stringify(
+      [...main.querySelectorAll("input, textarea, select")].map((field) => [
+        field.name,
+        field.type === "checkbox" || field.type === "radio" ? field.checked : field.value,
+      ]),
+    );
+  }
+
   document.addEventListener("click", async (event) => {
     const target = event.target instanceof Element ? event.target : null;
     if (!target) return;
+
+    if (target.closest("[data-refresh-page]")) {
+      const main = document.querySelector("main");
+      const dirty =
+        main.querySelector(".edit-form, .goal-edit") ||
+        [...main.querySelectorAll("input, textarea, select")].some(
+          (field) =>
+            !field.readOnly &&
+            field.type !== "hidden" &&
+            (field instanceof HTMLSelectElement
+              ? field.value !== (field.querySelector("option[selected]") ?? field.options[0])?.value
+              : field.type === "checkbox"
+                ? field.checked !== field.defaultChecked
+                : field.value !== field.defaultValue),
+        );
+      if (dirty && !confirm("Refresh now? Unsaved edits will be discarded. A ledger capture draft will be kept."))
+        return;
+      const url = location.href;
+      const initialValues = formValues(main);
+      try {
+        const response = await fetch(url);
+        const html = await response.text();
+        if (main === document.querySelector("main") && url === location.href) {
+          if (formValues(main) !== initialValues) {
+            announce(
+              document.getElementById("change-text"),
+              "New edits were made while refreshing. Your page has been kept.",
+            );
+            return;
+          }
+          swapPage(html, url, {});
+        }
+      } catch {
+        announce(document.getElementById("change-text"), "Could not refresh. Your edits are still here. Try again.");
+      }
+      return;
+    }
 
     const copyButton = target.closest("[data-copy]");
     if (copyButton) {
@@ -628,7 +983,7 @@
         } catch {
           await navigator.clipboard.writeText(source.value);
         }
-        announce(status, "Copied. Paste it into your review.");
+        announce(status, copyButton.dataset.copyMessage || "Copied. Paste it into your review.");
       } catch {
         source.closest("details")?.setAttribute("open", "");
         source.select();
@@ -686,6 +1041,7 @@
     for (const [name, value] of [
       [where, targetId],
       ["return_to", location.pathname + location.search],
+      ["expected_revision", row.closest("[data-todo-revision]")?.dataset.todoRevision ?? ""],
     ]) {
       const input = document.createElement("input");
       input.type = "hidden";
@@ -714,7 +1070,8 @@
     else if (key === "ArrowDown" && below) postMove(row, "after", below.dataset.id);
     else if (key === "ArrowRight" && isSubtask && above) postMove(row, "into", above.dataset.id);
     // A top-level subtask stays a subtask: its parent is the todo.
-    else if (key === "ArrowLeft" && isSubtask && parent?.dataset.move === "subtask") postMove(row, "after", parent.dataset.id);
+    else if (key === "ArrowLeft" && isSubtask && parent?.dataset.move === "subtask")
+      postMove(row, "after", parent.dataset.id);
   }
 
   let dragged = null;
@@ -749,7 +1106,9 @@
     if (handle) handle.closest("li[data-move]").draggable = true;
   });
   document.addEventListener("pointerup", () => {
-    document.querySelectorAll("li[data-move][draggable]").forEach((row) => row.removeAttribute("draggable"));
+    document.querySelectorAll("li[data-move][draggable]").forEach((row) => {
+      row.removeAttribute("draggable");
+    });
   });
 
   document.addEventListener("dragstart", (event) => {
@@ -824,6 +1183,15 @@
       }
       const cancel = el?.closest(".edit-form")?.querySelector("a.btn.ghost");
       if (cancel) {
+        // Escape must not discard formatting or other unsaved multiline edits.
+        const changed = [...el.closest(".edit-form").querySelectorAll("textarea:not([readonly])")].some(
+          (field) => field.value !== field.defaultValue,
+        );
+        if (changed) {
+          event.preventDefault();
+          el.blur();
+          return;
+        }
         cancel.click();
         return;
       }
@@ -862,5 +1230,28 @@
     else target.focus();
   });
 
+  let checkingChanges = false;
+  async function checkTaskChanges() {
+    if (document.hidden || checkingChanges) return;
+    const main = document.querySelector("main");
+    if (!main?.dataset.todoVersion) return;
+    checkingChanges = true;
+    try {
+      const response = await fetch("/todo-version");
+      if (!response.ok) return;
+      const { revision } = await response.json();
+      const notice = document.getElementById("change-notice");
+      if (main === document.querySelector("main") && revision !== main.dataset.todoVersion && notice.hidden) {
+        notice.hidden = false;
+        announce(document.getElementById("change-text"), "Todos changed outside this page. Refresh when ready.");
+      }
+    } catch {
+      // The app may be shutting down. Leave the current page and every draft alone.
+    } finally {
+      checkingChanges = false;
+    }
+  }
+  setInterval(checkTaskChanges, 5000);
+  window.addEventListener("focus", checkTaskChanges);
   initPage(document);
 })();

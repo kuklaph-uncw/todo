@@ -39,9 +39,7 @@ export function handleGoal(req: Request, ctx: AppContext, slug: string): Respons
   if (!goal) return notFound(ctx, "That goal");
 
   const items = byDate(collectItems(ctx.vault, ALL_TIME.from, ALL_TIME.to).filter((item) => item.goals.includes(slug)));
-  const openTodos = ctx.vault
-    .getTodos()
-    .filter((todo) => todo.goals.includes(slug) && todo.status === "Open").length;
+  const openTodos = ctx.vault.getTodos().filter((todo) => todo.goals.includes(slug) && todo.status === "Open").length;
   const main = renderGoal({
     goal,
     goals: ctx.vault.getGoals(),
@@ -59,7 +57,10 @@ export async function createGoal(req: Request, ctx: AppContext): Promise<Respons
   const title = form.text("title").trim();
   const cycle = form.text("cycle").trim() || today(ctx).slice(0, 4);
   // Send the description back too, so a long one isn't lost.
-  if (!title) return redirectWithError(`/goals?cycle=${encodeURIComponent(cycle)}`, "A goal needs a name.", [["body", form.text("body")]]);
+  if (!title)
+    return redirectWithError(`/goals?cycle=${encodeURIComponent(cycle)}`, "A goal needs a name.", [
+      ["body", form.text("body")],
+    ]);
   const goal = ctx.vault.createGoal({ title, cycle, body: form.text("body") });
   return redirect(`/goals/${goal.slug}`);
 }
@@ -70,7 +71,8 @@ export async function saveGoal(req: Request, ctx: AppContext, slug: string): Pro
   const existing = ctx.vault.getGoal(slug);
   if (!existing) return notFound(ctx, "That goal");
   const status = form.text("status");
-  if (!isValidGoalStatus(status)) return redirectWithError(`/goals/${slug}?edit=1`, "Pick Active, Achieved or Dropped.");
+  if (!isValidGoalStatus(status))
+    return redirectWithError(`/goals/${slug}?edit=1`, "Pick Active, Achieved or Dropped.");
 
   // A blank name or cycle keeps the current one rather than bouncing the
   // form back and risking a long self-assessment.

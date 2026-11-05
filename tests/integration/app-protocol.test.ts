@@ -64,6 +64,10 @@ describe("app:// requests", () => {
     const js = await get("/app.js");
     expect(js.headers.get("content-type")).toContain("javascript");
     expect(await js.text()).toContain("swapPage");
+    const rich = await get("/rich-text.js");
+    expect(rich.headers.get("content-type")).toContain("javascript");
+    expect(rich.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(await rich.text()).toContain("export function editorMarkdown");
   });
 
   it("returns 404 for unknown files, including encoded traversal attempts", async () => {

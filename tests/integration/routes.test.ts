@@ -32,7 +32,13 @@ describe("pages", () => {
   });
 
   it.each(["/", "/todos"])("GET %s embeds tags and goals for #tag and /goal suggestions", async (path) => {
-    ctx.vault.addEntries("2026-09-28", ["Fixed it #ops"], { tags: [], goals: [], minutes: null, isHighlight: false, time: null });
+    ctx.vault.addEntries("2026-09-28", ["Fixed it #ops"], {
+      tags: [],
+      goals: [],
+      minutes: null,
+      isHighlight: false,
+      time: null,
+    });
     ctx.vault.createGoal({ title: "Ship </script><b>v2</b>", cycle: "2026", body: "" });
     const page = await html(path);
     const json = /<script type="application\/json" id="composer-data">(.*?)<\/script>/.exec(page)?.[1] ?? "";
@@ -80,8 +86,16 @@ describe("journal capture", () => {
   });
 
   it("keeps Markdown list markers and body checkboxes in one capture entry", async () => {
-    await send(formPost("/journal", { date: "2026-09-28", content: "- Fixed the build\n* [x] Shipped docs\n• Paired with Sam", return_to: "/" }));
-    expect(ctx.vault.getEntries("2026-09-28").map((e) => e.text)).toEqual(["- Fixed the build\n* [x] Shipped docs\n• Paired with Sam"]);
+    await send(
+      formPost("/journal", {
+        date: "2026-09-28",
+        content: "- Fixed the build\n* [x] Shipped docs\n• Paired with Sam",
+        return_to: "/",
+      }),
+    );
+    expect(ctx.vault.getEntries("2026-09-28").map((e) => e.text)).toEqual([
+      "- Fixed the build\n* [x] Shipped docs\n• Paired with Sam",
+    ]);
   });
 
   it("sends typed values back after an error so nothing is lost", async () => {
@@ -95,8 +109,16 @@ describe("journal capture", () => {
     expect(page).toContain('value="soon"');
     expect(page).toContain('name="star" value="1" checked');
 
-    const [entry] = ctx.vault.addEntries("2026-09-28", ["Original"], { tags: [], goals: [], minutes: null, isHighlight: false, time: null });
-    const edit = await send(formPost(`/journal/${entry.id}`, { date: "2026-09-28", content: "Rewritten carefully", minutes: "lots" }));
+    const [entry] = ctx.vault.addEntries("2026-09-28", ["Original"], {
+      tags: [],
+      goals: [],
+      minutes: null,
+      isHighlight: false,
+      time: null,
+    });
+    const edit = await send(
+      formPost(`/journal/${entry.id}`, { date: "2026-09-28", content: "Rewritten carefully", minutes: "lots" }),
+    );
     expect(await html(edit.headers.get("location") ?? "")).toContain("Rewritten carefully</textarea>");
   });
 
@@ -106,21 +128,42 @@ describe("journal capture", () => {
   });
 
   it("rejects blank capture and bad time with a message", async () => {
-    const blank = await send(formPost("/journal", { date: "2026-09-28", content: "   \n ", return_to: "/?date=2026-09-28" }));
+    const blank = await send(
+      formPost("/journal", { date: "2026-09-28", content: "   \n ", return_to: "/?date=2026-09-28" }),
+    );
     expect(blank.headers.get("location")).toContain("error=Write+something");
     const checkbox = await send(formPost("/journal", { date: "2026-09-28", content: "[x]", return_to: "/" }));
     expect(checkbox.headers.get("location")).toContain("error=Write+something");
 
-    const badTime = await send(formPost("/journal", { date: "2026-09-28", content: "x", minutes: "soon", return_to: "/" }));
+    const badTime = await send(
+      formPost("/journal", { date: "2026-09-28", content: "x", minutes: "soon", return_to: "/" }),
+    );
     expect(badTime.headers.get("location")).toContain("error=Time+spent");
     expect(ctx.vault.getEntries("2026-09-28")).toEqual([]);
   });
 
   it("edits, stars and deletes an entry", async () => {
-    const [entry] = ctx.vault.addEntries("2026-09-28", ["Draft"], { tags: [], goals: [], minutes: null, isHighlight: false, time: null });
-    await send(formPost(`/journal/${entry.id}`, { date: "2026-09-28", content: "Final #ops\n\n- **Checks** passed", minutes: "20" }));
+    const [entry] = ctx.vault.addEntries("2026-09-28", ["Draft"], {
+      tags: [],
+      goals: [],
+      minutes: null,
+      isHighlight: false,
+      time: null,
+    });
+    await send(
+      formPost(`/journal/${entry.id}`, {
+        date: "2026-09-28",
+        content: "Final #ops\n\n- **Checks** passed",
+        minutes: "20",
+      }),
+    );
     await send(formPost(`/journal/${entry.id}/star`, { date: "2026-09-28" }));
-    expect(ctx.vault.getEntries("2026-09-28")[0]).toMatchObject({ text: "Final\n\n- **Checks** passed", tags: ["ops"], minutes: 20, isHighlight: true });
+    expect(ctx.vault.getEntries("2026-09-28")[0]).toMatchObject({
+      text: "Final\n\n- **Checks** passed",
+      tags: ["ops"],
+      minutes: 20,
+      isHighlight: true,
+    });
 
     await send(formPost(`/journal/${entry.id}/delete`, { date: "2026-09-28" }));
     expect(ctx.vault.getEntries("2026-09-28")).toEqual([]);
@@ -128,7 +171,13 @@ describe("journal capture", () => {
   });
 
   it("escapes entry text in the page", async () => {
-    ctx.vault.addEntries("2026-09-28", ["<script>alert(1)</script>"], { tags: [], goals: [], minutes: null, isHighlight: false, time: null });
+    ctx.vault.addEntries("2026-09-28", ["<script>alert(1)</script>"], {
+      tags: [],
+      goals: [],
+      minutes: null,
+      isHighlight: false,
+      time: null,
+    });
     const page = await html("/");
     expect(page).not.toContain("<script>alert(1)</script>");
     expect(page).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
@@ -138,13 +187,20 @@ describe("journal capture", () => {
     const goal = ctx.vault.createGoal({ title: "Delivery", cycle: "2026", body: "" });
     const text = "Retro\n\n- **Checks** #ops [[delivery]]\n- `#literal`";
     ctx.vault.addEntries("2026-09-28", [text], { tags: [], goals: [], minutes: null, isHighlight: false, time: null });
-    const todo = ctx.vault.addTodo({ task: "**Todo**", priority: null, status: "Open", tags: [], goals: [goal.slug], notes: "" }, "2026-09-28");
+    const todo = ctx.vault.addTodo(
+      { task: "**Todo**", priority: null, status: "Open", tags: [], goals: [goal.slug], notes: "" },
+      "2026-09-28",
+    );
     ctx.vault.updateTodo(todo.id, { status: "Done" }, "2026-09-28");
     for (const path of ["/", "/goals/delivery", "/review"]) {
       const page = await html(path);
       const className = path === "/review" ? "sheet-text" : "entry-text";
-      expect(page).toContain(`<div class="${className}"><p>Retro</p><ul><li><strong>Checks</strong> <span class="tag">#ops</span> <a class="goal-link" href="/goals/delivery">Delivery</a></li><li><code>#literal</code></li></ul></div>`);
-      expect(page).toContain(path === "/review" ? '<span class="sheet-text">**Todo**</span>' : '<p class="entry-text">**Todo**</p>');
+      expect(page).toContain(
+        `<div class="${className}"><p>Retro</p><ul><li><strong>Checks</strong> <span class="tag">#ops</span> <a class="goal-link" href="/goals/delivery">Delivery</a></li><li><code>#literal</code></li></ul></div>`,
+      );
+      expect(page).toContain(
+        path === "/review" ? '<span class="sheet-text">**Todo**</span>' : '<p class="entry-text">**Todo**</p>',
+      );
     }
   });
 });
@@ -189,7 +245,13 @@ describe("todos", () => {
     await send(formPost("/todos", { task: "Ship", status: "Done", return_to: "/todos" }));
     const [todo] = ctx.vault.getTodos();
     await send(formPost(`/todos/${todo.id}`, { task: "Ship v2 #release", priority: "Low", notes: "after QA" }));
-    expect(ctx.vault.getTodo(todo.id)).toMatchObject({ task: "Ship v2", tags: ["release"], priority: "Low", notes: "after QA", completedOn: "2026-09-28" });
+    expect(ctx.vault.getTodo(todo.id)).toMatchObject({
+      task: "Ship v2",
+      tags: ["release"],
+      priority: "Low",
+      notes: "after QA",
+      completedOn: "2026-09-28",
+    });
 
     await send(formPost(`/todos/${todo.id}/clear-completion`, {}));
     expect(ctx.vault.getTodo(todo.id)?.completedOn).toBeNull();
@@ -211,7 +273,9 @@ describe("todos", () => {
     const page = await html(`/todos?edit=${todo.id}&back=${encodeURIComponent("/?date=2026-09-20")}`);
     expect(page).toContain('name="return_to" value="/?date=2026-09-20"');
 
-    const res = await send(formPost(`/todos/${todo.id}`, { task: "  ", status: "Open", priority: "", return_to: "/?date=2026-09-20" }));
+    const res = await send(
+      formPost(`/todos/${todo.id}`, { task: "  ", status: "Open", priority: "", return_to: "/?date=2026-09-20" }),
+    );
     const location = res.headers.get("location") ?? "";
     expect(location).toContain(`edit=${todo.id}`);
     expect(location).toContain(`back=${encodeURIComponent("/?date=2026-09-20")}`);
@@ -221,14 +285,18 @@ describe("todos", () => {
     await send(formPost("/todos", { task: "Ship it", return_to: "/" }));
     const [todo] = ctx.vault.getTodos();
     const page = await html("/");
-    expect(page).toContain(`href="/todos?edit=${todo.id}&amp;back=%2F#todo-${todo.id}" aria-label="Edit details: Ship it"`);
+    expect(page).toContain(
+      `href="/todos?edit=${todo.id}&amp;back=%2F#todo-${todo.id}" aria-label="Edit details: Ship it"`,
+    );
     expect(page).not.toContain('class="menu"');
   });
 
   it("saves an edit without a status field, leaving the todo open or done as it was", async () => {
     await send(formPost("/todos", { task: "Ship", status: "Done", return_to: "/todos" }));
     const [todo] = ctx.vault.getTodos();
-    const res = await send(formPost(`/todos/${todo.id}`, { task: "Ship v2", priority: "", notes: "", return_to: "/todos" }));
+    const res = await send(
+      formPost(`/todos/${todo.id}`, { task: "Ship v2", priority: "", notes: "", return_to: "/todos" }),
+    );
     expect(res.headers.get("location")).toBe("/todos");
     expect(ctx.vault.getTodo(todo.id)).toMatchObject({ task: "Ship v2", status: "Done" });
     const page = await html(`/todos?edit=${todo.id}`);
@@ -257,7 +325,9 @@ describe("todos", () => {
     const res = await send(formPost(`/todos/${a.id}/move`, { after: b.id, return_to: "/todos" }));
     expect(res.headers.get("location")).toBe("/todos");
     expect(ctx.vault.getTodos().map((t) => t.task)).toEqual(["B", "A"]);
-    expect((await send(formPost(`/todos/${a.id}/move`, { after: a.id, return_to: "/todos" }))).headers.get("location")).toContain("error=");
+    expect(
+      (await send(formPost(`/todos/${a.id}/move`, { after: a.id, return_to: "/todos" }))).headers.get("location"),
+    ).toContain("error=");
   });
 });
 
@@ -312,9 +382,13 @@ describe("subtasks", () => {
     ctx.vault.setSubtaskDone(b.id, true);
     for (const path of ["/todos", "/"]) {
       const page = await html(path);
-      expect(page).toContain(`<div class="chips"><span class="progress"><span aria-hidden="true">1/3</span><span class="sr-only">1 of 3 subtasks done</span>`);
+      expect(page).toContain(
+        `<div class="chips"><span class="progress"><span aria-hidden="true">1/3</span><span class="sr-only">1 of 3 subtasks done</span>`,
+      );
       // Keyboard and screen-reader users get a real button for the same toggle.
-      expect(page).toContain(`<button type="button" class="sr-only subtask-toggle" hidden data-subtasks="subs-${todoId}" aria-controls="subs-${todoId}" aria-expanded="false">`);
+      expect(page).toContain(
+        `<button type="button" class="sr-only subtask-toggle" hidden data-subtasks="subs-${todoId}" aria-controls="subs-${todoId}" aria-expanded="false">`,
+      );
       expect(page).toContain(`id="sub-${b.id}"`);
       expect(page).toContain(`<p class="todo-task" data-subtasks="subs-${todoId}"`);
       // A todo without subtasks gets no count.
@@ -384,12 +458,25 @@ describe("goals", () => {
     const res = await send(formPost("/goals", { title: "Improve reliability", cycle: "2026", body: "Fewer pages." }));
     expect(res.headers.get("location")).toBe("/goals/improve-reliability");
 
-    ctx.vault.addEntries("2026-09-10", ["Cut alert noise"], { tags: [], goals: ["improve-reliability"], minutes: null, isHighlight: false, time: null });
+    ctx.vault.addEntries("2026-09-10", ["Cut alert noise"], {
+      tags: [],
+      goals: ["improve-reliability"],
+      minutes: null,
+      isHighlight: false,
+      time: null,
+    });
     const page = await html("/goals/improve-reliability");
     expect(page).toContain("Cut alert noise");
     expect(page).toContain("Fewer pages.");
 
-    await send(formPost("/goals/improve-reliability", { title: "Improve reliability", cycle: "2026", status: "achieved", body: "Met it." }));
+    await send(
+      formPost("/goals/improve-reliability", {
+        title: "Improve reliability",
+        cycle: "2026",
+        status: "achieved",
+        body: "Met it.",
+      }),
+    );
     expect(ctx.vault.getGoal("improve-reliability")?.status).toBe("achieved");
   });
 
@@ -401,14 +488,26 @@ describe("goals", () => {
 
   it("keeps the current name and cycle when the edit form sends them blank", async () => {
     ctx.vault.createGoal({ title: "Mentoring", cycle: "2026", body: "" });
-    await send(formPost("/goals/mentoring", { title: " ", cycle: " ", status: "active", body: "Long self-assessment" }));
-    expect(ctx.vault.getGoal("mentoring")).toMatchObject({ title: "Mentoring", cycle: "2026", body: "Long self-assessment" });
+    await send(
+      formPost("/goals/mentoring", { title: " ", cycle: " ", status: "active", body: "Long self-assessment" }),
+    );
+    expect(ctx.vault.getGoal("mentoring")).toMatchObject({
+      title: "Mentoring",
+      cycle: "2026",
+      body: "Long self-assessment",
+    });
   });
 });
 
 describe("review and exports", () => {
   beforeEach(() => {
-    ctx.vault.addEntries("2026-09-10", ["Led the incident review"], { tags: ["incident"], goals: [], minutes: null, isHighlight: true, time: null });
+    ctx.vault.addEntries("2026-09-10", ["Led the incident review"], {
+      tags: ["incident"],
+      goals: [],
+      minutes: null,
+      isHighlight: true,
+      time: null,
+    });
   });
 
   it("renders the document for the chosen range", async () => {
@@ -419,7 +518,9 @@ describe("review and exports", () => {
 
   it("downloads Markdown, JSON and JSONL from the same filters", async () => {
     const md = await send(get("/review/export.md?from=2026-09-01&to=2026-09-30"));
-    expect(md.headers.get("content-disposition")).toBe('attachment; filename="accomplishments-2026-09-01-to-2026-09-30.md"');
+    expect(md.headers.get("content-disposition")).toBe(
+      'attachment; filename="accomplishments-2026-09-01-to-2026-09-30.md"',
+    );
     expect(await md.text()).toContain("- 2026-09-10 — Led the incident review");
 
     const json = await (await send(get("/review/export.json?from=2026-09-01&to=2026-09-30"))).json();
@@ -440,7 +541,9 @@ describe("review and exports", () => {
   });
 
   it("keeps an active tag selected even when the period has no items with it", async () => {
-    expect(await html("/review?from=2026-01-01&to=2026-01-31&tag=incident")).toContain('<option value="incident" selected>');
+    expect(await html("/review?from=2026-01-01&to=2026-01-31&tag=incident")).toContain(
+      '<option value="incident" selected>',
+    );
   });
 });
 
@@ -463,10 +566,13 @@ describe("development server request guard", () => {
     expect((await devSend(post("http://127.0.0.1:3000"))).status).toBe(303);
   });
 
-  it.each(["/", "/__dev/reload.js", "/__dev/events"])("refuses %s for non-local hostnames (DNS rebinding)", async (path) => {
-    const req = new Request(`http://127.0.0.1:3000${path}`, { headers: { host: "evil.example" } });
-    expect((await devSend(req)).status).toBe(403);
-  });
+  it.each(["/", "/__dev/reload.js", "/__dev/events"])(
+    "refuses %s for non-local hostnames (DNS rebinding)",
+    async (path) => {
+      const req = new Request(`http://127.0.0.1:3000${path}`, { headers: { host: "evil.example" } });
+      expect((await devSend(req)).status).toBe(403);
+    },
+  );
 });
 
 describe("return paths", () => {

@@ -1,7 +1,9 @@
 import { escapeHtml } from "../lib/html";
+import { renderEntryMarkdown } from "../lib/markdown";
 import { shortMonthDay } from "../lib/date";
 import { PRIORITIES, type Status } from "../lib/validation";
 import { allSubtasks, editableText, type Goal, type Todo } from "../vault/format";
+import { contentRevision } from "../vault/revision";
 import {
   COMPOSER_HINT,
   composerData,
@@ -61,7 +63,8 @@ export function sortTodos(todos: Todo[]): Todo[] {
   return todos
     .map((todo, index) => ({ todo, index }))
     .sort((a, b) => {
-      if (a.todo.status === "Done") return (b.todo.completedOn ?? "").localeCompare(a.todo.completedOn ?? "") || a.index - b.index;
+      if (a.todo.status === "Done")
+        return (b.todo.completedOn ?? "").localeCompare(a.todo.completedOn ?? "") || a.index - b.index;
       return a.index - b.index;
     })
     .map(({ todo }) => todo);
@@ -71,12 +74,19 @@ export function filterTodos(todos: Todo[], filters: TodoFilters): Todo[] {
   const q = filters.q.toLowerCase();
   // Search everything the user can see on the row, including tags, goal links and subtasks.
   const haystack = (todo: Todo) =>
-    [todo.task, todo.notes, ...todo.tags.map((tag) => `#${tag}`), ...todo.goals, ...allSubtasks(todo.subtasks).map((s) => s.text)]
+    [
+      todo.task,
+      todo.notes,
+      ...todo.tags.map((tag) => `#${tag}`),
+      ...todo.goals,
+      ...allSubtasks(todo.subtasks).map((s) => s.text),
+    ]
       .join(" ")
       .toLowerCase();
   return todos.filter(
     (todo) =>
-      (!filters.priority || (filters.priority === "none" ? todo.priority === null : todo.priority === filters.priority)) &&
+      (!filters.priority ||
+        (filters.priority === "none" ? todo.priority === null : todo.priority === filters.priority)) &&
       (!filters.tag || todo.tags.includes(filters.tag)) &&
       (!filters.goal || todo.goals.includes(filters.goal)) &&
       (!q || haystack(todo).includes(q)),
@@ -95,19 +105,21 @@ function editForm(todo: Todo, data: TodosViewData): string {
     ? `<div class="completion-note">
         <p>Completed on <strong>${todo.completedOn}</strong>. This date stays even if you reopen the todo, and is reused if you mark it done again.</p>
         ${postButton({
+          todo,
           action: `/todos/${todo.id}/clear-completion`,
           label: "Clear completion date",
           body: "Clear completion date",
           returnTo: `${data.returnTo}#todo-${todo.id}`,
           className: "btn ghost danger",
-          confirm: "Clear the completion date? The todo won't appear in any review until you mark it done again, which dates it today.",
+          confirm:
+            "Clear the completion date? The todo won't appear in any review until you mark it done again, which dates it today.",
         })}
       </div>`
     : "";
 
   return `<div class="todo-edit">
       <form class="edit-form" method="post" action="/todos/${todo.id}">
-        ${hidden("return_to", back)}
+        ${hidden("return_to", back)}${hidden("expected_revision", contentRevision(todo))}
         <div class="field"><span id="task-label-${todo.id}">Task</span>
           <input name="task" required aria-labelledby="task-label-${todo.id}" value="${escapeHtml(retry?.get("task") ?? editableText(todo.task, todo.tags, todo.goals))}" autofocus data-composer>
         </div>
@@ -115,7 +127,7 @@ function editForm(todo: Todo, data: TodosViewData): string {
         <div class="field-row">
           <label class="field"><span>Priority</span><select name="priority">${options(PRIORITIES, priority, "None")}</select></label>
         </div>
-        <label class="field"><span>Notes</span><textarea name="notes" rows="3">${escapeHtml(retry?.get("notes") ?? todo.notes)}</textarea></label>
+        <div class="field"><span id="notes-label-${todo.id}">Notes</span><textarea name="notes" rows="3" aria-labelledby="notes-label-${todo.id}">${escapeHtml(retry?.get("notes") ?? todo.notes)}</textarea></div>
         <div class="edit-bar">
           <span class="spacer"></span>
           <a class="btn ghost" href="${escapeHtml(back)}">Cancel</a>
@@ -134,6 +146,7 @@ function todoRow(todo: Todo, goals: GoalIndex, data: TodosViewData): string {
   const editHref = escapeHtml(`${returnTo}${returnTo.includes("?") ? "&" : "?"}edit=${todo.id}#todo-${todo.id}`);
 
   const check = postButton({
+    todo,
     action: `/todos/${todo.id}/status`,
     label: done ? `Reopen: ${todo.task}` : `Mark done: ${todo.task}`,
     body: icon("check"),
@@ -149,16 +162,19 @@ function todoRow(todo: Todo, goals: GoalIndex, data: TodosViewData): string {
     : done
       ? `<span class="done-date" title="Completed">Done ${shortMonthDay(todo.completedOn)}</span>`
       : `<span title="Marking it done again reuses this date">Kept: done ${shortMonthDay(todo.completedOn)}</span>`;
-  const dates = [todo.createdOn ? `<span title="Added">Added ${shortMonthDay(todo.createdOn)}</span>` : "", completion].join("");
+  const dates = [
+    todo.createdOn ? `<span title="Added">Added ${shortMonthDay(todo.createdOn)}</span>` : "",
+    completion,
+  ].join("");
 
-  const notes = todo.notes ? `<p class="todo-notes">${escapeHtml(todo.notes).replace(/\n/g, "<br>")}</p>` : "";
+  const notes = todo.notes ? `<div class="todo-notes">${renderEntryMarkdown(todo.notes)}</div>` : "";
   const task = escapeHtml(todo.task);
 
   // Only open todos are in the user's order; Done is sorted by date.
   const movable = !done;
   const move = movable ? ` data-move="todo" data-id="${todo.id}"` : "";
 
-  return `<li class="todo-row ${statusClass(todo.status)}${todo.isHighlight ? " is-starred" : ""}" id="todo-${todo.id}"${move}>
+  return `<li class="todo-row ${statusClass(todo.status)}${todo.isHighlight ? " is-starred" : ""}" id="todo-${todo.id}" data-todo-revision="${contentRevision(todo)}"${move}>
       ${movable ? grip(todo.id, todo.task) : ""}
       ${check}
       <div class="todo-body">
@@ -175,6 +191,7 @@ function todoRow(todo: Todo, goals: GoalIndex, data: TodosViewData): string {
       <div class="row-actions">
         ${postButton({
           action: `/todos/${todo.id}/star`,
+          todo,
           label: todo.isHighlight ? `Unstar: ${todo.task}` : `Star as a highlight: ${todo.task}`,
           body: icon("star", todo.isHighlight),
           returnTo: back,
@@ -185,6 +202,7 @@ function todoRow(todo: Todo, goals: GoalIndex, data: TodosViewData): string {
         <a class="icon-btn" href="${editHref}" aria-label="Edit: ${task}" title="Edit">${icon("edit")}</a>
         ${postButton({
           action: `/todos/${todo.id}/delete`,
+          todo,
           label: `Delete: ${todo.task}`,
           body: icon("trash"),
           returnTo,
@@ -253,7 +271,9 @@ export function renderTodos(data: TodosViewData): string {
     if (todos.length === 0) return "";
     const list = `<ul class="todo-table">${todos.map((t) => todoRow(t, goals, data)).join("")}</ul>`;
     const heading = `${label} <span class="count">${todos.length}</span>`;
-    const hasEdit = todos.some((t) => t.id === data.editId || allSubtasks(t.subtasks).some((s) => s.id === data.editId));
+    const hasEdit = todos.some(
+      (t) => t.id === data.editId || allSubtasks(t.subtasks).some((s) => s.id === data.editId),
+    );
     if (collapsed && !filtering && !hasEdit) {
       return `<details class="todo-section g-${statusClass(status)}"><summary><h2 class="section-title">${heading}</h2></summary>${list}</details>`;
     }
@@ -264,7 +284,10 @@ export function renderTodos(data: TodosViewData): string {
     groups ||
     (filtering
       ? emptyState("No todos match these filters.", `<a href="/todos">Clear filters</a>`)
-      : emptyState("No todos yet.", "Add one above. Todos support the ledger: when one's done, it becomes dated evidence for your review."));
+      : emptyState(
+          "No todos yet.",
+          "Add one above. Todos support the ledger: when one's done, it becomes dated evidence for your review.",
+        ));
 
   const addedTodo = data.added ? data.todos.find((t) => t.id === data.added) : undefined;
   const hiddenNotice =

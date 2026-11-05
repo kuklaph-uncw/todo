@@ -1,6 +1,6 @@
 import { escapeHtml } from "../lib/html";
 
-export type NavKey = "today" | "todos" | "goals" | "review";
+export type NavKey = "today" | "todos" | "goals" | "review" | "settings";
 
 const NAV_ITEMS: { key: NavKey; label: string; href: string; keys: string }[] = [
   { key: "today", label: "Today", href: "/", keys: "g t" },
@@ -16,6 +16,8 @@ export interface LayoutOptions {
   vaultPath: string;
   /** Open todos, shown beside the nav item. */
   openTodos?: number;
+  agentAccess?: boolean;
+  todoVersion?: string;
 }
 
 const SHORTCUTS: [string, string][] = [
@@ -28,6 +30,10 @@ const SHORTCUTS: [string, string][] = [
   ["Alt + → / ←", "Indent or outdent the focused subtask (Todos page)"],
   ["Esc", "Cancel an edit or leave a text box"],
   ["Ctrl + Enter", "Save the form you're in"],
+  ["Ctrl + B / I / E", "Bold, italic, inline code in a rich-text editor"],
+  ["Ctrl + Alt + 1 / 2 / 0", "Heading, subheading, normal text"],
+  ["Ctrl + Shift + 7 / 8", "Numbered or bulleted list"],
+  ["Tab / Shift + Tab", "Indent or outdent inside a rich-text list"],
   ["g then t / d / g / r", "Go to Today, Todos, Goals, Review"],
   ["?", "Show this list"],
 ];
@@ -40,7 +46,9 @@ export function renderLayout(options: LayoutOptions): string {
     return `<a href="${item.href}"${current}><span>${item.label}</span>${count}<kbd class="nav-keys">${item.keys}</kbd></a>`;
   }).join("");
 
-  const shortcuts = SHORTCUTS.map(([keys, action]) => `<dt><kbd>${escapeHtml(keys)}</kbd></dt><dd>${escapeHtml(action)}</dd>`).join("");
+  const shortcuts = SHORTCUTS.map(
+    ([keys, action]) => `<dt><kbd>${escapeHtml(keys)}</kbd></dt><dd>${escapeHtml(action)}</dd>`,
+  ).join("");
 
   return `<!doctype html>
 <html lang="en">
@@ -52,7 +60,7 @@ export function renderLayout(options: LayoutOptions): string {
   <meta name="theme-color" content="#141311">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
-  <script src="/app.js" defer></script>
+  <script src="/app.js" type="module"></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -60,14 +68,16 @@ export function renderLayout(options: LayoutOptions): string {
     <header class="rail">
       <a class="wordmark" href="/"><span class="wordmark-rule" aria-hidden="true"></span>ToDo</a>
       <nav class="nav" aria-label="Main">${nav}</nav>
+      <div class="notice change-notice" id="change-notice" hidden><p id="change-text" role="status"></p><button type="button" class="link-button" data-refresh-page>Refresh when ready</button></div>
       <div class="rail-foot">
         <p class="rail-label">Vault</p>
         <p class="vault-path" title="${escapeHtml(options.vaultPath)}">${escapeHtml(options.vaultPath)}</p>
         <p class="rail-note">Plain Markdown files. Back up by copying the folder.</p>
+        <a class="link-button agent-settings-link" href="/settings"${options.active === "settings" ? ' aria-current="page"' : ""}>Settings${options.agentAccess ? " · agent access on" : ""}</a>
         <button type="button" class="link-button" data-open-shortcuts>Keyboard shortcuts <kbd>?</kbd></button>
       </div>
     </header>
-    <main id="main" tabindex="-1">${options.main}</main>
+    <main id="main" tabindex="-1" data-todo-version="${escapeHtml(options.todoVersion ?? "")}">${options.main}</main>
   </div>
   <dialog class="shortcuts" id="shortcuts" aria-labelledby="shortcuts-title">
     <h2 id="shortcuts-title">Keyboard shortcuts</h2>

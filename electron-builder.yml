@@ -5,11 +5,18 @@ directories:
   output: dist
 files:
   - out/**/*
+extraResources:
+  - from: public/favicon.ico
+    to: tray.ico
 asar: true
 npmRebuild: false
 electronLanguages:
   - en-US
-publish: null # no auto-update and no upload anywhere
+# Builds generate update metadata. Uploads are a separate, explicit release step.
+publish:
+  provider: github
+  owner: kuklaph-uncw
+  repo: todo
 
 win:
   icon: public/favicon.ico
@@ -18,6 +25,7 @@ win:
     - zip
 
 nsis:
+  artifactName: ${productName}-Setup-${version}.${ext}
   oneClick: true # installs on double-click
   perMachine: false # per user, so no admin rights needed
 

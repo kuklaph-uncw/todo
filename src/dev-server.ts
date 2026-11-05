@@ -62,7 +62,8 @@ function reloadEvents(): Response {
 async function devResponse(req: Request, ctx: AppContext): Promise<Response> {
   if (!isAllowedRequest(req)) return new Response("Forbidden", { status: 403 });
   const path = new URL(req.url).pathname;
-  if (path === "/__dev/reload.js") return new Response(RELOAD_SCRIPT, { headers: { "content-type": "text/javascript; charset=utf-8" } });
+  if (path === "/__dev/reload.js")
+    return new Response(RELOAD_SCRIPT, { headers: { "content-type": "text/javascript; charset=utf-8" } });
   if (path === "/__dev/events") return reloadEvents();
 
   const res = await handleRequest(req, ctx);
@@ -84,7 +85,12 @@ export function devFetch(ctx: AppContext): (req: Request) => Promise<Response> {
 }
 
 if (import.meta.main) {
-  const vaultPath = resolveVaultPath({ envPath: process.env.VAULT_PATH, standalone: false, home: homedir(), cwd: process.cwd() });
+  const vaultPath = resolveVaultPath({
+    envPath: process.env.VAULT_PATH,
+    standalone: false,
+    home: homedir(),
+    cwd: process.cwd(),
+  });
   const ctx: AppContext = { vault: new Vault(vaultPath), vaultPath, clock: () => new Date() };
   const server = Bun.serve({ hostname: "127.0.0.1", port: Number(process.env.PORT ?? 41820), fetch: devFetch(ctx) });
   console.log(`ToDo (development) is running at ${server.url}\nNotes: ${vaultPath}`);

@@ -37,11 +37,15 @@ export interface TodayViewData {
 }
 
 function summaryLine(data: TodayViewData): string {
-  const starred = data.entries.filter((e) => e.isHighlight).length + data.closedTodos.filter((t) => t.isHighlight).length;
+  const starred =
+    data.entries.filter((e) => e.isHighlight).length + data.closedTodos.filter((t) => t.isHighlight).length;
   const minutes = data.entries.reduce((sum, e) => sum + (e.minutes ?? 0), 0);
   const entries = data.entries.length;
   const closed = data.closedTodos.length;
-  const parts = [`${entries} ${entries === 1 ? "entry" : "entries"}`, `${closed} ${closed === 1 ? "todo" : "todos"} closed`];
+  const parts = [
+    `${entries} ${entries === 1 ? "entry" : "entries"}`,
+    `${closed} ${closed === 1 ? "todo" : "todos"} closed`,
+  ];
   if (starred) parts.push(`${starred} starred`);
   if (minutes) parts.push(`${formatMinutes(minutes)} logged`);
   return parts.join(" · ");
@@ -60,7 +64,9 @@ function weekStrip(data: TodayViewData): string {
       const day = parseLocalDate(date).getDate();
       const ticks = `<span class="ticks" aria-hidden="true">${"<i></i>".repeat(Math.min(count, 6))}</span>`;
       const label = `${weekdayName(date)} ${monthDay(date)}: ${count} item${count === 1 ? "" : "s"}`;
-      const classes = ["week-day", date === data.today ? "is-today" : "", date > data.today ? "is-future" : ""].filter(Boolean).join(" ");
+      const classes = ["week-day", date === data.today ? "is-today" : "", date > data.today ? "is-future" : ""]
+        .filter(Boolean)
+        .join(" ");
       const current = date === data.date ? ' aria-current="date"' : "";
       return `<li><a class="${classes}" href="/?date=${date}"${current} aria-label="${escapeHtml(label)}"><span class="dow">${dow}</span><span class="num">${day}</span>${ticks}</a></li>`;
     })
@@ -80,7 +86,7 @@ function captureForm(data: TodayViewData, returnTo: string): string {
       <label class="sr-only" for="capture">New ledger entry</label>
       <div class="composer-box">
         <textarea id="capture" name="content" rows="2" required data-draft="draft:${isToday ? "today" : data.date}" data-shortcut="n" data-composer
-          placeholder="What's worth keeping from the day? Write as much as you like; Markdown works (- lists, **bold**). Type # for tags, / for goals."></textarea>
+          placeholder="What's worth keeping from the day? Type # for tags, / for goals. Use formatting below, or MD for Markdown."></textarea>
         <div class="composer-bar">
           <label class="time-field">${icon("clock")}<span class="sr-only">Time spent</span><input name="minutes" placeholder="Add time" autocomplete="off" title="Time spent, like 45m or 1h 30m." value="${escapeHtml(retry?.get("minutes") ?? "")}"></label>
           <label class="star-toggle" title="Star as a highlight"><input class="sr-only" type="checkbox" name="star" value="1"${retry?.get("star") === "1" ? " checked" : ""}>${icon("star")}<span class="sr-only">Star as a highlight</span><span class="star-off" aria-hidden="true">Star</span><span class="star-on" aria-hidden="true">Starred</span></label>
@@ -162,6 +168,7 @@ function closedRow(todo: Todo, goals: GoalIndex, returnTo: string): string {
       <div class="row-actions">
         ${postButton({
           action: `/todos/${todo.id}/star`,
+          todo,
           label: todo.isHighlight ? `Unstar: ${todo.task}` : `Star as a highlight: ${todo.task}`,
           body: icon("star", todo.isHighlight),
           returnTo: `${returnTo}#todo-${todo.id}`,
@@ -171,6 +178,7 @@ function closedRow(todo: Todo, goals: GoalIndex, returnTo: string): string {
         })}
         ${postButton({
           action: `/todos/${todo.id}/status`,
+          todo,
           label: `Reopen: ${todo.task}`,
           body: icon("undo"),
           returnTo,
@@ -191,6 +199,7 @@ function trayTodo(todo: Todo, goals: GoalIndex, returnTo: string, date: string):
   return `<li class="todo" id="todo-${todo.id}">
       ${postButton({
         action: `/todos/${todo.id}/status`,
+        todo,
         label: `Mark done: ${todo.task}`,
         body: icon("check"),
         returnTo,

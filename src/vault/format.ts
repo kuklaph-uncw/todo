@@ -25,6 +25,7 @@
 import type { GoalStatus, Priority, Status } from "../lib/validation";
 import { continuationEnd } from "../lib/lines";
 import { isValidGoalStatus } from "../lib/validation";
+import { renderEntryMarkdown } from "../lib/markdown";
 
 export interface Entry {
   id: string;
@@ -83,7 +84,13 @@ const MARK_BY_STATUS: Record<Status, string> = {
   Done: "x",
 };
 
-const PRIORITY_BY_EMOJI: Record<string, Priority> = { "🔺": "High", "⏫": "High", "🔼": "Medium", "🔽": "Low", "⏬": "Low" };
+const PRIORITY_BY_EMOJI: Record<string, Priority> = {
+  "🔺": "High",
+  "⏫": "High",
+  "🔼": "Medium",
+  "🔽": "Low",
+  "⏬": "Low",
+};
 const EMOJI_BY_PRIORITY: Record<Priority, string> = { High: "⏫", Medium: "🔼", Low: "🔽" };
 
 const TAG_RE = /(^|\s)#([\p{L}\p{N}_/-]+)/gu;
@@ -97,12 +104,25 @@ function isTag(name: string): boolean {
 }
 
 export function findTags(text: string): string[] {
-  const tags = [...text.matchAll(TAG_RE)].map((m) => m[2].toLowerCase()).filter(isTag);
+  const tags = [...metadataText(text).matchAll(TAG_RE)].map((m) => m[2].toLowerCase()).filter(isTag);
   return [...new Set(tags)];
 }
 
 export function findLinks(text: string): string[] {
-  return [...new Set([...text.matchAll(LINK_RE)].map((m) => m[1].trim()))];
+  return [...new Set([...metadataText(text).matchAll(LINK_RE)].map((m) => m[1].trim()))];
+}
+
+// Match the displayed Markdown text, excluding literal code. Formatting a tag
+// must not remove it from filters or count emphasis markers as part of its name.
+function metadataText(text: string): string {
+  return renderEntryMarkdown(text)
+    .replace(/<code>[\s\S]*?<\/code>/g, " ")
+    .replace(/<\/?(?:p|h[1-6]|li|ul|ol)(?: [^>]*)?>|<br>/g, " ")
+    .replace(/<[^>]*>/g, "")
+    .replace(
+      /&(?:amp|lt|gt|quot|#39);/g,
+      (entity) => ({ "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'" })[entity]!,
+    );
 }
 
 /**
@@ -176,7 +196,7 @@ export function editableText(text: string, tags: string[], goals: string[]): str
   return [[first, ...trailingMeta(text, tags, goals)].join(" "), ...body].join("\n");
 }
 
-const ENTRY_LINE_RE =/^- (?!\[.\] )(.+)$/;
+const ENTRY_LINE_RE = /^- (?!\[.\] )(.+)$/;
 
 export function parseEntryLine(line: string, date: string): Entry | null {
   const match = ENTRY_LINE_RE.exec(line);
@@ -235,7 +255,10 @@ function dedent(lines: string[]): string[] {
 }
 
 /** Combines first-line metadata with body text, counting every tag and goal link in the body. */
-export function entryContent(first: Pick<Entry, "text" | "tags" | "goals">, body: string[]): Pick<Entry, "text" | "tags" | "goals"> {
+export function entryContent(
+  first: Pick<Entry, "text" | "tags" | "goals">,
+  body: string[],
+): Pick<Entry, "text" | "tags" | "goals"> {
   const text = body.join("\n");
   return {
     text: [first.text, ...body].join("\n"),
@@ -263,7 +286,13 @@ export function parseEntryBlocks(lines: string[], date: string): EntryBlock[] {
 
 /** Writes an entry with first-line metadata and four-space continuations, as in the daily-note format above. */
 export function formatEntry(entry: Entry): string[] {
-  return [formatEntryLine(entry), ...entry.text.split("\n").slice(1).map((line) => line ? `    ${line}` : "")];
+  return [
+    formatEntryLine(entry),
+    ...entry.text
+      .split("\n")
+      .slice(1)
+      .map((line) => (line ? `    ${line}` : "")),
+  ];
 }
 
 const TODO_LINE_RE = /^- \[(.)\] (.+)$/;
@@ -320,6 +349,16 @@ export function parseTodoBlocks(lines: string[]): TodoBlock[] {
     const parents: { width: number; subtask: Subtask }[] = [];
     let end = i + 1;
     while (end < lines.length) {
+      // A marked Markdown block keeps blank lines/indentation and literal
+      // checkboxes separate from the todo's actual subtasks. Old notes still read.
+      const notesStart = /^ {4}<!-- todo-notes(?::(\d+))? -->$/.exec(lines[end]);
+      const notesEnd = notesStart && `    <!-- /todo-notes${notesStart[1] ? `:${notesStart[1]}` : ""} -->`;
+      const close = notesEnd ? lines.indexOf(notesEnd, end + 1) : -1;
+      if (close !== -1 && lines.slice(end + 1, close).every((line) => line.startsWith("    "))) {
+        noteLines.push(...lines.slice(end + 1, close).map((line) => line.slice(4)));
+        end = close + 1;
+        continue;
+      }
       const note = NOTE_LINE_RE.exec(lines[end]);
       if (!note || lines[end].trim() === "") break;
       const sub = SUBTASK_LINE_RE.exec(lines[end]);
@@ -375,21 +414,32 @@ export function formatTodo(todo: Todo): string[] {
   if (todo.completedOn) parts.push(`✅ ${todo.completedOn}`);
   if (todo.id) parts.push(`^${todo.id}`);
 
-  const notes = todo.notes
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .map((line) => `    ${line}`);
+  const noteLines = todo.notes.split("\n");
+  let notes = noteLines.filter((line) => line.length > 0).map((line) => `    ${line}`);
+  if (todo.notes && noteLines.some((line) => !line.trim() || /^\s|^- \[.\] |^<!-- \/?todo-notes/.test(line))) {
+    let suffix = "";
+    for (let n = 1; noteLines.includes(`<!-- /todo-notes${suffix} -->`); n++) suffix = `:${n}`;
+    notes = [
+      `    <!-- todo-notes${suffix} -->`,
+      ...noteLines.map((line) => `    ${line}`),
+      `    <!-- /todo-notes${suffix} -->`,
+    ];
+  }
   return [parts.join(" "), ...notes, ...formatSubtasks(todo.subtasks, "    ")];
 }
 
 /** A subtask line without its indent. */
 function formatSubtaskLine(subtask: Subtask): string {
-  return [`- [${subtask.done ? "x" : " "}]`, subtask.text, subtask.id ? `^${subtask.id}` : ""].filter(Boolean).join(" ");
+  return [`- [${subtask.done ? "x" : " "}]`, subtask.text, subtask.id ? `^${subtask.id}` : ""]
+    .filter(Boolean)
+    .join(" ");
 }
 
 export function formatSubtasks(subtasks: Subtask[], indent: string): string[] {
-  return subtasks.flatMap((subtask) => [`${indent}${formatSubtaskLine(subtask)}`, ...formatSubtasks(subtask.children, `${indent}    `)]);
+  return subtasks.flatMap((subtask) => [
+    `${indent}${formatSubtaskLine(subtask)}`,
+    ...formatSubtasks(subtask.children, `${indent}    `),
+  ]);
 }
 
 /** A subtask and everything under it, in file order. */

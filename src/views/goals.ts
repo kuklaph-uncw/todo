@@ -1,9 +1,20 @@
 import { escapeHtml } from "../lib/html";
+import { renderEntryMarkdown } from "../lib/markdown";
 import { monthYear, shortMonthDay } from "../lib/date";
 import { GOAL_STATUSES } from "../lib/validation";
 import type { Goal } from "../vault/format";
 import type { ReviewItem } from "../review";
-import { emptyState, entryHtml, goalIndex, hidden, icon, metaChips, notice, richText, type GoalIndex } from "./components";
+import {
+  emptyState,
+  entryHtml,
+  goalIndex,
+  hidden,
+  icon,
+  metaChips,
+  notice,
+  richText,
+  type GoalIndex,
+} from "./components";
 
 export interface GoalStats {
   entries: number;
@@ -40,21 +51,31 @@ export function goalStats(items: ReviewItem[], slug: string): GoalStats {
     entries: linked.filter((item) => item.kind === "entry").length,
     todos: linked.filter((item) => item.kind === "todo").length,
     starred: linked.filter((item) => item.isHighlight).length,
-    lastDate: linked.reduce<string | null>((last, item) => (last === null || item.date > last ? item.date : last), null),
+    lastDate: linked.reduce<string | null>(
+      (last, item) => (last === null || item.date > last ? item.date : last),
+      null,
+    ),
   };
 }
 
-/** Plain paragraphs with line breaks; the goal body is the user's own Markdown, shown as text. */
+/** Goal descriptions share the editor's safe Markdown subset. */
 function prose(body: string): string {
-  return body
-    .split(/\n{2,}/)
-    .map((para) => `<p>${escapeHtml(para.trim()).replace(/\n/g, "<br>")}</p>`)
-    .join("");
+  return renderEntryMarkdown(body);
+}
+
+function summaryText(text: string): string {
+  const entities: Record<string, string> = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'" };
+  return renderEntryMarkdown(text)
+    .replace(/<[^>]*>/g, "")
+    .replace(/&(?:amp|lt|gt|quot|#39);/g, (entity) => entities[entity]);
 }
 
 function evidenceLine(stats: GoalStats | undefined): string {
   if (!stats || stats.entries + stats.todos === 0) return `<span class="muted">No linked work yet</span>`;
-  const parts = [`${stats.entries} ${stats.entries === 1 ? "entry" : "entries"}`, `${stats.todos} ${stats.todos === 1 ? "todo" : "todos"}`];
+  const parts = [
+    `${stats.entries} ${stats.entries === 1 ? "entry" : "entries"}`,
+    `${stats.todos} ${stats.todos === 1 ? "todo" : "todos"}`,
+  ];
   if (stats.starred) parts.push(`${stats.starred} starred`);
   if (stats.lastDate) parts.push(`last ${shortMonthDay(stats.lastDate)}`);
   return parts.join(" · ");
@@ -62,7 +83,10 @@ function evidenceLine(stats: GoalStats | undefined): string {
 
 export function renderGoals(data: GoalsViewData): string {
   const cycleLinks = data.cycles
-    .map((cycle) => `<a class="seg" href="/goals?cycle=${encodeURIComponent(cycle)}"${cycle === data.cycle ? ' aria-current="true"' : ""}>${escapeHtml(cycle)}</a>`)
+    .map(
+      (cycle) =>
+        `<a class="seg" href="/goals?cycle=${encodeURIComponent(cycle)}"${cycle === data.cycle ? ' aria-current="true"' : ""}>${escapeHtml(cycle)}</a>`,
+    )
     .join("");
 
   const inCycle = data.goals.filter((goal) => goal.cycle === data.cycle);
@@ -74,13 +98,16 @@ export function renderGoals(data: GoalsViewData): string {
           return `<li class="goal-item st-${goal.status}">
               <a class="goal-title" href="/goals/${encodeURIComponent(goal.slug)}">${escapeHtml(goal.title)}</a>
               <span class="goal-status">${STATUS_LABEL[goal.status]}</span>
-              ${summary ? `<p class="goal-summary">${escapeHtml(summary.trim())}</p>` : ""}
+              ${summary ? `<p class="goal-summary">${escapeHtml(summaryText(summary.trim()))}</p>` : ""}
               <p class="goal-evidence">${evidenceLine(stats)}</p>
               <code class="goal-slug">[[${escapeHtml(goal.slug)}]]</code>
             </li>`;
         })
         .join("")}</ol>`
-    : emptyState(`No goals for ${data.cycle} yet.`, "Add the goals you agreed on for this review cycle. Then link work to them as you log it.");
+    : emptyState(
+        `No goals for ${data.cycle} yet.`,
+        "Add the goals you agreed on for this review cycle. Then link work to them as you log it.",
+      );
 
   return `<div class="page goals-page">
     <header class="page-head">
@@ -98,7 +125,7 @@ export function renderGoals(data: GoalsViewData): string {
         <form class="stack-form" method="post" action="/goals">
           <label class="field"><span>Goal</span><input name="title" required placeholder="Cut incident response time" autocomplete="off"></label>
           <label class="field field-short"><span>Review cycle</span><input name="cycle" required value="${escapeHtml(data.cycle)}"></label>
-          <label class="field"><span>What does success look like?</span><textarea name="body" rows="4" placeholder="Measures, scope, what your manager will look for.">${escapeHtml(data.retryBody)}</textarea></label>
+          <div class="field"><span id="new-goal-body-label">What does success look like?</span><textarea name="body" rows="4" aria-labelledby="new-goal-body-label" placeholder="Measures, scope, what your manager will look for.">${escapeHtml(data.retryBody)}</textarea></div>
           <button class="btn primary" type="submit">Add goal</button>
         </form>
         <p class="field-hint">Link work by ticking the goal when you log it, or type its link, like <code>[[cut-incident-response-time]]</code>.</p>
@@ -125,7 +152,9 @@ function evidenceFeed(items: ReviewItem[], goals: GoalIndex, slug: string): stri
         <h3 class="month-title">${monthYear(month)} <span class="count">${monthItems.length}</span></h3>
         <ol class="ledger-list">${monthItems
           .map(
-            (item) => `<li class="entry${item.isHighlight ? " is-starred" : ""}${item.kind === "todo" ? " is-todo" : ""}">
+            (
+              item,
+            ) => `<li class="entry${item.isHighlight ? " is-starred" : ""}${item.kind === "todo" ? " is-todo" : ""}">
               <div class="margin"><time datetime="${item.date}">${shortMonthDay(item.date)}</time>${item.kind === "todo" ? `<span class="done-mark" title="Completed todo">${icon("check")}</span>` : ""}</div>
               <div class="entry-body">${item.kind === "entry" ? `<div class="entry-text">${entryHtml(item.text, goals)}</div>` : `<p class="entry-text">${richText(item.text, goals)}</p>`}${metaChips({ ...item, goals: item.goals.filter((g) => g !== slug) }, goals)}</div>
               <a class="icon-btn" href="/?date=${item.date}#${item.kind === "todo" ? "todo" : "entry"}-${item.id}" aria-label="Open ${item.date}" title="Open day">${icon("arrow")}</a>
@@ -147,7 +176,8 @@ export function renderGoal(data: GoalViewData): string {
     : `/review?goal=${encodeURIComponent(goal.slug)}`;
 
   const statusOptions = GOAL_STATUSES.map(
-    (status) => `<option value="${status}"${status === goal.status ? " selected" : ""}>${STATUS_LABEL[status]}</option>`,
+    (status) =>
+      `<option value="${status}"${status === goal.status ? " selected" : ""}>${STATUS_LABEL[status]}</option>`,
   ).join("");
 
   const statement = data.editing
@@ -158,9 +188,9 @@ export function renderGoal(data: GoalViewData): string {
           <label class="field field-short"><span>Review cycle</span><input name="cycle" required value="${escapeHtml(goal.cycle)}"></label>
           <label class="field field-short"><span>Status</span><select name="status">${statusOptions}</select></label>
         </div>
-        <label class="field"><span>Success criteria, progress notes, self-assessment</span>
-          <textarea name="body" rows="14" autofocus>${escapeHtml(goal.body)}</textarea>
-        </label>
+        <div class="field"><span id="goal-body-label">Success criteria, progress notes, self-assessment</span>
+          <textarea name="body" rows="14" aria-labelledby="goal-body-label" autofocus>${escapeHtml(goal.body)}</textarea>
+        </div>
         <div class="edit-bar"><span class="spacer"></span>
           <a class="btn ghost" href="/goals/${encodeURIComponent(goal.slug)}">Cancel</a>
           <button class="btn primary" type="submit">Save goal</button>

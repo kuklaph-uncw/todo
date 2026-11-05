@@ -1,7 +1,15 @@
 import { escapeHtml } from "../lib/html";
 import { formatMinutes, monthYear, RANGE_PRESETS, shortMonthDay, weekdayName } from "../lib/date";
 import type { Goal } from "../vault/format";
-import { filterSummary, markdownToHtml, reviewFileName, reviewQuery, type Review, type ReviewFilters, type ReviewItem } from "../review";
+import {
+  filterSummary,
+  markdownToHtml,
+  reviewFileName,
+  reviewQuery,
+  type Review,
+  type ReviewFilters,
+  type ReviewItem,
+} from "../review";
 import { emptyState, entryHtml, goalIndex, icon, metaChips, richText, type GoalIndex } from "./components";
 
 export interface ReviewViewData {
@@ -29,7 +37,9 @@ function clearFiltersHref(f: ReviewFilters): string {
 
 function sheetItem(item: ReviewItem, goals: GoalIndex, withDate: boolean): string {
   const marker = item.kind === "todo" ? `<span class="done-mark" title="Completed todo">${icon("check")}</span>` : "";
-  const priority = item.priority ? `<span class="priority p-${item.priority.toLowerCase()}">${item.priority}</span>` : "";
+  const priority = item.priority
+    ? `<span class="priority p-${item.priority.toLowerCase()}">${item.priority}</span>`
+    : "";
   const date = withDate ? `<time class="item-date" datetime="${item.date}">${shortMonthDay(item.date)}</time>` : "";
   return `<li class="sheet-item${item.isHighlight ? " is-starred" : ""}${item.kind === "todo" ? " is-todo" : ""}">
       ${date}${marker}${item.kind === "entry" ? `<div class="sheet-text">${entryHtml(item.text, goals)}</div>` : `<span class="sheet-text">${richText(item.text, goals)}</span>`}${priority}
@@ -56,7 +66,8 @@ function dailyLog(review: Review, goals: GoalIndex): string {
 function controls(data: ReviewViewData): string {
   const f = data.review.filters;
   const presets = RANGE_PRESETS.map(
-    (p) => `<a class="seg" href="/review?${escapeHtml(reviewQuery(f, { preset: p.key }))}"${f.preset === p.key ? ' aria-current="true"' : ""}>${p.label}</a>`,
+    (p) =>
+      `<a class="seg" href="/review?${escapeHtml(reviewQuery(f, { preset: p.key }))}"${f.preset === p.key ? ' aria-current="true"' : ""}>${p.label}</a>`,
   ).join("");
   // Keep an active tag selectable even if the new period has no items with it,
   // so the filter can't be in force while the dropdown says "Any".
@@ -65,7 +76,10 @@ function controls(data: ReviewViewData): string {
     .map((tag) => `<option value="${escapeHtml(tag)}"${tag === f.tag ? " selected" : ""}>#${escapeHtml(tag)}</option>`)
     .join("");
   const goalOptions = data.goals
-    .map((g) => `<option value="${escapeHtml(g.slug)}"${g.slug === f.goal ? " selected" : ""}>${escapeHtml(g.title)}${g.cycle ? ` (${escapeHtml(g.cycle)})` : ""}</option>`)
+    .map(
+      (g) =>
+        `<option value="${escapeHtml(g.slug)}"${g.slug === f.goal ? " selected" : ""}>${escapeHtml(g.title)}${g.cycle ? ` (${escapeHtml(g.cycle)})` : ""}</option>`,
+    )
     .join("");
 
   return `<section class="review-controls" aria-label="Review period and filters">
@@ -179,7 +193,9 @@ export function renderReview(data: ReviewViewData): string {
         <h3 class="sheet-heading">By goal</h3>
         ${review.byGoal
           .map(
-            (group) => `<h4 class="sheet-goal"><a href="/goals/${encodeURIComponent(group.goal.slug)}">${escapeHtml(group.goal.title)}</a> <span class="count">${group.items.length}</span></h4>
+            (
+              group,
+            ) => `<h4 class="sheet-goal"><a href="/goals/${encodeURIComponent(group.goal.slug)}">${escapeHtml(group.goal.title)}</a> <span class="count">${group.items.length}</span></h4>
               <ul class="sheet-items">${group.items.map((item) => sheetItem({ ...item, goals: item.goals.filter((g) => g !== group.goal.slug) }, goals, true)).join("")}</ul>`,
           )
           .join("")}
@@ -193,7 +209,10 @@ export function renderReview(data: ReviewViewData): string {
          ${dailyLog(review, goals)}
        </section>`
     : applied.length
-      ? emptyState("Nothing matches these filters in this period.", `<a href="${escapeHtml(clearFiltersHref(filters))}">Clear filters</a> or pick a longer period.`)
+      ? emptyState(
+          "Nothing matches these filters in this period.",
+          `<a href="${escapeHtml(clearFiltersHref(filters))}">Clear filters</a> or pick a longer period.`,
+        )
       : emptyState("Nothing recorded in this period.", "Pick a longer period above.");
 
   return `<div class="page review-page">

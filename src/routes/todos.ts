@@ -1,6 +1,9 @@
 import { isValidDateString } from "../lib/date";
 import { isValidPriority, isValidStatus, safeReturnPath, type Priority, type Status } from "../lib/validation";
 import type { MoveTarget } from "../vault/vault";
+import { contentRevision } from "../vault/revision";
+import { allSubtasks } from "../vault/format";
+import { escapeHtml } from "../lib/html";
 import { renderTodos, type TodoFilters } from "../views/todos";
 import { notFound, page, readForm, redirect, redirectWithError, today, type AppContext } from "./shared";
 
@@ -61,6 +64,17 @@ function readPriority(raw: string): Priority | null | undefined {
   return isValidPriority(raw) ? raw : undefined;
 }
 
+function staleForm(ctx: AppContext, form: Awaited<ReturnType<typeof readForm>>, back: string): Response {
+  const typed = [form.text("task"), form.text("notes"), form.text("text")].filter(Boolean).join("\n\n");
+  return page(
+    ctx,
+    "Todo changed",
+    "todos",
+    `<div class="page"><h1>Todo changed</h1><p class="notice" role="alert">This todo changed after the page was opened. Your action was not saved. Review the current todo before trying again.</p>${typed ? `<label class="field">Your submitted text<textarea readonly rows="8">${escapeHtml(typed)}</textarea></label>` : ""}<p><a class="btn" href="${escapeHtml(back)}">Review current todos</a></p></div>`,
+    409,
+  );
+}
+
 /** POST /todos */
 export async function createTodo(req: Request, ctx: AppContext): Promise<Response> {
   const form = await readForm(req);
@@ -72,7 +86,10 @@ export async function createTodo(req: Request, ctx: AppContext): Promise<Respons
   const status = form.text("status") || "Open";
   if (!isValidStatus(status)) return redirectWithError(back, "That status isn't one the app knows.");
 
-  const todo = ctx.vault.addTodo({ task, priority, status, tags: [], goals: [], notes: form.text("notes") }, today(ctx));
+  const todo = ctx.vault.addTodo(
+    { task, priority, status, tags: [], goals: [], notes: form.text("notes") },
+    today(ctx),
+  );
   // Lets the Todos page explain when its filters hide the new todo.
   if (!back.startsWith("/todos")) return redirect(back);
   const url = new URL(back, "http://local");
@@ -81,12 +98,19 @@ export async function createTodo(req: Request, ctx: AppContext): Promise<Respons
 }
 
 /** POST /todos/:id and /todos/:id/{status,star,clear-completion,delete,subtasks,move} */
-export async function changeTodo(req: Request, ctx: AppContext, id: string, action: string | undefined): Promise<Response> {
+export async function changeTodo(
+  req: Request,
+  ctx: AppContext,
+  id: string,
+  action: string | undefined,
+): Promise<Response> {
   const form = await readForm(req);
   const back = form.returnTo("/todos");
   const now = today(ctx);
   const existing = ctx.vault.getTodo(id);
   if (!existing) return notFound(ctx, "That todo");
+  if (form.text("expected_revision") && form.text("expected_revision") !== contentRevision(existing))
+    return staleForm(ctx, form, back);
 
   switch (action) {
     case "delete":
@@ -154,10 +178,18 @@ export async function changeTodo(req: Request, ctx: AppContext, id: string, acti
 }
 
 /** POST /subtasks/:id and /subtasks/:id/{done,delete,move} */
-export async function changeSubtask(req: Request, ctx: AppContext, id: string, action: string | undefined): Promise<Response> {
+export async function changeSubtask(
+  req: Request,
+  ctx: AppContext,
+  id: string,
+  action: string | undefined,
+): Promise<Response> {
   const form = await readForm(req);
   const back = form.returnTo("/todos");
   if (!ctx.vault.getSubtask(id)) return notFound(ctx, "That subtask");
+  const parent = ctx.vault.peekTodos().find((todo) => allSubtasks(todo.subtasks).some((s) => s.id === id));
+  if (parent && form.text("expected_revision") && form.text("expected_revision") !== contentRevision(parent))
+    return staleForm(ctx, form, back);
 
   switch (action) {
     case "done":
@@ -169,7 +201,8 @@ export async function changeSubtask(req: Request, ctx: AppContext, id: string, a
       return redirect(back);
 
     case "move":
-      if (!ctx.vault.moveSubtask(id, readMoveTarget(form))) return redirectWithError(back, "That subtask can't move there.");
+      if (!ctx.vault.moveSubtask(id, readMoveTarget(form)))
+        return redirectWithError(back, "That subtask can't move there.");
       return redirect(back);
 
     case undefined: {

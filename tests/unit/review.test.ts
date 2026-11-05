@@ -14,20 +14,52 @@ import type { Goal } from "../../src/vault/format";
 
 function item(overrides: Partial<ReviewItem>): ReviewItem {
   return {
-    kind: "entry", id: "i", date: "2026-09-01", text: "Did a thing", tags: [], goals: [],
-    minutes: null, isHighlight: false, priority: null, status: null, ...overrides,
+    kind: "entry",
+    id: "i",
+    date: "2026-09-01",
+    text: "Did a thing",
+    tags: [],
+    goals: [],
+    minutes: null,
+    isHighlight: false,
+    priority: null,
+    status: null,
+    ...overrides,
   };
 }
 
-const goals: Goal[] = [{ slug: "reliability", title: "Improve reliability", cycle: "2026", status: "active", body: "" }];
+const goals: Goal[] = [
+  { slug: "reliability", title: "Improve reliability", cycle: "2026", status: "active", body: "" },
+];
 
 const filters: ReviewFilters = {
-  from: "2026-09-01", to: "2026-09-30", preset: null, highlightsOnly: false, sort: "asc", tag: null, goal: null, q: "",
+  from: "2026-09-01",
+  to: "2026-09-30",
+  preset: null,
+  highlightsOnly: false,
+  sort: "asc",
+  tag: null,
+  goal: null,
+  q: "",
 };
 
 const items: ReviewItem[] = [
-  item({ id: "a", date: "2026-09-02", text: "Reviewed [[reliability]] plan", tags: ["review"], goals: ["reliability"], minutes: 30 }),
-  item({ id: "b", date: "2026-09-01", text: "Fixed flaky test", tags: ["bug", "review"], isHighlight: true, minutes: 60 }),
+  item({
+    id: "a",
+    date: "2026-09-02",
+    text: "Reviewed [[reliability]] plan",
+    tags: ["review"],
+    goals: ["reliability"],
+    minutes: 30,
+  }),
+  item({
+    id: "b",
+    date: "2026-09-01",
+    text: "Fixed flaky test",
+    tags: ["bug", "review"],
+    isHighlight: true,
+    minutes: 60,
+  }),
   item({ id: "c", kind: "todo", date: "2026-09-01", text: "Deploy hotfix", priority: "High", status: "Done" }),
   item({ id: "d", date: "2026-10-05", text: "Outside range" }),
 ];
@@ -44,8 +76,15 @@ describe("buildReview", () => {
 
   it("computes stats and tag counts from the same items", () => {
     expect(review.stats).toEqual({
-      entries: 2, todos: 1, highlights: 1, activeDays: 2, minutes: 90,
-      tags: [{ name: "review", count: 2 }, { name: "bug", count: 1 }],
+      entries: 2,
+      todos: 1,
+      highlights: 1,
+      activeDays: 2,
+      minutes: 90,
+      tags: [
+        { name: "review", count: 2 },
+        { name: "bug", count: 1 },
+      ],
     });
   });
 
@@ -54,7 +93,8 @@ describe("buildReview", () => {
   });
 
   it("filters to highlights, tag, goal and text", () => {
-    const ids = (f: Partial<ReviewFilters>) => buildReview(items, goals, { ...filters, ...f }, "").items.map((i) => i.id);
+    const ids = (f: Partial<ReviewFilters>) =>
+      buildReview(items, goals, { ...filters, ...f }, "").items.map((i) => i.id);
     expect(ids({ highlightsOnly: true })).toEqual(["b"]);
     expect(ids({ tag: "bug" })).toEqual(["b"]);
     expect(ids({ goal: "reliability" })).toEqual(["a"]);
@@ -62,7 +102,10 @@ describe("buildReview", () => {
   });
 
   it("orders days newest first on request", () => {
-    expect(buildReview(items, goals, { ...filters, sort: "desc" }, "").days.map((d) => d.date)).toEqual(["2026-09-02", "2026-09-01"]);
+    expect(buildReview(items, goals, { ...filters, sort: "desc" }, "").days.map((d) => d.date)).toEqual([
+      "2026-09-02",
+      "2026-09-01",
+    ]);
   });
 });
 
@@ -133,36 +176,96 @@ describe("exports", () => {
   });
 
   it("indents entry continuations in every exported list, keeping blank lines empty", () => {
-    const multiline = buildReview([item({ text: "Retro\nNotes\n\n- **Check**\n  - nested", isHighlight: true, goals: ["reliability"] })], goals, filters, "");
-    expect(reviewToMarkdown(multiline, goals)).toBe([
-      "# Accomplishments: 2026-09-01 to 2026-09-30", "", "## Summary", "",
-      "- Journal entries: 1", "- TODOs completed: 0", "- Highlights: 1", "- Active logging days: 1",
-      "", "## Highlights", "", "- 2026-09-01 — Retro", "  Notes", "", "  - **Check**", "    - nested",
-      "", "## By goal", "", "### Improve reliability", "", "- 2026-09-01 — ★ Retro", "  Notes", "", "  - **Check**", "    - nested",
-      "", "## Daily Accomplishments", "", "### 2026-09-01", "", "#### Journal", "",
-      "- ★ Retro", "  Notes", "", "  - **Check**", "    - nested", "",
-    ].join("\n"));
+    const multiline = buildReview(
+      [item({ text: "Retro\nNotes\n\n- **Check**\n  - nested", isHighlight: true, goals: ["reliability"] })],
+      goals,
+      filters,
+      "",
+    );
+    expect(reviewToMarkdown(multiline, goals)).toBe(
+      [
+        "# Accomplishments: 2026-09-01 to 2026-09-30",
+        "",
+        "## Summary",
+        "",
+        "- Journal entries: 1",
+        "- TODOs completed: 0",
+        "- Highlights: 1",
+        "- Active logging days: 1",
+        "",
+        "## Highlights",
+        "",
+        "- 2026-09-01 — Retro",
+        "  Notes",
+        "",
+        "  - **Check**",
+        "    - nested",
+        "",
+        "## By goal",
+        "",
+        "### Improve reliability",
+        "",
+        "- 2026-09-01 — ★ Retro",
+        "  Notes",
+        "",
+        "  - **Check**",
+        "    - nested",
+        "",
+        "## Daily Accomplishments",
+        "",
+        "### 2026-09-01",
+        "",
+        "#### Journal",
+        "",
+        "- ★ Retro",
+        "  Notes",
+        "",
+        "  - **Check**",
+        "    - nested",
+        "",
+      ].join("\n"),
+    );
   });
 
   it("renders the whole indented export item while keeping simple items unwrapped", () => {
-    expect(markdownToHtml("# Title\n\n- Retro\n  Notes\n\n  - **Check**\n    - nested\n\n  Next\n- Simple\n\n## End")).toBe([
-      "<h1>Title</h1>",
-      "<ul><li>Retro<br>Notes<ul><li><strong>Check</strong><ul><li>nested</li></ul></li></ul><p>Next</p></li><li>Simple</li></ul>",
-      "<h2>End</h2>",
-    ].join("\n"));
+    expect(
+      markdownToHtml("# Title\n\n- Retro\n  Notes\n\n  - **Check**\n    - nested\n\n  Next\n- Simple\n\n## End"),
+    ).toBe(
+      [
+        "<h1>Title</h1>",
+        "<ul><li>Retro<br>Notes<ul><li><strong>Check</strong><ul><li>nested</li></ul></li></ul><p>Next</p></li><li>Simple</li></ul>",
+        "<h2>End</h2>",
+      ].join("\n"),
+    );
   });
 
   it("JSON carries range, stats, goals and items with resolved goal titles", () => {
     const json = reviewToJson(review, goals);
     expect(json.range).toEqual({ from: "2026-09-01", to: "2026-09-30" });
-    expect(json.stats).toEqual({ journalEntries: 2, completedTodos: 1, highlights: 1, activeDays: 2, minutesLogged: 90 });
-    expect(json.items[2]).toMatchObject({ type: "journal", id: "a", goals: [{ slug: "reliability", title: "Improve reliability" }] });
+    expect(json.stats).toEqual({
+      journalEntries: 2,
+      completedTodos: 1,
+      highlights: 1,
+      activeDays: 2,
+      minutesLogged: 90,
+    });
+    expect(json.items[2]).toMatchObject({
+      type: "journal",
+      id: "a",
+      goals: [{ slug: "reliability", title: "Improve reliability" }],
+    });
     const multiline = buildReview([item({ text: "First\n\nSecond" })], goals, filters, "");
-    expect([reviewToJson(multiline, goals).items[0].text, JSON.parse(reviewToJsonl(multiline, goals)).text]).toEqual(["First\n\nSecond", "First\n\nSecond"]);
+    expect([reviewToJson(multiline, goals).items[0].text, JSON.parse(reviewToJsonl(multiline, goals)).text]).toEqual([
+      "First\n\nSecond",
+      "First\n\nSecond",
+    ]);
   });
 
   it("JSONL writes one self-contained item per line", () => {
-    const lines = reviewToJsonl(review, goals).trimEnd().split("\n").map((l) => JSON.parse(l));
+    const lines = reviewToJsonl(review, goals)
+      .trimEnd()
+      .split("\n")
+      .map((l) => JSON.parse(l));
     expect(lines).toHaveLength(3);
     expect(lines[1]).toMatchObject({ type: "todo", priority: "High", range: { from: "2026-09-01", to: "2026-09-30" } });
   });
@@ -180,12 +283,19 @@ describe("parseReviewFilters", () => {
   });
 
   it("accepts a custom range and swaps it if reversed", () => {
-    expect(params("from=2026-03-31&to=2026-01-01")).toMatchObject({ preset: null, from: "2026-01-01", to: "2026-03-31" });
+    expect(params("from=2026-03-31&to=2026-01-01")).toMatchObject({
+      preset: null,
+      from: "2026-01-01",
+      to: "2026-03-31",
+    });
   });
 
   it("reads toggles and normalizes the tag", () => {
     expect(params("preset=ytd&highlights=1&sort=desc&tag=%23Review")).toMatchObject({
-      from: "2026-01-01", highlightsOnly: true, sort: "desc", tag: "review",
+      from: "2026-01-01",
+      highlightsOnly: true,
+      sort: "desc",
+      tag: "review",
     });
   });
 

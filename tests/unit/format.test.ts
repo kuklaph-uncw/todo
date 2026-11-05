@@ -17,7 +17,10 @@ import { parseEntryInput, parseTaskInput } from "../../src/vault/vault";
 
 describe("journal entry lines", () => {
   it("parses time, text, trailing tags, goal links, minutes, star and id", () => {
-    const entry = parseEntryLine("- 09:15 Reviewed the migration plan #review [[reliability]] ⏱ 45m ⭐ ^k3x9qa", "2026-09-28");
+    const entry = parseEntryLine(
+      "- 09:15 Reviewed the migration plan #review [[reliability]] ⏱ 45m ⭐ ^k3x9qa",
+      "2026-09-28",
+    );
     expect(entry).toEqual({
       id: "k3x9qa",
       date: "2026-09-28",
@@ -77,7 +80,8 @@ describe("journal entry blocks", () => {
     "    ## Follow-up",
     "    1. Write the *runbook* ⏱ 5m ⭐ ^body-id",
   ];
-  const text = "Shipped the billing cutover\nRan the checklist with **Priya**:\n\n- migrated the ledger tables #data [[delivery]]\n  - verified `row counts`\n- flipped the flag\n\n## Follow-up\n1. Write the *runbook* ⏱ 5m ⭐ ^body-id";
+  const text =
+    "Shipped the billing cutover\nRan the checklist with **Priya**:\n\n- migrated the ledger tables #data [[delivery]]\n  - verified `row counts`\n- flipped the flag\n\n## Follow-up\n1. Write the *runbook* ⏱ 5m ⭐ ^body-id";
   const [block] = parseEntryBlocks(lines, "2026-09-28");
 
   it("parses first-line metadata and body tags and goals without interpreting body metadata", () => {
@@ -85,9 +89,14 @@ describe("journal entry blocks", () => {
       start: 0,
       end: lines.length,
       entry: {
-        id: "k3x9qa", date: "2026-09-28", time: "09:15",
+        id: "k3x9qa",
+        date: "2026-09-28",
+        time: "09:15",
         text,
-        tags: ["ops", "data"], goals: ["reliability", "delivery"], minutes: 45, isHighlight: true,
+        tags: ["ops", "data"],
+        goals: ["reliability", "delivery"],
+        minutes: 45,
+        isHighlight: true,
       },
     });
   });
@@ -98,12 +107,19 @@ describe("journal entry blocks", () => {
 
   it("editableText restores first-line metadata without changing the body", () => {
     const edited = editableText(block.entry.text, block.entry.tags, block.entry.goals);
-    expect(edited.split("\n")).toEqual(["Shipped the billing cutover #ops [[reliability]]", ...text.split("\n").slice(1)]);
+    expect(edited.split("\n")).toEqual([
+      "Shipped the billing cutover #ops [[reliability]]",
+      ...text.split("\n").slice(1),
+    ]);
   });
 
   it("parses the editable entry text back into text, tags and goals", () => {
     const edited = editableText(block.entry.text, block.entry.tags, block.entry.goals);
-    expect(parseEntryInput(edited)).toEqual({ text: block.entry.text, tags: block.entry.tags, goals: block.entry.goals });
+    expect(parseEntryInput(edited)).toEqual({
+      text: block.entry.text,
+      tags: block.entry.tags,
+      goals: block.entry.goals,
+    });
   });
 
   it("keeps a tag in the tag set when it appears in both first-line metadata and the body", () => {
@@ -113,29 +129,53 @@ describe("journal entry blocks", () => {
 
   it("keeps blank lines only when another indented line follows", () => {
     const lines = [
-      "# Monday", "- First ^a1", "", "    Paragraph", "", " \t", "    Last paragraph",
-      "", "", "Free-form notes", "    Outside the entry", "- Next ^a2", "    Last body", "", " \t",
+      "# Monday",
+      "- First ^a1",
+      "",
+      "    Paragraph",
+      "",
+      " \t",
+      "    Last paragraph",
+      "",
+      "",
+      "Free-form notes",
+      "    Outside the entry",
+      "- Next ^a2",
+      "    Last body",
+      "",
+      " \t",
     ];
-    expect(parseEntryBlocks(lines, "2026-09-28").map(({ entry, start, end }) => ({ text: entry.text, start, end }))).toEqual([
+    expect(
+      parseEntryBlocks(lines, "2026-09-28").map(({ entry, start, end }) => ({ text: entry.text, start, end })),
+    ).toEqual([
       { text: "First\n\nParagraph\n\n\nLast paragraph", start: 1, end: 7 },
       { text: "Next\nLast body", start: 11, end: 13 },
     ]);
   });
 
-  it.each([["  ", "    "], ["\t", "\t  "], [" ", "   "], ["\t", "      "], ["  ", "\t"]])("dedents hand-written continuations by their smallest indent (%j, %j)", (indent, nested) => {
-    const [block] = parseEntryBlocks([
-      "- Hand-written ^a1", `${nested}- Nested first`, `${indent}- Parent`, `${nested}- Child`,
-    ], "2026-09-28");
+  it.each([
+    ["  ", "    "],
+    ["\t", "\t  "],
+    [" ", "   "],
+    ["\t", "      "],
+    ["  ", "\t"],
+  ])("dedents hand-written continuations by their smallest indent (%j, %j)", (indent, nested) => {
+    const [block] = parseEntryBlocks(
+      ["- Hand-written ^a1", `${nested}- Nested first`, `${indent}- Parent`, `${nested}- Child`],
+      "2026-09-28",
+    );
     expect(block.entry.text).toBe("Hand-written\n  - Nested first\n- Parent\n  - Child");
   });
 });
 
 describe("entry input", () => {
   it("trims outer blank lines and line ends while keeping inner breaks and indentation", () => {
-    const raw = "\r\n \t\r\n   [x] Shipped  the cutover #ops  \r\nRan **checks**: \t\r\n\r\n- tables #data [[delivery]] \r\n  - row counts \r\n \r\n";
+    const raw =
+      "\r\n \t\r\n   [x] Shipped  the cutover #ops  \r\nRan **checks**: \t\r\n\r\n- tables #data [[delivery]] \r\n  - row counts \r\n \r\n";
     expect(parseEntryInput(raw)).toEqual({
       text: "Shipped the cutover\nRan **checks**:\n\n- tables #data [[delivery]]\n  - row counts",
-      tags: ["ops", "data"], goals: ["delivery"],
+      tags: ["ops", "data"],
+      goals: ["delivery"],
     });
   });
 
@@ -143,9 +183,12 @@ describe("entry input", () => {
     expect(parseTaskInput("First\n  second #ops")).toEqual({ task: "First second", tags: ["ops"], goals: [] });
   });
 
-  it.each(["[ ] ", "[x] ", "[X] ", "[-] ", "[/] ", "[!] "])("drops a leading %j checkbox only on the first line", (marker) => {
-    expect(parseEntryInput(`${marker}First\n[x] Body checkbox`).text).toBe("First\n[x] Body checkbox");
-  });
+  it.each(["[ ] ", "[x] ", "[X] ", "[-] ", "[/] ", "[!] "])(
+    "drops a leading %j checkbox only on the first line",
+    (marker) => {
+      expect(parseEntryInput(`${marker}First\n[x] Body checkbox`).text).toBe("First\n[x] Body checkbox");
+    },
+  );
 
   it.each(["- list", "* list", "• list"])("keeps leading Markdown list markers (%j)", (text) => {
     expect(parseEntryInput(text).text).toBe(text);
@@ -156,7 +199,6 @@ describe("entry input", () => {
     expect(parseEntryInput("[x] ").text).toBe("");
     expect(parseEntryInput("[-]").text).toBe("");
   });
-
 });
 
 describe("todo blocks", () => {
@@ -199,6 +241,24 @@ describe("todo blocks", () => {
 
   it("still ignores task lines with a mark it doesn't know", () => {
     expect(parseTodoBlocks(["- [?] Not a todo ^q1"])).toEqual([]);
+  });
+
+  it("preserves rich notes separately from real subtasks", () => {
+    const todo = parseTodoBlocks(["- [ ] Task ^t1", "    - [ ] Real subtask ^s1"])[0].todo;
+    todo.notes = "# Plan\n\nFirst paragraph.\n\n- Parent\n  - Child\n- [ ] Literal checkbox in notes";
+    const saved = formatTodo(todo);
+    const restored = parseTodoBlocks(saved)[0].todo;
+    expect(restored.notes).toBe(todo.notes);
+    expect(restored.subtasks).toEqual(todo.subtasks);
+    expect(formatTodo(restored)).toEqual(saved);
+  });
+
+  it("keeps note-block marker text literal and does not consume the next todo", () => {
+    const todo = parseTodoBlocks(["- [ ] Task ^t1"])[0].todo;
+    todo.notes = "First\n\n<!-- /todo-notes -->\n<!-- /todo-notes:1 -->\nLast";
+    const blocks = parseTodoBlocks([...formatTodo(todo), "- [ ] Next ^t2"]);
+    expect(blocks[0].todo.notes).toBe(todo.notes);
+    expect(blocks[1].todo.task).toBe("Next");
   });
 
   it("reads indented task lines as nested subtasks and other indented lines as notes", () => {
@@ -266,7 +326,11 @@ describe("hand-written lines", () => {
 
   it("keeps tags written before a labelled link as part of the text", () => {
     const entry = parseEntryLine("- Fixed the pager #ops [[reliability|Reliability]] ^a2", "2026-09-28")!;
-    expect(entry).toMatchObject({ text: "Fixed the pager #ops [[reliability|Reliability]]", tags: ["ops"], goals: ["reliability"] });
+    expect(entry).toMatchObject({
+      text: "Fixed the pager #ops [[reliability|Reliability]]",
+      tags: ["ops"],
+      goals: ["reliability"],
+    });
   });
 });
 
@@ -279,23 +343,45 @@ describe("frontmatter and goals", () => {
   });
 
   it("quotes titles that would confuse YAML and reads them back", () => {
-    const goal = { slug: "g", title: "Scope: platform reliability", cycle: "FY26", status: "active" as const, body: "Why." };
+    const goal = {
+      slug: "g",
+      title: "Scope: platform reliability",
+      cycle: "FY26",
+      status: "active" as const,
+      body: "Why.",
+    };
     const source = formatGoal(goal);
     expect(source).toContain('title: "Scope: platform reliability"');
     expect(parseGoal("g", source)).toEqual(goal);
   });
 
   it("falls back to active status and the slug as title", () => {
-    expect(parseGoal("my-goal", "no frontmatter")).toMatchObject({ title: "my-goal", status: "active", body: "no frontmatter" });
+    expect(parseGoal("my-goal", "no frontmatter")).toMatchObject({
+      title: "my-goal",
+      status: "active",
+      body: "no frontmatter",
+    });
   });
 });
 
 describe("helpers", () => {
+  it("keeps tags and links inside inline formatting as metadata", () => {
+    expect(findTags("**#ops** *#team* **#on_call** #_leading_")).toEqual(["ops", "team", "on_call", "_leading_"]);
+    expect(findTags("_#ops_ _Completed #team_ #_literal_")).toEqual(["ops", "team", "_literal_"]);
+    expect(parseEntryInput("**#ops** *[[goal]]*").goals).toEqual(["goal"]);
+  });
+  it("does not extract tags or goals from inline code", () => {
+    expect(findTags("#real `#literal` ``#also-literal``")).toEqual(["real"]);
+    const entry = parseEntryInput("Entry `[[literal]]` [[real]]");
+    expect(entry.goals).toEqual(["real"]);
+  });
   it("findTags lowercases and dedupes", () => {
     expect(findTags("#Review then #review and #ops")).toEqual(["review", "ops"]);
   });
 
   it("plainText flattens wikilinks to their label", () => {
-    expect(plainText("Led [[reliability]] work and [[infra|the infra]] review")).toBe("Led reliability work and the infra review");
+    expect(plainText("Led [[reliability]] work and [[infra|the infra]] review")).toBe(
+      "Led reliability work and the infra review",
+    );
   });
 });

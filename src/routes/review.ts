@@ -1,5 +1,13 @@
 import { nowUtcIso } from "../lib/date";
-import { buildReview, collectItems, parseReviewFilters, reviewFileName, reviewToJson, reviewToJsonl, reviewToMarkdown } from "../review";
+import {
+  buildReview,
+  collectItems,
+  parseReviewFilters,
+  reviewFileName,
+  reviewToJson,
+  reviewToJsonl,
+  reviewToMarkdown,
+} from "../review";
 import { renderReview } from "../views/review";
 import { notFound, page, today, type AppContext } from "./shared";
 
@@ -29,11 +37,15 @@ export function handleExport(req: Request, ctx: AppContext, format: string): Res
   const name = reviewFileName(review.filters);
   const download = (body: string, type: string, ext: string) =>
     new Response(body, {
-      headers: { "content-type": `${type}; charset=utf-8`, "content-disposition": `attachment; filename="${name}.${ext}"` },
+      headers: {
+        "content-type": `${type}; charset=utf-8`,
+        "content-disposition": `attachment; filename="${name}.${ext}"`,
+      },
     });
 
   if (format === "md") return download(reviewToMarkdown(review, goals), "text/markdown", "md");
-  if (format === "json") return download(`${JSON.stringify(reviewToJson(review, goals), null, 2)}\n`, "application/json", "json");
+  if (format === "json")
+    return download(`${JSON.stringify(reviewToJson(review, goals), null, 2)}\n`, "application/json", "json");
   if (format === "jsonl") return download(reviewToJsonl(review, goals), "application/x-ndjson", "jsonl");
   return notFound(ctx);
 }

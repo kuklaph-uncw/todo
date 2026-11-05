@@ -1,6 +1,8 @@
 import { localDateString } from "../lib/date";
 import { safeReturnPath } from "../lib/validation";
 import type { Vault } from "../vault/vault";
+import type { AgentAccess } from "../mcp/access";
+import { contentRevision } from "../vault/revision";
 import { renderLayout, type NavKey } from "../views/layout";
 
 export interface AppContext {
@@ -9,6 +11,7 @@ export interface AppContext {
   vaultPath: string;
   /** Injectable clock so tests can pin "today". */
   clock: () => Date;
+  agentAccess?: AgentAccess;
 }
 
 export function today(ctx: AppContext): string {
@@ -17,7 +20,15 @@ export function today(ctx: AppContext): string {
 
 export function page(ctx: AppContext, title: string, active: NavKey | null, main: string, status = 200): Response {
   const openTodos = ctx.vault.getTodos().filter((t) => t.status === "Open").length;
-  const html = renderLayout({ title, active, main, vaultPath: ctx.vaultPath, openTodos });
+  const html = renderLayout({
+    title,
+    active,
+    main,
+    vaultPath: ctx.vaultPath,
+    openTodos,
+    agentAccess: ctx.agentAccess?.snapshot().running,
+    todoVersion: contentRevision(ctx.vault.peekTodos()),
+  });
   return new Response(html, { status, headers: { "content-type": "text/html; charset=utf-8" } });
 }
 

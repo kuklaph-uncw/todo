@@ -1,16 +1,20 @@
 /**
  * The desktop app. Opens one window showing app://local/ pages, served by
- * src/electron/protocol.ts with no network port. Closing the window quits.
+ * src/electron/protocol.ts. MCP is an opt-in loopback listener in this process.
  * Security follows https://www.electronjs.org/docs/latest/tutorial/security.
  */
-import { app, BrowserWindow, dialog, Menu, protocol, session } from "electron";
+import { app, BrowserWindow, dialog, Menu, protocol, session, Tray, nativeImage } from "electron";
+import electronUpdater from "electron-updater";
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { logErrorsTo, resolveVaultPath } from "../launch";
 import type { AppContext } from "../routes/shared";
 import { Vault } from "../vault/vault";
+import { AgentAccess } from "../mcp/access";
+import { WindowLifecycle } from "./lifecycle";
 import { APP_ORIGIN, isAppUrl, serveAppRequest } from "./protocol";
+import { startUpdates } from "./updates";
 
 // Must match appId in electron-builder.yml, so taskbar pins group with the app.
 const APP_ID = "com.workledger.app";
@@ -21,17 +25,27 @@ const profilePath = join(app.getPath("appData"), "Work Ledger");
 mkdirSync(profilePath, { recursive: true });
 app.setPath("userData", profilePath);
 // standard: storage and relative links work. secure: clipboard works. supportFetchAPI: app.js can post forms.
-protocol.registerSchemesAsPrivileged([{ scheme: "app", privileges: { standard: true, secure: true, supportFetchAPI: true, codeCache: true } }]);
+protocol.registerSchemesAsPrivileged([
+  { scheme: "app", privileges: { standard: true, secure: true, supportFetchAPI: true, codeCache: true } },
+]);
 app.setAppUserModelId(APP_ID);
 app.enableSandbox();
 
 // On a shared machine (Remote Desktop), another user could attach to a debugging port and drive the window.
-const debugSwitch = app.commandLine.hasSwitch("remote-debugging-port") || app.commandLine.hasSwitch("remote-debugging-pipe");
+const debugSwitch =
+  app.commandLine.hasSwitch("remote-debugging-port") || app.commandLine.hasSwitch("remote-debugging-pipe");
 
 let mainWindow: BrowserWindow | null = null;
+let lifecycle: WindowLifecycle | null = null;
+let tray: Tray | null = null;
 
 async function start(): Promise<void> {
-  const vaultPath = resolveVaultPath({ envPath: process.env.VAULT_PATH, standalone: app.isPackaged, home: homedir(), cwd: process.cwd() });
+  const vaultPath = resolveVaultPath({
+    envPath: process.env.VAULT_PATH,
+    standalone: app.isPackaged,
+    home: homedir(),
+    cwd: process.cwd(),
+  });
   if (app.isPackaged) logErrorsTo(join(vaultPath, ".workledger", "error.log"));
   const ctx: AppContext = { vault: new Vault(vaultPath), vaultPath, clock: () => new Date() };
 
@@ -39,15 +53,84 @@ async function start(): Promise<void> {
   // No menu bar, and with it no reload or developer-tools shortcuts. Kept while developing.
   if (app.isPackaged) Menu.setApplicationMenu(null);
 
+  const syncTray = () => {
+    const state = ctx.agentAccess!.snapshot();
+    if (state.enabled && state.background && state.running) {
+      if (tray) return;
+      try {
+        const iconPath = app.isPackaged
+          ? join(process.resourcesPath, "tray.ico")
+          : join(app.getAppPath(), "public", "favicon.ico");
+        const image = nativeImage.createFromPath(iconPath);
+        if (image.isEmpty()) throw new Error("Tray icon could not be loaded.");
+        tray = new Tray(image);
+        tray.setToolTip("ToDo · agent access running");
+        tray.setContextMenu(
+          Menu.buildFromTemplate([
+            { label: "Open ToDo", click: () => lifecycle?.open() },
+            {
+              label: "Settings",
+              click: () => {
+                lifecycle?.open();
+                void mainWindow?.loadURL(`${APP_ORIGIN}/settings`);
+              },
+            },
+            { type: "separator" },
+            { label: "Quit ToDo", click: () => lifecycle?.quit() },
+          ]),
+        );
+        tray.on("double-click", () => lifecycle?.open());
+      } catch (error) {
+        console.error("Could not create tray icon", error);
+        tray?.destroy();
+        tray = null;
+        dialog.showErrorBox(
+          "Background mode unavailable",
+          "The system tray icon could not be created. Closing ToDo will quit the app.",
+        );
+      }
+    } else {
+      if (mainWindow && !mainWindow.isVisible() && !lifecycle?.quitting) lifecycle?.open();
+      tray?.destroy();
+      tray = null;
+    }
+  };
+  const agentAccess = new AgentAccess(join(profilePath, "mcp.json"), ctx.vault, ctx.clock, syncTray);
+  ctx.agentAccess = agentAccess;
+  await agentAccess.start();
+  let shutdownStarted = false;
+  let shutdownComplete = false;
+  app.on("before-quit", (event) => {
+    if (lifecycle) lifecycle.quitting = true;
+    if (shutdownComplete) return;
+    event.preventDefault();
+    if (shutdownStarted) return;
+    shutdownStarted = true;
+    void agentAccess
+      .close()
+      .catch((error) => console.error("MCP shutdown failed", error))
+      .finally(() => {
+        tray?.destroy();
+        tray = null;
+        shutdownComplete = true;
+        app.quit();
+      });
+  });
+
   // Deny every browser permission except copying formatted text to the clipboard.
   const ses = session.defaultSession;
   ses.setPermissionRequestHandler((_contents, permission, callback, details) =>
     callback(permission === "clipboard-sanitized-write" && isAppUrl(details.requestingUrl)),
   );
-  ses.setPermissionCheckHandler((_contents, permission, requestingOrigin) => permission === "clipboard-sanitized-write" && isAppUrl(requestingOrigin));
+  ses.setPermissionCheckHandler(
+    (_contents, permission, requestingOrigin) =>
+      permission === "clipboard-sanitized-write" && isAppUrl(requestingOrigin),
+  );
   ses.setDevicePermissionHandler(() => false);
 
-  protocol.handle("app", (req) => serveAppRequest(req, (req as Request & { initiatorOrigin?: string }).initiatorOrigin, ctx));
+  protocol.handle("app", (req) =>
+    serveAppRequest(req, (req as Request & { initiatorOrigin?: string }).initiatorOrigin, ctx),
+  );
 
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -62,8 +145,38 @@ async function start(): Promise<void> {
       devTools: !app.isPackaged,
     },
   });
+  lifecycle = new WindowLifecycle(
+    mainWindow,
+    () => {
+      const state = agentAccess.snapshot();
+      return state.enabled && state.background && state.running && tray !== null;
+    },
+    () => app.quit(),
+  );
+  mainWindow.on("close", (event) => lifecycle?.close(event));
+  mainWindow.on("query-session-end", () => {
+    if (lifecycle) lifecycle.quitting = true;
+  });
   mainWindow.on("closed", () => (mainWindow = null));
   await mainWindow.loadURL(`${APP_ORIGIN}/`);
+
+  if (app.isPackaged) {
+    const { autoUpdater } = electronUpdater;
+    void startUpdates(autoUpdater, async () => {
+      if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible()) return false;
+      const { response } = await dialog.showMessageBox(mainWindow, {
+        type: "info",
+        title: "ToDo update ready",
+        message: "A new version of ToDo is ready to install.",
+        detail:
+          "Save your work before restarting. Choose Later to keep working; ToDo will ask again on the next launch.",
+        buttons: ["Restart now", "Later"],
+        defaultId: 1,
+        cancelId: 1,
+      });
+      return response === 0 && mainWindow !== null && !mainWindow.isDestroyed();
+    });
+  }
 }
 
 // Lock down every page the app creates: no leaving the app, no pop-ups, no embedded browsers.
@@ -84,11 +197,8 @@ if ((app.isPackaged && debugSwitch) || !app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on("second-instance", () => {
-    if (!mainWindow) return;
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
+    lifecycle?.open();
   });
-  // With no "window-all-closed" handler, closing the window quits the app.
   start().catch((error: unknown) => {
     console.error(error);
     dialog.showErrorBox("ToDo couldn't start", error instanceof Error ? error.message : String(error));
