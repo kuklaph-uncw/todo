@@ -117,6 +117,10 @@ const fenceMarker = (line) => {
   const match = /^ {0,3}(`{3,}|~{3,})/.exec(line);
   return match && !(match[1][0] === "`" && line.slice(match[0].length).includes("`")) ? match[1] : undefined;
 };
+const closesFence = (line, fence) => {
+  const match = /^ {0,3}(`{3,}|~{3,})[ \t]*$/.exec(line);
+  return Boolean(match && match[1][0] === fence[0] && match[1].length >= fence.length);
+};
 
 /** Renders blocks in order, advancing past exactly the lines each block consumed. */
 function renderBlocks(source, inline) {
@@ -136,7 +140,7 @@ function renderBlocks(source, inline) {
       continue;
     }
     const block = fenceMarker(line)
-      ? renderLiteralFence(source, at)
+      ? renderFence(source, at)
       : bullet(line)
         ? renderList(source, at, inline)
         : renderParagraph(source, at, inline);
@@ -146,18 +150,21 @@ function renderBlocks(source, inline) {
   return out.join("");
 }
 
-/** Keeps pasted fenced code literal, including its fences and emphasis markers. */
-function renderLiteralFence(source, at) {
-  const fence = fenceMarker(source[at]);
-  const literal = [source[at]];
-  while (++at < source.length) {
-    literal.push(source[at]);
-    if (fenceMarker(source[at])?.startsWith(fence)) {
-      at++;
-      break;
-    }
+/**
+ * A fenced code block. Its text stays literal: no emphasis, tags or links. An unclosed
+ * fence runs to the end. The fence and info string are kept so the editor can save them back.
+ */
+function renderFence(source, at) {
+  const open = source[at];
+  const fence = fenceMarker(open);
+  const indent = open.search(/\S/);
+  const info = open.slice(indent + fence.length).trim();
+  const body = [];
+  while (++at < source.length && !closesFence(source[at], fence)) {
+    body.push(source[at].replace(new RegExp(`^ {0,${indent}}`), ""));
   }
-  return { html: `<p>${literal.join("<br>")}</p>`, next: at };
+  const html = `<pre data-fence="${fence}" data-info="${info}"><code>${body.join("\n")}</code></pre>`;
+  return { html, next: at + 1 };
 }
 
 /** Groups sibling list items and renders their indented continuations as nested blocks. */
@@ -199,15 +206,44 @@ function renderParagraph(source, at, inline) {
 
 const escapeMarkdown = (text) =>
   text
-    .replace(/\u00a0/g, " ")
+    .replace(/ /g, " ")
     .replace(/[\\*`_]/g, "\\$&")
     .replace(/(^|\n)(#{1,6} |[-+] |\d+\.)/g, (_match, lead, marker) => `${lead}${marker.replace(/[.#\-+]/, "\\$&")}`);
+
+/** A code block's text as typed: line breaks and nested lines kept, markup dropped. */
+export function codeText(node) {
+  let text = "";
+  for (const child of node.childNodes) {
+    if (child.nodeType === 3) text += child.data;
+    else if (child.hasAttribute?.("data-editor-caret")) text += codeText(child).replace(/^\u200b/, "");
+    else if (child.nodeName === "BR") text += "\n";
+    else if (/^(SCRIPT|STYLE|SVG|IFRAME|OBJECT)$/.test(child.nodeName)) continue;
+    else if (/^(DIV|P)$/.test(child.nodeName)) text += (text && !text.endsWith("\n") ? "\n" : "") + codeText(child);
+    else if (child.nodeType === 1) text += codeText(child);
+  }
+  return text.replace(/ /g, " ");
+}
+
+/** A fence longer than any line inside that could close it early. */
+function codeBlock(pre) {
+  const text = codeText(pre).replace(/\n$/, "");
+  const info = (pre.dataset?.info ?? "").replace(/\s+/g, " ").trim();
+  let fence = /^(`{3,}|~{3,})$/.test(pre.dataset?.fence ?? "") ? pre.dataset.fence : "```";
+  if (fence[0] === "`" && info.includes("`")) fence = "~~~";
+  while (text.split("\n").some((line) => closesFence(line, fence))) fence += fence[0];
+  return `${fence}${info}\n${text ? `${text}\n` : ""}${fence}`;
+}
 
 /** Serialize only the supported text structure. Clipboard HTML never becomes saved HTML. */
 export function editorMarkdown(node) {
   function inline(child) {
     if (child.nodeType === 3) return escapeMarkdown(child.data);
     if (child.nodeType !== 1) return "";
+    if (child.hasAttribute("data-editor-caret"))
+      return [...child.childNodes]
+        .map(inline)
+        .join("")
+        .replace(/^\u200b/, "");
     if (/^(SCRIPT|STYLE|SVG|IFRAME|OBJECT)$/.test(child.nodeName)) return "";
     if (child.dataset?.token) return child.dataset.token;
     if (child.nodeName === "BR") return "\n";
@@ -252,6 +288,7 @@ export function editorMarkdown(node) {
       if (/^(P|DIV|H[1-6]|UL|OL|PRE|BLOCKQUOTE|SECTION|ARTICLE|TABLE|TBODY|TR|TD|TH|HTML|BODY)$/.test(tag)) {
         flush();
         if (/^(UL|OL)$/.test(tag)) parts.push(list(child));
+        else if (tag === "PRE") parts.push(codeBlock(child));
         else if (/^H[1-6]$/.test(tag))
           parts.push(
             `${"#".repeat(Number(tag[1]) < 3 ? Number(tag[1]) : Number(tag[1]) - 2)} ${[...child.childNodes].map(inline).join("")}`,

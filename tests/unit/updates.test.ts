@@ -1,7 +1,9 @@
 import { describe, expect, it, mock, spyOn } from "bun:test";
 import { EventEmitter } from "node:events";
-import { startUpdates } from "../../src/electron/updates";
+import { Updates } from "../../src/electron/updates";
 import type { UpdateCheckResult } from "electron-updater";
+
+const info = { version: "1.4.0", files: [], path: "", sha512: "", releaseDate: "2026-11-05" };
 
 function fakeUpdater() {
   return Object.assign(new EventEmitter(), {
@@ -14,88 +16,145 @@ function fakeUpdater() {
   });
 }
 
+/** A check that finds 1.4.0; resolve `finish` to complete its download. */
+function availableUpdate(updater: ReturnType<typeof fakeUpdater>) {
+  let finish!: (files: string[]) => void;
+  let fail!: (error: Error) => void;
+  const downloadPromise = new Promise<string[]>((resolve, reject) => {
+    finish = resolve;
+    fail = reject;
+  });
+  updater.checkForUpdates.mockImplementation(async () => {
+    updater.emit("update-available", info);
+    return { isUpdateAvailable: true, updateInfo: info, versionInfo: info, downloadPromise };
+  });
+  return { finish, fail };
+}
+
+const quietly = () => spyOn(console, "error").mockImplementation(() => {});
+const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
+
 describe("desktop updates", () => {
-  it("checks for stable updates, downloads automatically, and requires permission to install", async () => {
+  it("configures stable background downloads that never install on quit", () => {
     const updater = fakeUpdater();
-    const askToRestart = mock(async () => true);
-
-    await startUpdates(updater, askToRestart);
-
-    expect(updater.checkForUpdates).toHaveBeenCalledTimes(1);
+    new Updates(updater);
     expect(updater.autoDownload).toBe(true);
     expect(updater.allowPrerelease).toBe(false);
     expect(updater.disableWebInstaller).toBe(true);
     expect(updater.autoInstallOnAppQuit).toBe(false);
-    expect(askToRestart).not.toHaveBeenCalled();
+  });
+
+  it("reports up to date with the check time", async () => {
+    const updater = fakeUpdater();
+    const updates = new Updates(updater, () => new Date("2026-11-05T09:14:00Z"));
+    expect(updates.snapshot()).toEqual({ status: "idle" });
+    const checking = updates.check();
+    expect(updates.snapshot().status).toBe("checking");
+    await checking;
+    expect(updates.snapshot()).toEqual({ status: "current", checkedAt: "2026-11-05T09:14:00.000Z" });
+  });
+
+  it("downloads in the background, reports progress, and waits for the user when ready", async () => {
+    const updater = fakeUpdater();
+    const { finish } = availableUpdate(updater);
+    const updates = new Updates(updater);
+    const done = updates.check();
+    await tick();
+    expect(updates.snapshot()).toEqual({ status: "downloading", version: "1.4.0", percent: 0 });
+    updater.emit("download-progress", { percent: 41.6 });
+    expect(updates.snapshot()).toMatchObject({ status: "downloading", percent: 42 });
+    finish([]);
+    await done;
+    updater.emit("update-downloaded", info);
+    expect(updates.snapshot()).toEqual({ status: "ready", version: "1.4.0" });
     expect(updater.quitAndInstall).not.toHaveBeenCalled();
+  });
 
-    updater.emit("update-downloaded");
-    await Promise.resolve();
+  it("ignores checks while one is running or an update is ready", async () => {
+    const updater = fakeUpdater();
+    const { finish } = availableUpdate(updater);
+    const updates = new Updates(updater);
+    const first = updates.check();
+    await updates.check();
+    expect(updater.checkForUpdates).toHaveBeenCalledTimes(1);
+    finish([]);
+    await first;
+    await updates.check();
+    expect(updater.checkForUpdates).toHaveBeenCalledTimes(1);
+    expect(updates.snapshot().status).toBe("ready");
+  });
 
-    expect(askToRestart).toHaveBeenCalledTimes(1);
+  it("restarts only when ready, once, after its hook runs", async () => {
+    const updater = fakeUpdater();
+    const beforeInstall = mock(() => {});
+    const updates = new Updates(updater, undefined, beforeInstall);
+    expect(updates.restart()).toBe(false);
+    const { finish } = availableUpdate(updater);
+    finish([]);
+    await updates.check();
+    expect(updates.restart()).toBe(true);
+    expect(updates.restart()).toBe(false);
+    expect(updates.snapshot()).toEqual({ status: "restarting", version: "1.4.0" });
+    await tick();
+    expect(beforeInstall).toHaveBeenCalledTimes(1);
     expect(updater.quitAndInstall).toHaveBeenCalledTimes(1);
   });
 
-  it("leaves the app running when restart is declined", async () => {
-    const updater = fakeUpdater();
-    await startUpdates(updater, async () => false);
-
-    updater.emit("update-downloaded");
-    await Promise.resolve();
-
-    expect(updater.quitAndInstall).not.toHaveBeenCalled();
-    expect(updater.autoInstallOnAppQuit).toBe(false);
-  });
-
-  it("logs a failed check without rejecting startup", async () => {
+  it("reports a failed check without rejecting, and allows another check", async () => {
     const updater = fakeUpdater();
     const error = new Error("GitHub is unavailable");
-    updater.checkForUpdates.mockRejectedValue(error);
-    const log = spyOn(console, "error").mockImplementation(() => {});
+    updater.checkForUpdates.mockRejectedValueOnce(error);
+    const log = quietly();
     try {
-      await expect(startUpdates(updater, async () => false)).resolves.toBeUndefined();
+      const updates = new Updates(updater);
+      await expect(updates.check()).resolves.toBeUndefined();
+      expect(updates.snapshot()).toEqual({ status: "error", message: "Couldn't check for updates." });
       expect(log).toHaveBeenCalledWith("ToDo update failed:", error);
+      await updates.check();
+      expect(updates.snapshot().status).toBe("current");
     } finally {
       log.mockRestore();
     }
   });
 
-  it("handles download rejection after the check has succeeded", async () => {
+  it("reports a failed download with its version", async () => {
     const updater = fakeUpdater();
-    const error = new Error("Download interrupted");
-    const log = spyOn(console, "error").mockImplementation(() => {});
-    const info = { version: "1.2.0", files: [], path: "", sha512: "", releaseDate: "2026-11-04" };
-    updater.checkForUpdates.mockImplementation(async () => ({
-      isUpdateAvailable: true,
-      updateInfo: info,
-      versionInfo: info,
-      downloadPromise: Promise.reject(error),
-    }));
+    const { fail } = availableUpdate(updater);
+    const log = quietly();
     try {
-      await expect(startUpdates(updater, async () => true)).resolves.toBeUndefined();
-      expect(log).toHaveBeenCalledWith("ToDo update failed:", error);
-      expect(updater.quitAndInstall).not.toHaveBeenCalled();
-    } finally {
-      log.mockRestore();
-    }
-  });
-
-  it("handles updater errors and a failed restart prompt without quitting", async () => {
-    const updater = fakeUpdater();
-    const promptError = new Error("Window closed");
-    const updateError = new Error("Installer failed");
-    const log = spyOn(console, "error").mockImplementation(() => {});
-    try {
-      await startUpdates(updater, async () => {
-        throw promptError;
+      const updates = new Updates(updater);
+      const done = updates.check();
+      fail(new Error("Download interrupted"));
+      await done;
+      updater.emit("error", new Error("Download interrupted"));
+      expect(updates.snapshot()).toEqual({
+        status: "error",
+        version: "1.4.0",
+        message: "ToDo 1.4.0 didn't download.",
       });
-      updater.emit("error", updateError);
-      updater.emit("update-downloaded");
-      await Promise.resolve();
+    } finally {
+      log.mockRestore();
+    }
+  });
 
-      expect(log).toHaveBeenCalledWith("ToDo update failed:", updateError);
-      expect(log).toHaveBeenCalledWith("ToDo update failed:", promptError);
-      expect(updater.quitAndInstall).not.toHaveBeenCalled();
+  it("reports an installer that fails to start and stays usable", async () => {
+    const updater = fakeUpdater();
+    const { finish } = availableUpdate(updater);
+    finish([]);
+    updater.quitAndInstall.mockImplementation(() => {
+      updater.emit("error", new Error("Installer failed"));
+    });
+    const log = quietly();
+    try {
+      const updates = new Updates(updater);
+      await updates.check();
+      updates.restart();
+      await tick();
+      expect(updates.snapshot()).toEqual({
+        status: "error",
+        version: "1.4.0",
+        message: "ToDo 1.4.0 didn't install.",
+      });
     } finally {
       log.mockRestore();
     }

@@ -2,16 +2,19 @@ import { localDateString } from "../lib/date";
 import { safeReturnPath } from "../lib/validation";
 import type { Vault } from "../vault/vault";
 import type { AgentAccess } from "../mcp/access";
+import type { Updates } from "../electron/updates";
 import { contentRevision } from "../vault/revision";
 import { renderLayout, type NavKey } from "../views/layout";
 
 export interface AppContext {
   vault: Vault;
-  /** Shown in the sidebar so the user always knows where their data lives. */
+  /** Shown in Settings so the user can find and back up their notes. */
   vaultPath: string;
   /** Injectable clock so tests can pin "today". */
   clock: () => Date;
   agentAccess?: AgentAccess;
+  /** Only the installed desktop app can update itself. */
+  updates?: Pick<Updates, "snapshot" | "check" | "restart">;
 }
 
 export function today(ctx: AppContext): string {
@@ -24,9 +27,9 @@ export function page(ctx: AppContext, title: string, active: NavKey | null, main
     title,
     active,
     main,
-    vaultPath: ctx.vaultPath,
     openTodos,
     agentAccess: ctx.agentAccess?.snapshot().running,
+    updates: ctx.updates?.snapshot() ?? { status: "unavailable" },
     todoVersion: contentRevision(ctx.vault.peekTodos()),
   });
   return new Response(html, { status, headers: { "content-type": "text/html; charset=utf-8" } });

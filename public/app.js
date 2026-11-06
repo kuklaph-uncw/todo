@@ -1,4 +1,4 @@
-import { renderEntryMarkdown, editorMarkdown } from "./rich-text.js";
+import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
 
 // Progressive enhancement only. Every form and link works without this file;
 // with it, form posts update the page in place, keyboard shortcuts work, and
@@ -52,6 +52,9 @@ import { renderEntryMarkdown, editorMarkdown } from "./rich-text.js";
     const data = document.getElementById("composer-data");
     if (data) composerData = JSON.parse(data.textContent);
     root.querySelectorAll("input[data-composer], textarea:not([readonly])").forEach(enhanceComposer);
+
+    // Settings › Updates arrives with each page; the rail's state fills it in.
+    renderUpdates();
   }
 
   // ---- Inline #tags and /goals --------------------------------------------
@@ -283,6 +286,26 @@ import { renderEntryMarkdown, editorMarkdown } from "./rich-text.js";
     );
   }
 
+  // ---- Formatting strip: hidden until asked for, open or closed for every editor at once ----
+
+  const FORMATTING_KEY = "formatting-open";
+  const CHEVRON =
+    '<svg class="icon chevron" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 14.5l5-5 5 5"/></svg>';
+  const formattingOpen = () => localStorage.getItem(FORMATTING_KEY) === "1";
+
+  function setFormatting(open) {
+    if (open) localStorage.setItem(FORMATTING_KEY, "1");
+    else localStorage.removeItem(FORMATTING_KEY);
+    document.querySelectorAll(".composer-box").forEach((box) => {
+      const toolbar = box.querySelector(".format-toolbar");
+      if (!toolbar) return;
+      // Hiding the button that has focus would drop focus to the page; keep it in the text.
+      if (!open && toolbar.contains(document.activeElement)) box.querySelector(".composer").focus();
+      toolbar.hidden = !open;
+      box.querySelector(".lens").setAttribute("aria-expanded", String(open));
+    });
+  }
+
   function enhanceComposer(field) {
     const single = field instanceof HTMLInputElement;
     const tokens = field.hasAttribute("data-composer");
@@ -359,7 +382,15 @@ import { renderEntryMarkdown, editorMarkdown } from "./rich-text.js";
     editor.classList.toggle("is-empty", !field.value);
 
     let toolbar;
+    let lens;
     let sourceNote;
+    // Inside the editor: the element matching `selector` around the caret, if any.
+    const around = (selector) => {
+      const node = getSelection().anchorNode;
+      const found = (node?.nodeType === Node.TEXT_NODE ? node.parentElement : node)?.closest?.(selector);
+      return found && editor.contains(found) && found !== editor ? found : null;
+    };
+    const inlineCode = () => !around("pre") && around("code");
     const runFormat = (command, value) => {
       if (command === "source") {
         if (sourceMode && editorMarkdown(richHtml(field.value)) !== field.value) {
@@ -377,12 +408,21 @@ import { renderEntryMarkdown, editorMarkdown } from "./rich-text.js";
           getSelection().removeAllRanges();
           getSelection().addRange(lastRange);
         }
-        const selectedCode = getSelection().anchorNode?.parentElement?.closest("code");
-        if (command !== "code" && selectedCode && editor.contains(selectedCode)) return;
-        if (command === "code") {
+        const pre = around("pre");
+        if (command === "codeblock") {
+          if (pre) {
+            // A plain paragraph, not inline code: unwrap the code element first.
+            pre.querySelectorAll("code").forEach((code) => {
+              code.replaceWith(...code.childNodes);
+            });
+            getSelection().selectAllChildren(pre);
+            document.execCommand("formatBlock", false, "p");
+          } else document.execCommand("formatBlock", false, "pre");
+        } else if (pre || (command !== "code" && inlineCode())) return;
+        else if (command === "code") {
           const selection = getSelection();
-          const parent = selection.anchorNode?.parentElement?.closest("code");
-          if (parent && editor.contains(parent)) {
+          const parent = inlineCode();
+          if (parent) {
             const range = document.createRange();
             range.selectNode(parent);
             selection.removeAllRanges();
@@ -397,23 +437,38 @@ import { renderEntryMarkdown, editorMarkdown } from "./rich-text.js";
       }
       updateToolbar();
     };
+    /** The format at the caret, shown on the Aa button so a hidden strip hides nothing. */
+    const formatName = () => {
+      if (sourceMode) return "MD";
+      const block = around("pre, li, h3, h4, h5, h6");
+      if (!block) return "Aa";
+      if (block.nodeName === "PRE") return "{ }";
+      if (block.nodeName === "LI") return block.parentElement.nodeName === "OL" ? "1." : "•";
+      return { H3: "H1", H4: "H2" }[block.nodeName] ?? "H3";
+    };
     const updateToolbar = () => {
       if (!toolbar) return;
+      const face = lens.querySelector(".lens-face");
+      face.textContent = formatName();
+      face.classList.toggle("is-format", face.textContent !== "Aa");
+      const pre = Boolean(around("pre"));
+      const code = Boolean(inlineCode());
       for (const button of toolbar.querySelectorAll("button")) {
         const command = button.dataset.command;
-        const inCode = getSelection().anchorNode?.parentElement?.closest("code");
-        const disabled =
-          command !== "source" && (sourceMode || Boolean(inCode && editor.contains(inCode) && command !== "code"));
-        button.setAttribute("aria-disabled", String(disabled));
+        const allowed = command === "source" || (pre ? command === "codeblock" : !code || command === "code");
+        button.setAttribute("aria-disabled", String(sourceMode ? command !== "source" : !allowed));
         const active =
           command === "source"
             ? sourceMode
-            : command === "code"
-              ? Boolean(inCode && editor.contains(inCode))
-              : command === "formatBlock"
-                ? document.queryCommandValue(command).toLowerCase() === button.dataset.value
-                : document.queryCommandState(command);
-        button.setAttribute("aria-pressed", String((!sourceMode && active) || (command === "source" && sourceMode)));
+            : command === "codeblock"
+              ? pre
+              : command === "code"
+                ? code
+                : !pre &&
+                  (command === "formatBlock"
+                    ? document.queryCommandValue(command).toLowerCase() === button.dataset.value
+                    : document.queryCommandState(command));
+        button.setAttribute("aria-pressed", String(command === "source" ? sourceMode : !sourceMode && active));
       }
     };
     if (!single) {
@@ -432,28 +487,41 @@ import { renderEntryMarkdown, editorMarkdown } from "./rich-text.js";
       }
       toolbar = document.createElement("div");
       toolbar.className = "format-toolbar";
+      toolbar.id = `${editor.id}-format`;
+      toolbar.hidden = !formattingOpen();
       toolbar.setAttribute("role", "toolbar");
       toolbar.setAttribute("aria-label", "Formatting");
       toolbar.setAttribute("aria-controls", editor.id);
+      // [text, name, command, value, shortcut, what to type instead]; null starts a new group.
       const formats = [
-        ["B", "Bold", "bold"],
-        ["I", "Italic", "italic"],
-        ["‹›", "Inline code", "code"],
-        ["H1", "Heading", "formatBlock", "h3"],
-        ["H2", "Subheading", "formatBlock", "h4"],
-        ["¶", "Normal text", "formatBlock", "p"],
-        ["•", "Bulleted list", "insertUnorderedList"],
-        ["1.", "Numbered list", "insertOrderedList"],
+        ["B", "Bold", "bold", null, "Ctrl+B"],
+        ["I", "Italic", "italic", null, "Ctrl+I"],
+        ["‹›", "Inline code", "code", null, "Ctrl+E", "`code`"],
+        null,
+        ["H1", "Heading", "formatBlock", "h3", "Ctrl+Alt+1", "# then space"],
+        ["H2", "Subheading", "formatBlock", "h4", "Ctrl+Alt+2", "## then space"],
+        ["¶", "Normal text", "formatBlock", "p", "Ctrl+Alt+0"],
+        null,
+        ["•", "Bulleted list", "insertUnorderedList", null, "Ctrl+Shift+8", "* then space"],
+        ["1.", "Numbered list", "insertOrderedList", null, "Ctrl+Shift+7", "1. then space"],
+        ["{ }", "Code block", "codeblock", null, null, "``` then Enter"],
+        null,
         ["MD", "Markdown source", "source"],
       ];
-      formats.forEach(([text, label, command, value], index) => {
+      for (const format of formats) {
+        if (!format) {
+          toolbar.insertAdjacentHTML("beforeend", '<span class="format-sep" aria-hidden="true"></span>');
+          continue;
+        }
+        const [text, label, command, value, keys, typed] = format;
         const button = document.createElement("button");
         button.type = "button";
         button.textContent = text;
         button.className = "format-button";
         button.setAttribute("aria-label", label);
-        button.title = label;
-        button.tabIndex = index ? -1 : 0;
+        // A reminder on hover; the shortcuts dialog lists them all.
+        button.title = [label, keys, typed && `or type ${typed}`].filter(Boolean).join(" · ");
+        button.tabIndex = toolbar.querySelector("button") ? -1 : 0;
         button.dataset.command = command;
         if (value) button.dataset.value = value;
         button.addEventListener("mousedown", (event) => event.preventDefault());
@@ -461,7 +529,7 @@ import { renderEntryMarkdown, editorMarkdown } from "./rich-text.js";
           if (button.getAttribute("aria-disabled") !== "true") runFormat(command, value);
         });
         toolbar.append(button);
-      });
+      }
       toolbar.addEventListener("keydown", (event) => {
         const buttons = [...toolbar.querySelectorAll("button")];
         let next = buttons.indexOf(document.activeElement);
@@ -484,7 +552,30 @@ import { renderEntryMarkdown, editorMarkdown } from "./rich-text.js";
         });
         buttons[next].focus();
       });
-      bar.prepend(toolbar);
+      // Between the text and the bar, so it reads as part of the text box.
+      box.insertBefore(toolbar, bar);
+
+      lens = document.createElement("button");
+      lens.type = "button";
+      lens.className = "lens";
+      lens.setAttribute("aria-label", "Formatting");
+      lens.setAttribute("aria-expanded", String(!toolbar.hidden));
+      lens.setAttribute("aria-controls", toolbar.id);
+      lens.setAttribute("aria-keyshortcuts", "Control+Shift+X");
+      lens.title = "Formatting · Ctrl+Shift+X";
+      lens.innerHTML = `<span class="lens-face" aria-hidden="true">Aa</span>${CHEVRON}`;
+      // Keeps the caret and any selection in the text.
+      lens.addEventListener("mousedown", (event) => event.preventDefault());
+      lens.addEventListener("click", () => setFormatting(toolbar.hidden));
+      if (bar.children.length) bar.prepend(Object.assign(document.createElement("span"), { className: "lens-sep" }));
+      bar.prepend(lens);
+      box.addEventListener("keydown", (event) => {
+        if ((event.ctrlKey || event.metaKey) && event.shiftKey && !event.altKey && event.key.toLowerCase() === "x") {
+          event.preventDefault();
+          setFormatting(toolbar.hidden);
+        }
+      });
+
       sourceNote = document.createElement("p");
       sourceNote.className = "editor-source-note";
       sourceNote.textContent =
@@ -503,28 +594,122 @@ import { renderEntryMarkdown, editorMarkdown } from "./rich-text.js";
       updateToolbar();
     }
 
+    // Typed Markdown: "* ", "1. " or "# " at the start of a line, `code`, and ``` then Enter.
+    // Each change takes one or two editing steps, so Backspace right after can undo exactly it.
+    let undoSteps = 0;
+    const selectText = (node, start, end) => {
+      const range = document.createRange();
+      range.setStart(node, start);
+      range.setEnd(node, end);
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
+    };
+    /** The caret's text node and the line typed before it, when that line is all in this node. */
+    const lineAtCaret = () => {
+      const at = caretText(editor);
+      if (!at || around("li, h3, h4, h5, h6, pre, code")) return null;
+      const line = at.before.split("\n").pop();
+      return at.offset >= line.length ? { ...at, line: line.replace(/ /g, " ") } : null;
+    };
+    const typedBlock = () => {
+      const at = lineAtCaret();
+      const marker = at && /^([*+-]|\d{1,9}\.|#{1,3}) $/.exec(at.line)?.[1];
+      if (!marker) return false;
+      selectText(at.node, at.offset - at.line.length, at.offset);
+      document.execCommand("delete");
+      if (marker.startsWith("#")) document.execCommand("formatBlock", false, `h${marker.length + 2}`);
+      else document.execCommand(marker.endsWith(".") ? "insertOrderedList" : "insertUnorderedList");
+      const item = around("li");
+      const start = Number.parseInt(marker, 10);
+      if (start > 1 && item?.parentElement.nodeName === "OL" && !item.previousElementSibling)
+        item.parentElement.start = start;
+      undoSteps = 2;
+      return true;
+    };
+    const typedCode = () => {
+      const at = caretText(editor);
+      const match =
+        at && !around("pre, code") && /(?:^|[^`])`([^`]*[^`\s][^`]*)`$/.exec(at.node.data.slice(0, at.offset));
+      if (!match) return false;
+      selectText(at.node, at.offset - match[1].length - 2, at.offset);
+      // Mark only the generated spacer, so user-supplied zero-width spaces remain literal.
+      document.execCommand(
+        "insertHTML",
+        false,
+        `<code>${escapeHtml(match[1])}</code><span data-editor-caret>&#8203;</span>`,
+      );
+      const caret = editor.querySelectorAll("[data-editor-caret]");
+      const range = document.createRange();
+      range.setStart(caret[caret.length - 1].firstChild, 1);
+      range.collapse(true);
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
+      undoSteps = 1;
+      return true;
+    };
+    const typedFence = () => {
+      const at = lineAtCaret();
+      const match = at && /^(`{3,}|~{3,})([^`\s]*)\s*$/.exec(at.line);
+      const next = at?.node.nextSibling;
+      if (!match || at.node.data.slice(at.offset).trim() || (next && next.nodeName !== "BR")) return false;
+      selectText(at.node, at.offset - at.line.length, at.offset);
+      document.execCommand("delete");
+      document.execCommand("formatBlock", false, "pre");
+      const pre = around("pre");
+      if (pre) Object.assign(pre.dataset, { fence: match[1], info: match[2] });
+      undoSteps = 2;
+      return true;
+    };
+    /** Enter in a code block starts a new line; on an empty last line it leaves the block. */
+    const codeBlockEnter = (pre) => {
+      const caret = getSelection().getRangeAt(0);
+      const before = document.createRange();
+      before.setStart(pre, 0);
+      before.setEnd(caret.startContainer, caret.startOffset);
+      const after = document.createRange();
+      after.setStart(caret.endContainer, caret.endOffset);
+      after.setEnd(pre, pre.childNodes.length);
+      const leaving =
+        caret.collapsed &&
+        codeText(before.cloneContents()).endsWith("\n") &&
+        !codeText(after.cloneContents()).replace(/\n$/, "");
+      if (!leaving) {
+        document.execCommand("insertLineBreak");
+        return;
+      }
+      document.execCommand("delete"); // the empty line
+      const paragraph = document.createElement("p");
+      paragraph.append(document.createElement("br"));
+      pre.after(paragraph);
+      getSelection().collapse(paragraph, 0);
+    };
+
     editor.addEventListener("beforeinput", (event) => {
       if (
         event.inputType.startsWith("format") &&
-        (single || sourceMode || !["formatBold", "formatItalic"].includes(event.inputType))
+        (single || sourceMode || around("pre") || !["formatBold", "formatItalic"].includes(event.inputType))
       )
         event.preventDefault();
     });
     editor.addEventListener("input", (event) => {
-      if (
-        tokens &&
-        event.inputType === "insertText" &&
-        event.data === " " &&
-        !getSelection().anchorNode?.parentElement?.closest("code")
-      )
-        pillTyped(editor);
+      const typed = event.inputType === "insertText" && !single && !sourceMode;
+      if (typed && ((event.data === " " && typedBlock()) || (event.data === "`" && typedCode()))) {
+        hideSuggestions();
+        sync();
+        rememberSelection();
+        updateToolbar();
+        return;
+      }
+      if (tokens && event.inputType === "insertText" && event.data === " " && !around("code, pre")) pillTyped(editor);
       sync();
       rememberSelection();
       updateToolbar();
-      if (tokens && !getSelection().anchorNode?.parentElement?.closest("code")) checkTrigger(editor);
+      if (tokens && !around("code, pre")) checkTrigger(editor);
     });
     editor.addEventListener("keydown", (event) => {
       if (event.isComposing) return;
+      const revert = undoSteps;
+      if (!/^(Shift|Control|Alt|Meta)$/.test(event.key)) undoSteps = 0;
       literalPaste = Boolean((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "v");
       if (!single && !sourceMode && (event.ctrlKey || event.metaKey)) {
         if (event.altKey && /^[012]$/.test(event.key)) {
@@ -581,6 +766,24 @@ import { renderEntryMarkdown, editorMarkdown } from "./rich-text.js";
           return;
         }
       }
+      if (!single && !sourceMode && plain && !event.shiftKey) {
+        const pre = around("pre");
+        let handled = true;
+        if (event.key === "Backspace" && revert && getSelection().isCollapsed) {
+          // Right after a typed conversion: put the typed characters back.
+          for (let step = 0; step < revert; step++) document.execCommand("undo");
+          getSelection().collapseToEnd();
+        } else if (event.key === "Backspace" && pre && !codeText(pre).replace(/\n/g, "")) {
+          document.execCommand("formatBlock", false, "p");
+        } else if (event.key === "Enter" && pre) codeBlockEnter(pre);
+        else handled = event.key === "Enter" && typedFence();
+        if (handled) {
+          event.preventDefault();
+          sync();
+          updateToolbar();
+          return;
+        }
+      }
       if (event.key === "Enter" && !event.ctrlKey && !event.metaKey && (single || sourceMode)) {
         event.preventDefault();
         // A one-line field submits on Enter, like the input it replaced.
@@ -595,14 +798,18 @@ import { renderEntryMarkdown, editorMarkdown } from "./rich-text.js";
         (!suggesting && /^(ArrowUp|ArrowDown|PageUp|PageDown)$/.test(event.key));
       rememberSelection();
       updateToolbar();
-      if (moved && tokens && !getSelection().anchorNode?.parentElement?.closest("code")) checkTrigger(editor);
+      if (moved && tokens && !around("code, pre")) checkTrigger(editor);
     });
     editor.addEventListener("click", () => {
+      undoSteps = 0;
       rememberSelection();
       updateToolbar();
       if (tokens) checkTrigger(editor);
     });
-    editor.addEventListener("blur", hideSuggestions);
+    editor.addEventListener("blur", () => {
+      undoSteps = 0;
+      hideSuggestions();
+    });
 
     // Source and single-line fields insert text without interpreting Markdown.
     const insertPlain = (text) => {
@@ -616,17 +823,33 @@ import { renderEntryMarkdown, editorMarkdown } from "./rich-text.js";
           tokens && !sourceMode ? textToHtml(text, joinsWord) : escapeHtml(text).replace(/\n/g, "<br>"),
         );
     };
-    // Copy and cut the saved text, so a goal pill keeps its [[link]].
+    /** Text pasted or dropped into code stays literal; inline code stays on one line. */
+    const insertIntoCode = (text) => {
+      if (!around("pre")) text = text.replace(/\s*\n\s*/g, " ");
+      if (text) document.execCommand("insertText", false, text);
+      sync();
+    };
+    // Copy and cut the saved text, so a goal pill keeps its [[link]], and code copies as typed.
     const copySelection = (event) => {
       const selection = getSelection();
       if (!selection.rangeCount || selection.isCollapsed) return;
       event.preventDefault();
-      const fragment = selection.getRangeAt(0).cloneContents();
-      event.clipboardData.setData("text/plain", single || sourceMode ? editorText(fragment) : editorMarkdown(fragment));
-      if (!single && !sourceMode) {
-        const safe = document.createElement("div");
-        safe.append(fragment);
-        event.clipboardData.setData("text/html", renderEntryMarkdown(editorMarkdown(safe)));
+      const range = selection.getRangeAt(0);
+      const fragment = range.cloneContents();
+      const common = range.commonAncestorContainer;
+      const code = (common.nodeType === Node.TEXT_NODE ? common.parentElement : common).closest("pre, code");
+      if (!single && !sourceMode && code && editor.contains(code)) {
+        event.clipboardData.setData("text/plain", codeText(fragment));
+      } else {
+        event.clipboardData.setData(
+          "text/plain",
+          single || sourceMode ? editorText(fragment) : editorMarkdown(fragment),
+        );
+        if (!single && !sourceMode) {
+          const safe = document.createElement("div");
+          safe.append(fragment);
+          event.clipboardData.setData("text/html", renderEntryMarkdown(editorMarkdown(safe)));
+        }
       }
       if (event.type === "cut") document.execCommand("delete");
     };
@@ -637,12 +860,14 @@ import { renderEntryMarkdown, editorMarkdown } from "./rich-text.js";
     editor.addEventListener("dragstart", (event) => event.preventDefault());
     editor.addEventListener("paste", (event) => {
       event.preventDefault();
-      if (!single && !sourceMode) {
+      if (!single && !sourceMode && around("pre, code")) insertIntoCode(event.clipboardData.getData("text/plain"));
+      else if (!single && !sourceMode) {
         const html = event.clipboardData.getData("text/html");
         const content = document.createElement("template");
         if (html) content.innerHTML = html;
-        content.content.querySelectorAll("[data-token]").forEach((node) => {
+        content.content.querySelectorAll("[data-token], [data-editor-caret]").forEach((node) => {
           node.removeAttribute("data-token");
+          node.removeAttribute("data-editor-caret");
         });
         const markdown = html ? editorMarkdown(content.content) : event.clipboardData.getData("text/plain");
         document.execCommand(
@@ -663,7 +888,8 @@ import { renderEntryMarkdown, editorMarkdown } from "./rich-text.js";
       getSelection().removeAllRanges();
       getSelection().addRange(range);
       const text = event.dataTransfer.getData("text/plain");
-      if (!single && !sourceMode) {
+      if (!single && !sourceMode && around("pre, code")) insertIntoCode(text);
+      else if (!single && !sourceMode) {
         document.execCommand("insertHTML", false, richHtml(text).innerHTML);
         sync();
       } else insertPlain(text);
@@ -915,6 +1141,19 @@ import { renderEntryMarkdown, editorMarkdown } from "./rich-text.js";
     requestAnimationFrame(() => (status.textContent = text));
   };
 
+  /** Form fields the user has changed since the page loaded. */
+  const changedFields = (main) =>
+    [...main.querySelectorAll("input, textarea, select")].filter(
+      (field) =>
+        !field.readOnly &&
+        field.type !== "hidden" &&
+        (field instanceof HTMLSelectElement
+          ? field.value !== (field.querySelector("option[selected]") ?? field.options[0])?.value
+          : field.type === "checkbox"
+            ? field.checked !== field.defaultChecked
+            : field.value !== field.defaultValue),
+    );
+
   function formValues(main) {
     return JSON.stringify(
       [...main.querySelectorAll("input, textarea, select")].map((field) => [
@@ -930,18 +1169,7 @@ import { renderEntryMarkdown, editorMarkdown } from "./rich-text.js";
 
     if (target.closest("[data-refresh-page]")) {
       const main = document.querySelector("main");
-      const dirty =
-        main.querySelector(".edit-form, .goal-edit") ||
-        [...main.querySelectorAll("input, textarea, select")].some(
-          (field) =>
-            !field.readOnly &&
-            field.type !== "hidden" &&
-            (field instanceof HTMLSelectElement
-              ? field.value !== (field.querySelector("option[selected]") ?? field.options[0])?.value
-              : field.type === "checkbox"
-                ? field.checked !== field.defaultChecked
-                : field.value !== field.defaultValue),
-        );
+      const dirty = main.querySelector(".edit-form, .goal-edit") || changedFields(main).length > 0;
       if (dirty && !confirm("Refresh now? Unsaved edits will be discarded. A ledger capture draft will be kept."))
         return;
       const url = location.href;
@@ -1229,6 +1457,262 @@ import { renderEntryMarkdown, editorMarkdown } from "./rich-text.js";
     if (target instanceof HTMLAnchorElement) target.click();
     else target.focus();
   });
+
+  // ---- Updates: the version row in the rail, and Settings › Updates ------
+  // The main process checks and downloads in the background. This only shows
+  // the state, starts a check when asked, and asks before restarting.
+
+  const updateRow = document.getElementById("version-row");
+  let update = updateRow ? JSON.parse(updateRow.dataset.updates) : null;
+  let checkedByUser = false; // only a check the user asked for announces its result
+  let checkedTimer = 0; // a tick shows for a moment after such a check finds nothing
+  let readyAnnounced = "";
+  let pollTimer = 0;
+  const appVersion = document.querySelector(".version-number")?.textContent ?? "";
+  const busyStates = ["checking", "downloading", "restarting"];
+  const updatePop = document.getElementById("update-pop");
+  const updateButton = document.getElementById("update-btn");
+
+  /** Restarting loses these. The unsent ledger entry is a draft, so it's kept. */
+  const editsLostOnRestart = () =>
+    changedFields(document.querySelector("main")).some((field) => !field.matches("textarea[data-draft]"));
+
+  /** The rail button for each state. `pop` means a click shows details instead of checking. */
+  function updateView() {
+    const version = update.version;
+    switch (update.status) {
+      case "unavailable":
+        return { icon: "update", tone: "off", pop: true, label: "Updates unavailable. Show details." };
+      case "checking":
+        return { icon: "refresh", busy: true, label: "Checking for updates…" };
+      case "downloading":
+        return { icon: "download", ring: true, pop: true, label: `Downloading ToDo ${version}. Show details.` };
+      case "ready":
+        return { icon: "update", tone: "ready", pop: true, label: `ToDo ${version} is ready. Show restart options.` };
+      case "restarting":
+        return { icon: "refresh", busy: true, label: "Restarting ToDo…" };
+      case "error":
+        return { icon: "alert", tone: version ? "failed" : "", pop: true, label: `${update.message} Show details.` };
+      default:
+        if (checkedTimer) return { icon: "check", tone: "ok", label: "ToDo is up to date. Check for updates." };
+        return {
+          icon: "refresh",
+          label: update.checkedAt
+            ? `Check for updates. Up to date, checked ${new Date(update.checkedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.`
+            : "Check for updates",
+        };
+    }
+  }
+
+  /** The restart button, and a warning when restarting now would lose edits on this page. */
+  function restartControl(small) {
+    const size = small ? " small" : "";
+    return editsLostOnRestart()
+      ? {
+          warning: `<p class="update-warn">This page has unsaved changes. Save them first, or they'll be lost.</p>`,
+          button: `<button type="button" class="btn${size}" data-update-restart data-discard>Restart and discard changes</button>`,
+        }
+      : {
+          warning: "",
+          button: `<button type="button" class="btn primary${size}" data-update-restart>Restart to update</button>`,
+        };
+  }
+
+  function popHtml() {
+    const { status, version, percent, message } = update;
+    const title = (text) => `<h2 id="update-pop-title">${escapeHtml(text)}</h2>`;
+    if (status === "unavailable")
+      return `${title("Updates unavailable")}<p>This copy of ToDo isn't the installed app, so it doesn't check for or install updates.</p>`;
+    if (status === "downloading")
+      return `${title(`Downloading ToDo ${version}`)}<progress class="update-progress" max="100" value="${percent}" aria-labelledby="update-pop-title"></progress>
+        <p class="update-meta">${percent}% · in the background</p><p>Keep working. Nothing restarts until you choose.</p>`;
+    if (status === "ready") {
+      const restart = restartControl(true);
+      return `${title(`ToDo ${version} is ready`)}<p>Restarting takes a few seconds. Unsent ledger entries are kept.</p>${restart.warning}
+        <div class="update-actions">${restart.button}<button type="button" class="btn small ghost" data-update-close>Not now</button></div>`;
+    }
+    return `${title(message)}<p>${version ? `ToDo is still on ${escapeHtml(appVersion)}. Your notes are unchanged.` : "ToDo works offline and checks again next time it starts."}</p>
+      <div class="update-actions"><button type="button" class="btn small" data-update-check>Try again</button><a class="btn small ghost" href="/settings#updates">Details</a></div>`;
+  }
+
+  function settingsHtml() {
+    const { status, version, percent, message } = update;
+    const time = update.checkedAt
+      ? new Date(update.checkedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+      : "";
+    const [line, tone = ""] =
+      {
+        unavailable: ["Not available in this copy"],
+        idle: ["Not checked yet"],
+        checking: ["Checking for updates…"],
+        current: [`Up to date · checked ${time}`],
+        downloading: [`Downloading ${version} · ${percent}%`],
+        ready: [`${version} is ready to install`, "is-ready"],
+        restarting: [`Restarting to install ${version}…`, "is-ready"],
+      }[status] ??
+      (version ? [message, "is-error"] : [`${message} ToDo works offline and checks again next time it starts.`]);
+    const progress =
+      status === "downloading"
+        ? `<progress class="update-progress" max="100" value="${percent}" aria-label="Downloading ToDo ${escapeHtml(version)}"></progress>`
+        : "";
+    const busy = busyStates.includes(status) ? ' aria-disabled="true"' : "";
+    const restart = status === "ready" ? restartControl(false) : { warning: "", button: "" };
+    const action =
+      status === "unavailable"
+        ? ""
+        : status === "ready"
+          ? restart.button
+          : status === "restarting"
+            ? `<button type="button" class="btn primary" aria-disabled="true">Restart to update</button>`
+            : `<button type="button" class="btn" data-update-check${busy}>${status === "error" ? "Try again" : "Check for updates"}</button>`;
+    return `<p class="state-line"><span>Version ${escapeHtml(appVersion)}</span><span class="${tone}">${escapeHtml(line)}</span></p>${progress}${restart.warning}${action && `<div class="update-actions">${action}</div>`}`;
+  }
+
+  /** Redraws a panel only when what it says changes, so a focused button isn't replaced mid-download. */
+  function fill(container, html, key) {
+    if (container.dataset.key === key) {
+      container.querySelectorAll(".update-progress").forEach((bar) => {
+        bar.value = update.percent;
+      });
+      const meta = container.querySelector(".update-meta");
+      if (meta) meta.textContent = `${update.percent}% · in the background`;
+      const line = container.querySelector(".state-line span:last-child");
+      if (line && update.status === "downloading")
+        line.textContent = `Downloading ${update.version} · ${update.percent}%`;
+      return;
+    }
+    const hadFocus = container.contains(document.activeElement);
+    container.dataset.key = key;
+    container.innerHTML = html;
+    if (hadFocus) (container.querySelector("button:not([aria-disabled])") ?? updateButton).focus();
+  }
+
+  function renderUpdates() {
+    if (!update) return;
+    const view = updateView();
+    updateButton.hidden = false;
+    updateButton.dataset.icon = view.icon;
+    updateButton.dataset.tone = view.tone ?? "";
+    updateButton.toggleAttribute("data-busy", Boolean(view.busy));
+    updateButton.setAttribute("aria-label", view.label);
+    updateButton.title = view.label;
+    if (view.busy) updateButton.setAttribute("aria-disabled", "true");
+    else updateButton.removeAttribute("aria-disabled");
+    updateButton
+      .querySelector(".update-ring .value")
+      .setAttribute("stroke-dashoffset", String(100 - (update.percent ?? 0)));
+    if (!view.pop && !updatePop.hidden) closeUpdatePop(updatePop.contains(document.activeElement));
+    if (view.pop) {
+      updateButton.setAttribute("aria-controls", "update-pop");
+      updateButton.setAttribute("aria-expanded", String(!updatePop.hidden));
+    } else {
+      updateButton.removeAttribute("aria-controls");
+      updateButton.removeAttribute("aria-expanded");
+    }
+    const key = JSON.stringify([update.status, update.version, update.message, update.checkedAt, editsLostOnRestart()]);
+    if (!updatePop.hidden) fill(updatePop, popHtml(), key);
+    const settings = document.getElementById("settings-updates");
+    if (settings) fill(settings, settingsHtml(), key);
+  }
+
+  function closeUpdatePop(returnFocus) {
+    updatePop.hidden = true;
+    delete updatePop.dataset.key;
+    if (updateButton.hasAttribute("aria-expanded")) updateButton.setAttribute("aria-expanded", "false");
+    if (returnFocus) updateButton.focus();
+  }
+
+  function setUpdate(next) {
+    const before = update;
+    update = next;
+    clearTimeout(pollTimer);
+    if (busyStates.includes(next.status)) pollTimer = setTimeout(refreshUpdates, 1000);
+    // Announce outcomes, never progress.
+    const live = document.getElementById("update-live");
+    if (next.status === "ready" && readyAnnounced !== next.version) {
+      readyAnnounced = next.version;
+      announce(live, `ToDo ${next.version} is ready. Restart to update when it suits you.`);
+    } else if (next.status === "error" && before.status !== "error" && (checkedByUser || next.version)) {
+      announce(live, next.message);
+    } else if (next.status === "current" && checkedByUser) {
+      announce(live, "ToDo is up to date.");
+      clearTimeout(checkedTimer);
+      checkedTimer = setTimeout(() => {
+        checkedTimer = 0;
+        renderUpdates();
+      }, 4000);
+    }
+    if (!busyStates.includes(next.status)) checkedByUser = false;
+    renderUpdates();
+  }
+
+  async function refreshUpdates() {
+    try {
+      const response = await fetch("/updates", { cache: "no-store" });
+      if (response.ok) setUpdate(await response.json());
+    } catch {
+      // The app may be closing to install. Keep showing the last state.
+      if (busyStates.includes(update.status)) pollTimer = setTimeout(refreshUpdates, 1000);
+    }
+  }
+
+  async function checkForUpdates() {
+    checkedByUser = true;
+    if (updatePop.contains(document.activeElement)) updateButton.focus();
+    try {
+      const response = await fetch("/updates/check", { method: "POST" });
+      setUpdate(await response.json());
+    } catch {
+      checkedByUser = false;
+      refreshUpdates();
+    }
+  }
+
+  async function restartToUpdate(button) {
+    // Edits may have started since the panel opened: show the warning and let the user choose again.
+    if (editsLostOnRestart() && !button.hasAttribute("data-discard")) {
+      const container = button.closest("#update-pop, #settings-updates");
+      delete container.dataset.key;
+      renderUpdates();
+      container.querySelector("[data-update-restart]")?.focus();
+      return;
+    }
+    try {
+      const response = await fetch("/updates/restart", { method: "POST" });
+      if (response.status === 202) announce(document.getElementById("update-live"), "Restarting ToDo.");
+      setUpdate(await response.json());
+    } catch {
+      // The app is quitting to install.
+    }
+  }
+
+  if (update) {
+    document.addEventListener("click", (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target) return;
+      if (target.closest("#update-btn")) {
+        if (updateButton.getAttribute("aria-disabled") === "true") return;
+        if (!updateView().pop) checkForUpdates();
+        else if (updatePop.hidden) {
+          updatePop.hidden = false;
+          renderUpdates();
+        } else closeUpdatePop(false);
+      } else if (target.closest("[data-update-check]")) {
+        if (target.closest("[data-update-check]").getAttribute("aria-disabled") !== "true") checkForUpdates();
+      } else if (target.closest("[data-update-restart]")) {
+        if (target.closest("[data-update-restart]").getAttribute("aria-disabled") !== "true")
+          restartToUpdate(target.closest("[data-update-restart]"));
+      } else if (target.closest("[data-update-close]")) closeUpdatePop(true);
+      else if (!target.closest("#update-pop")) closeUpdatePop(false);
+    });
+    updateRow.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || updatePop.hidden) return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeUpdatePop(true);
+    });
+    setUpdate(update);
+  }
 
   let checkingChanges = false;
   async function checkTaskChanges() {

@@ -23,7 +23,7 @@
  * The trailing `^id` is an Obsidian block ID; the app uses it to find a line again.
  */
 import type { GoalStatus, Priority, Status } from "../lib/validation";
-import { continuationEnd } from "../lib/lines";
+import { continuationEnd, mapOutsideFences } from "../lib/lines";
 import { isValidGoalStatus } from "../lib/validation";
 import { renderEntryMarkdown } from "../lib/markdown";
 
@@ -246,11 +246,10 @@ function dedent(lines: string[]): string[] {
   const indents = lines.filter((line) => line.trim()).map((line) => indentWidth(/^[ \t]*/.exec(line)![0]));
   const indent = indents.length > 0 ? Math.min(4, ...indents) : 0;
   return lines.map((line) => {
-    if (!line.trim()) return "";
     let offset = 0;
     let width = 0;
-    while (width < indent) width += line[offset++] === "\t" ? 4 : 1;
-    return " ".repeat(width - indent) + line.slice(offset);
+    while (width < indent && offset < line.length) width += line[offset++] === "\t" ? 4 : 1;
+    return " ".repeat(Math.max(0, width - indent)) + line.slice(offset);
   });
 }
 
@@ -259,9 +258,10 @@ export function entryContent(
   first: Pick<Entry, "text" | "tags" | "goals">,
   body: string[],
 ): Pick<Entry, "text" | "tags" | "goals"> {
-  const text = body.join("\n");
+  // The whole text, so a code fence opened on the first line still hides its contents.
+  const text = [first.text, ...body].join("\n");
   return {
-    text: [first.text, ...body].join("\n"),
+    text,
     tags: [...new Set([...first.tags, ...findTags(text)])],
     goals: [...new Set([...first.goals, ...findLinks(text)])],
   };
@@ -276,7 +276,9 @@ export function parseEntryBlocks(lines: string[], date: string): EntryBlock[] {
 
     const end = continuationEnd(lines, start + 1, 0);
 
-    const body = dedent(lines.slice(start + 1, end));
+    const body = mapOutsideFences([entry.text, ...dedent(lines.slice(start + 1, end))], (line) =>
+      line.trim() ? line : "",
+    ).slice(1);
     Object.assign(entry, entryContent(entry, body));
     blocks.push({ entry, start, end });
     start = end - 1;

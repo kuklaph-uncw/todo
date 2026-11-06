@@ -375,6 +375,11 @@ describe("helpers", () => {
     const entry = parseEntryInput("Entry `[[literal]]` [[real]]");
     expect(entry.goals).toEqual(["real"]);
   });
+  it("does not extract tags or goals from fenced code", () => {
+    const entry = parseEntryInput("```sh\n#literal [[literal]]\n```\n#real [[real]]");
+    expect(entry.tags).toEqual(["real"]);
+    expect(entry.goals).toEqual(["real"]);
+  });
   it("findTags lowercases and dedupes", () => {
     expect(findTags("#Review then #review and #ops")).toEqual(["review", "ops"]);
   });

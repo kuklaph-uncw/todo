@@ -86,7 +86,7 @@ function captureForm(data: TodayViewData, returnTo: string): string {
       <label class="sr-only" for="capture">New ledger entry</label>
       <div class="composer-box">
         <textarea id="capture" name="content" rows="2" required data-draft="draft:${isToday ? "today" : data.date}" data-shortcut="n" data-composer
-          placeholder="What's worth keeping from the day? Type # for tags, / for goals. Use formatting below, or MD for Markdown."></textarea>
+          placeholder="What's worth keeping from the day? Type # for tags, / for goals. Markdown works too."></textarea>
         <div class="composer-bar">
           <label class="time-field">${icon("clock")}<span class="sr-only">Time spent</span><input name="minutes" placeholder="Add time" autocomplete="off" title="Time spent, like 45m or 1h 30m." value="${escapeHtml(retry?.get("minutes") ?? "")}"></label>
           <label class="star-toggle" title="Star as a highlight"><input class="sr-only" type="checkbox" name="star" value="1"${retry?.get("star") === "1" ? " checked" : ""}>${icon("star")}<span class="sr-only">Star as a highlight</span><span class="star-off" aria-hidden="true">Star</span><span class="star-on" aria-hidden="true">Starred</span></label>

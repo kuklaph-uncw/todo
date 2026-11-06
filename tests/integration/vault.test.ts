@@ -71,6 +71,17 @@ describe("journal", () => {
     expect(lines.slice(7)).toEqual(["", "Free-form notes stay here.", ""]);
   });
 
+  it("preserves literal whitespace inside journal code fences on creation and reread", () => {
+    const texts = [
+      "```text\nvalue  \n   \n\tnext\n```",
+      "Intro\n\n~~~\nvalue  \n \t \nnext\n~~~\n\nAfter",
+      "Intro\n\n- Code\n  ```\n  value  \n     \n  next\n  ```",
+    ];
+    const entries = vault.addEntries("2026-09-28", texts, noMeta);
+    expect(entries.map((entry) => entry.text)).toEqual(texts);
+    expect(vault.getEntries("2026-09-28").map((entry) => entry.text)).toEqual(texts);
+  });
+
   it("gives hand-written blocks an id by changing only their first line", () => {
     const dir = join(root, "journal", "2026");
     mkdirSync(dir, { recursive: true });

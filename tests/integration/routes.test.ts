@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { devFetch } from "../../src/dev-server";
 import { handleRequest } from "../../src/server";
 import { createTestContext, formPost, get } from "../helpers/test-vault";
+import packageJson from "../../package.json";
 
 let ctx: ReturnType<typeof createTestContext>;
 
@@ -27,8 +28,29 @@ describe("pages", () => {
     expect(await html("/?date=2026-02-30")).toContain("September 28");
   });
 
-  it("shows where the notes live in the sidebar", async () => {
-    expect(await html("/todos")).toContain(ctx.vaultPath);
+  it("keeps the notes folder in Settings and the version with its update control in the sidebar", async () => {
+    const todos = await html("/todos");
+    expect(todos).not.toContain(ctx.vaultPath);
+    expect(todos).toContain(`<span class="version-number">${packageJson.version}</span>`);
+    expect(todos).toContain(`data-updates="{&quot;status&quot;:&quot;unavailable&quot;}"`);
+    expect(todos).toMatch(/<a class="foot-link agent-settings-link" href="\/settings"><svg/);
+    expect(todos).toContain('aria-label="Keyboard shortcuts"');
+
+    const settings = await html("/settings");
+    expect(settings).toContain(
+      `id="vault-path" class="path-value" readonly spellcheck="false" value="${ctx.vaultPath}"`,
+    );
+    expect(settings).toContain('data-copy="#vault-path"');
+    expect(settings).toContain('<section aria-labelledby="updates-title" id="updates">');
+    expect(settings).toContain("Updates work only in the installed app.");
+    expect(settings).toContain("Agent access settings are available in the desktop app.");
+  });
+
+  it("describes background updates in Settings when the updater runs", async () => {
+    ctx.updates = { snapshot: () => ({ status: "idle" }), check: async () => {}, restart: () => false };
+    const settings = await html("/settings");
+    expect(settings).toContain("It never restarts on its own");
+    expect(settings).toContain(`data-updates="{&quot;status&quot;:&quot;idle&quot;}"`);
   });
 
   it.each(["/", "/todos"])("GET %s embeds tags and goals for #tag and /goal suggestions", async (path) => {

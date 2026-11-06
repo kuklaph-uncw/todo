@@ -14,7 +14,7 @@ import { Vault } from "../vault/vault";
 import { AgentAccess } from "../mcp/access";
 import { WindowLifecycle } from "./lifecycle";
 import { APP_ORIGIN, isAppUrl, serveAppRequest } from "./protocol";
-import { startUpdates } from "./updates";
+import { Updates } from "./updates";
 
 // Must match appId in electron-builder.yml, so taskbar pins group with the app.
 const APP_ID = "com.workledger.app";
@@ -158,25 +158,13 @@ async function start(): Promise<void> {
     if (lifecycle) lifecycle.quitting = true;
   });
   mainWindow.on("closed", () => (mainWindow = null));
-  await mainWindow.loadURL(`${APP_ORIGIN}/`);
-
+  // Pages show the update state and ask the user before restarting; this process never prompts.
+  // Restarting saves page storage first, so the ledger draft survives the installer closing the app.
   if (app.isPackaged) {
-    const { autoUpdater } = electronUpdater;
-    void startUpdates(autoUpdater, async () => {
-      if (!mainWindow || mainWindow.isDestroyed() || !mainWindow.isVisible()) return false;
-      const { response } = await dialog.showMessageBox(mainWindow, {
-        type: "info",
-        title: "ToDo update ready",
-        message: "A new version of ToDo is ready to install.",
-        detail:
-          "Save your work before restarting. Choose Later to keep working; ToDo will ask again on the next launch.",
-        buttons: ["Restart now", "Later"],
-        defaultId: 1,
-        cancelId: 1,
-      });
-      return response === 0 && mainWindow !== null && !mainWindow.isDestroyed();
-    });
+    ctx.updates = new Updates(electronUpdater.autoUpdater, undefined, () => ses.flushStorageData());
+    void ctx.updates.check();
   }
+  await mainWindow.loadURL(`${APP_ORIGIN}/`);
 }
 
 // Lock down every page the app creates: no leaving the app, no pop-ups, no embedded browsers.

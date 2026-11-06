@@ -12,6 +12,7 @@
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { isValidDateString, localDateString, nowUtcIso } from "../lib/date";
+import { mapOutsideFences } from "../lib/lines";
 import type { GoalStatus, Priority, Status } from "../lib/validation";
 import { isValidPriority, isValidStatus, slugify } from "../lib/validation";
 import {
@@ -87,12 +88,9 @@ export function parseTaskInput(raw: string): { task: string; tags: string[]; goa
   return { task: parsed?.text ?? "", tags: parsed?.tags ?? [], goals: parsed?.goals ?? [] };
 }
 
-/** Trims outer blank lines and line ends while keeping body indentation and breaks as typed. */
+/** Trims prose line ends and outer blank lines, preserving whitespace inside fenced code. */
 export function parseEntryInput(raw: string): { text: string; tags: string[]; goals: string[] } {
-  const lines = raw
-    .replace(/\r\n/g, "\n")
-    .split("\n")
-    .map((line) => line.trimEnd());
+  const lines = mapOutsideFences(raw.replace(/\r\n/g, "\n").split("\n"), (line) => line.trimEnd());
   while (lines.length > 0 && !lines[0]) lines.shift();
   while (lines.length > 0 && !lines[lines.length - 1]) lines.pop();
   if (lines.length === 0) return { text: "", tags: [], goals: [] };

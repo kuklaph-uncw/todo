@@ -9,19 +9,53 @@ function copyBlock(id: string, label: string, value: string, rows: number): stri
     <p id="${id}-status" class="copy-status" role="status"></p></div></div>`;
 }
 
+/** Where the notes live, with a copy button: the path is long and only needed when backing up. */
+function notesFolder(vaultPath: string): string {
+  return `<section aria-labelledby="folder-title"><h2 class="section-title" id="folder-title">Notes folder</h2>
+      <div class="field"><label class="field-label" for="vault-path">Location</label>
+        <div class="path-row"><input id="vault-path" class="path-value" readonly spellcheck="false" value="${escapeHtml(vaultPath)}" aria-describedby="folder-hint">
+        <button class="btn" type="button" data-copy="#vault-path" data-copy-status="#vault-path-status" data-copy-message="Path copied.">${icon("copy")} Copy path</button></div>
+        <p id="vault-path-status" class="copy-status" role="status"></p>
+      </div>
+      <p class="field-hint" id="folder-hint">Plain Markdown files. To back up, quit ToDo, then copy this folder. If ToDo stays in the system tray, quit it from there.</p>
+    </section>`;
+}
+
+/** app.js fills in the state and actions; the hint says what restarting keeps. */
+function updatesSection(available: boolean): string {
+  const hint = available
+    ? "ToDo checks for a new version when it starts and downloads it in the background. It never restarts on its own: choose Restart to update when it suits you. Unsent ledger entries are kept; other unsaved edits are not."
+    : "Updates work only in the installed app. This copy doesn't check for or install them.";
+  return `<section aria-labelledby="updates-title" id="updates"><h2 class="section-title" id="updates-title">Updates</h2>
+      <div class="settings-updates" id="settings-updates"></div>
+      <p class="field-hint">${hint}</p>
+    </section>`;
+}
+
 export function renderSettings(
-  state: ReturnType<AgentAccess["snapshot"]>,
+  state: ReturnType<AgentAccess["snapshot"]> | null,
+  place: { vaultPath: string; updatesAvailable: boolean },
   message: string | null,
   token: string | null,
 ): string {
+  const top = `<div class="page settings-page">
+    <header class="page-head"><div><h1>Settings</h1><p class="page-sub">Where your notes live, app updates, and agent access.</p></div></header>
+    ${notice(message, "ok")}
+    ${notesFolder(place.vaultPath)}
+    ${updatesSection(place.updatesAvailable)}`;
+  if (!state)
+    return `${top}
+    <section aria-labelledby="access-title"><h2 class="section-title" id="access-title">Agent access</h2>
+      <p class="field-hint">Agent access settings are available in the desktop app.</p>
+    </section>
+  </div>`;
   const url = `http://127.0.0.1:${state.port}/mcp`;
   const status = state.error
     ? notice(state.error)
     : `<p class="mcp-state${state.running ? " is-running" : ""}">${state.running ? "Running. Agents with your token can connect." : "Off. Agents can't connect."}</p>`;
-  return `<div class="page settings-page">
-    <header class="page-head"><div><h1>Settings</h1><p class="page-sub">Agent access (MCP) lets AI tools on this computer read and change your todos, notes, and subtasks.</p></div></header>
-    ${notice(message, "ok")}
-    <section aria-labelledby="access-title"><h2 class="section-title" id="access-title">Agent access</h2>${status}
+  return `${top}
+    <section aria-labelledby="access-title"><h2 class="section-title" id="access-title">Agent access</h2>
+      <p class="field-hint">Agent access (MCP) lets AI tools on this computer read and change your todos, notes, and subtasks.</p>${status}
       <form class="stack-form" method="post" action="/settings">
         <input type="hidden" name="intent" value="save">
         <fieldset class="settings-options"><legend class="sr-only">Agent access preferences</legend>

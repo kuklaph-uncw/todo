@@ -238,21 +238,260 @@ kbd {
 .rail-foot {
   margin-top: auto;
   display: grid;
-  gap: 0.3rem;
-  padding: 0 0.5rem;
+  gap: 0.1rem;
+  padding: 0 0.25rem;
   font-size: 0.8rem;
   color: var(--ink-3);
 }
 
-.rail-label {
-  font-weight: 600;
-  color: var(--ink-2);
+/* Settings and shortcuts: an icon carries the meaning, the label stays. */
+.foot-link {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 1.85rem;
+  padding: 0.15rem 0.25rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--ink-3);
+  font-size: 0.8rem;
+  text-decoration: none;
+  cursor: pointer;
 }
 
-.vault-path {
-  font: 0.72rem / 1.4 var(--mono);
+.foot-link:hover,
+.foot-link[aria-current] {
+  color: var(--ink);
+}
+
+.foot-link .icon {
+  width: 15px;
+  height: 15px;
+}
+
+.on-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sage);
+}
+
+/* One line, always: the version on the left, one update control on the right. */
+.version-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+  margin-top: 0.55rem;
+  padding: 0.45rem 0 0 0.25rem;
+  border-top: 1px solid var(--line);
+}
+
+.version-link {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-3);
+  font-size: 0.75rem;
+  text-decoration: none;
+}
+
+.version-link:hover {
+  color: var(--ink);
+}
+
+.version-number {
+  font-family: var(--mono);
+}
+
+.update-btn {
+  position: relative;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.update-btn > * {
+  grid-area: 1 / 1;
+}
+
+.update-btn:hover,
+.update-btn[aria-expanded="true"] {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.update-btn[aria-disabled="true"] {
+  cursor: default;
+}
+
+.update-btn[aria-disabled="true"]:hover {
+  background: transparent;
+  color: var(--ink-3);
+}
+
+/* app.js names the state's icon in data-icon; the others stay hidden. */
+.update-btn .icon,
+.update-btn .update-ring {
+  display: none;
+}
+
+.update-btn[data-icon="refresh"] .update-refresh,
+.update-btn[data-icon="check"] .update-check,
+.update-btn[data-icon="download"] .update-download,
+.update-btn[data-icon="update"] .update-update,
+.update-btn[data-icon="alert"] .update-alert {
+  display: block;
+}
+
+.update-btn[data-busy] .icon {
+  animation: spin 1.1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
+.update-btn[data-tone="ok"],
+.update-btn[data-tone="ready"] {
+  color: var(--sage);
+}
+
+.update-btn[data-tone="failed"] {
+  color: var(--rose);
+}
+
+.update-btn[data-tone="off"] {
+  opacity: 0.6;
+}
+
+/* Ready is the one state that wants a click, so it gets a second cue besides colour. */
+.update-btn[data-tone="ready"]::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sage);
+  box-shadow: 0 0 0 2px var(--bg-sunk);
+}
+
+/* Download progress around the arrow, visible without hovering. */
+.update-btn[data-icon="download"] .update-download {
+  width: 12px;
+  height: 12px;
+}
+
+.update-btn[data-icon="download"] .update-ring {
+  display: block;
+  width: calc(100% - 6px);
+  height: calc(100% - 6px);
+  rotate: -90deg;
+}
+
+.update-ring circle {
+  fill: none;
+  stroke-width: 2;
+}
+
+.update-ring .track {
+  stroke: var(--line-strong);
+}
+
+.update-ring .value {
+  stroke: var(--ink-2);
+  stroke-linecap: round;
+  stroke-dasharray: 100;
+  transition: stroke-dashoffset 0.3s;
+}
+
+/* Details on click: a small panel beside the control, not a dialog. */
+.update-pop {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 0.5rem);
+  z-index: 20;
+  width: 16.5rem;
+  max-width: calc(100vw - 2rem);
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.82rem;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.45);
+}
+
+.update-pop h2 {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.update-pop p {
   color: var(--ink-2);
-  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+
+.update-meta {
+  font: 500 0.75rem var(--mono);
+}
+
+.update-warn {
+  padding: 0.4rem 0.55rem;
+  border-left: 3px solid var(--brass);
+  background: var(--brass-wash);
+}
+
+.update-pop .update-warn {
+  color: var(--ink);
+}
+
+.update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+progress.update-progress {
+  appearance: none;
+  border: 0 solid;
+  overflow: clip;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+
+progress.update-progress::-webkit-progress-bar {
+  background: transparent;
+}
+
+progress.update-progress::-webkit-progress-value {
+  background: var(--ink-2);
+}
+
+progress.update-progress::-moz-progress-bar {
+  background: var(--ink-2);
 }
 
 .link-button {
@@ -327,6 +566,12 @@ main {
   width: 100%;
 }
 
+.btn.small {
+  min-height: 1.85rem;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.8rem;
+}
+
 .icon {
   flex: none;
 }
@@ -363,7 +608,8 @@ main {
   min-width: 0;
 }
 
-.field > span {
+.field > span,
+.field-label {
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--ink-2);
@@ -665,6 +911,37 @@ a.goal-link:hover {
 .settings-page > section {
   display: grid;
   gap: 0.75rem;
+  scroll-margin-top: 1rem;
+}
+.path-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+.path-row .path-value {
+  flex: 1 1 16rem;
+  min-width: 0;
+  font: 0.8rem / 1.5 var(--mono);
+  background: var(--bg-sunk);
+}
+.settings-updates {
+  display: grid;
+  gap: 0.6rem;
+}
+.state-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.6rem;
+  align-items: baseline;
+  font: 500 0.8rem var(--mono);
+  color: var(--ink-3);
+}
+.state-line .is-ready {
+  color: var(--sage);
+}
+.state-line .is-error {
+  color: var(--rose);
 }
 .settings-page > section + section {
   margin-top: 2.25rem;
@@ -1067,6 +1344,61 @@ a.link-button {
   border-top: 1px solid var(--line);
 }
 
+/* Add to ledger: still the one primary action, just compact enough to sit with the bar's quiet controls. */
+.composer-bar .btn.primary {
+  min-height: 1.85rem;
+  padding: 0.2rem 0.7rem;
+  font-size: 0.82rem;
+}
+
+/* Aa: opens the formatting strip and, while it's closed, shows the format at the cursor. */
+.lens {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 2.6rem;
+  min-height: 2rem;
+  padding: 0 0.4rem 0 0.5rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.lens:hover,
+.lens[aria-expanded="true"] {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.lens-face {
+  min-width: 1.35rem;
+  font: italic 600 0.95rem / 1 var(--serif);
+  text-align: center;
+}
+
+.lens .chevron {
+  transition: rotate 0.15s;
+}
+
+.lens[aria-expanded="true"] .chevron {
+  rotate: 180deg;
+}
+
+.lens-sep,
+.format-sep {
+  flex: none;
+  width: 1px;
+  height: 1.1rem;
+  background: var(--line);
+}
+
+.format-sep {
+  margin: 0 0.25rem;
+  background: var(--line-strong);
+}
+
 .time-field,
 .star-toggle {
   display: inline-flex;
@@ -1200,11 +1532,25 @@ body:has(.capture.is-focus-mode) {
   line-height: 1.3;
 }
 
-/* Formatting uses the existing muted controls; brass stays reserved for highlights. */
+/* Formatting uses the existing muted controls; brass stays reserved for highlights.
+   The strip sits between the text and the bar, and only when asked for. */
 .format-toolbar {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.15rem;
+  padding: 0.25rem 0.4rem;
+  border-top: 1px solid var(--line);
+}
+
+.lens-face.is-format {
+  font: 600 0.78rem / 1 var(--sans);
+}
+
+.format-button[data-command="codeblock"],
+.format-button[data-command="code"] {
+  font-family: var(--mono);
+  font-weight: 500;
 }
 
 .format-button {
@@ -1270,10 +1616,38 @@ body:has(.capture.is-focus-mode) {
   font-size: 0.8rem;
 }
 
-@media (max-width: 900px) {
-  .format-toolbar {
-    flex: 1 0 100%;
-  }
+/* Fenced code: literal, mono, sunk; the language is a quiet label. */
+:is(.entry-text, .sheet-text, .prose, .todo-notes, .composer.is-rich) pre {
+  position: relative;
+  margin-block: 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-sunk);
+  font: 0.84rem / 1.55 var(--mono);
+  color: var(--ink-2);
+  white-space: pre-wrap;
+  tab-size: 4;
+}
+
+:is(.entry-text, .sheet-text, .prose, .todo-notes, .composer.is-rich) pre code {
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+}
+
+:is(.entry-text, .sheet-text, .prose, .todo-notes, .composer.is-rich) pre:not([data-info=""])[data-info] {
+  padding-top: 1.6rem;
+}
+
+:is(.entry-text, .sheet-text, .prose, .todo-notes, .composer.is-rich) pre:not([data-info=""])[data-info]::before {
+  content: attr(data-info);
+  position: absolute;
+  top: 0.25rem;
+  right: 0.5rem;
+  font-size: 0.7rem;
+  color: var(--ink-3);
 }
 
 .composer.is-empty::before {
@@ -2266,7 +2640,7 @@ li.is-dragging {
 /* ---- Shortcuts dialog -------------------------------------------------- */
 
 .shortcuts {
-  width: min(28rem, calc(100vw - 2rem));
+  width: min(34rem, calc(100vw - 2rem));
   padding: 1.5rem;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
@@ -2283,9 +2657,17 @@ li.is-dragging {
   font: 500 1.25rem var(--serif);
 }
 
+.shortcuts h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
 .shortcuts dl {
   display: grid;
-  grid-template-columns: auto 1fr;
+  /* One key column for every group, so the lists line up. */
+  grid-template-columns: 11rem minmax(0, 1fr);
   gap: 0.5rem 1rem;
   margin-bottom: 1.25rem;
   font-size: 0.9rem;
@@ -2357,28 +2739,27 @@ li.is-dragging {
     display: none;
   }
 
-  /* Keep the notes folder and shortcuts reachable: a wrapped row instead of hidden. */
+  /* Settings, shortcuts and the version share one row under the nav. */
   .rail-foot {
     flex-basis: 100%;
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: 0.25rem 1rem;
+    gap: 0.25rem 0.75rem;
     margin-top: 0;
     padding: 0;
   }
 
-  .rail-foot .rail-label,
-  .rail-foot .rail-note {
-    display: none;
+  .version-row {
+    margin: 0 0 0 auto;
+    padding: 0;
+    border-top: 0;
   }
 
-  .rail-foot .vault-path {
-    flex-basis: 100%;
-  }
-
-  .rail-foot .link-button {
-    margin-top: 0;
+  .update-pop {
+    left: auto;
+    right: 0;
+    bottom: auto;
+    top: calc(100% + 0.5rem);
   }
 
   .page,
@@ -2435,7 +2816,9 @@ li.is-dragging {
     font-size: 1.85rem;
   }
 
-  .key-hint {
+  .key-hint,
+  .label-long,
+  .version-word {
     display: none;
   }
 }

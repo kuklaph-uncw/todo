@@ -71,17 +71,31 @@ describe("entry Markdown", () => {
     expect(runs.join("")).not.toContain("&lt;b&gt;");
   });
 
-  it("keeps unsupported links, images, checkboxes and fenced blocks literal", () => {
-    expect(
-      entryHtml(
-        "[link](https://example.com) ![image](x)\n- [ ] task\n*\n_\n`\n\n```\n#include <x>\n**literal**\n```",
-        new Map(),
-      ),
-    ).toBe(
-      "<p>[link](https://example.com) ![image](x)<br>- [ ] task<br>*<br>_<br>`</p><p>```<br>#include &lt;x&gt;<br>**literal**<br>```</p>",
+  it("keeps unsupported links, images and checkboxes literal", () => {
+    expect(entryHtml("[link](https://example.com) ![image](x)\n- [ ] task\n*\n_\n`", new Map())).toBe(
+      "<p>[link](https://example.com) ![image](x)<br>- [ ] task<br>*<br>_<br>`</p>",
     );
-    expect(entryHtml("  ````\n#ops **literal**\n   ````\n**After**", new Map())).toBe(
-      "<p>  ````<br>#ops **literal**<br>   ````</p><p><strong>After</strong></p>",
+  });
+
+  it("renders fenced code as an undecorated, escaped code block", () => {
+    expect(entryHtml("```\n#include <x>\n**literal** [[goal]]\n\n  indented\n```", new Map())).toBe(
+      '<pre data-fence="```" data-info=""><code>#include &lt;x&gt;\n**literal** [[goal]]\n\n  indented</code></pre>',
     );
+    expect(entryHtml('~~~~ js "x"\n```\nnot closed\n~~~\n~~~~\n**After**', new Map())).toBe(
+      '<pre data-fence="~~~~" data-info="js &quot;x&quot;"><code>```\nnot closed\n~~~</code></pre><p><strong>After</strong></p>',
+    );
+    expect(entryHtml("  ```\n  a\n b\n```", new Map())).toBe(
+      '<pre data-fence="```" data-info=""><code>a\nb</code></pre>',
+    );
+    expect(entryHtml("- Item\n\n  ```\n  code\n  ```", new Map())).toBe(
+      '<ul><li>Item<pre data-fence="```" data-info=""><code>code</code></pre></li></ul>',
+    );
+  });
+
+  it("runs an unclosed fence to the end and keeps a backtick info string literal", () => {
+    expect(entryHtml("```\nopen to the end\n#ops", new Map())).toBe(
+      '<pre data-fence="```" data-info=""><code>open to the end\n#ops</code></pre>',
+    );
+    expect(renderEntryMarkdown("``` a`b\nnext")).toBe("<p>``` a`b<br>next</p>");
   });
 });

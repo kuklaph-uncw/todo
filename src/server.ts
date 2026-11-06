@@ -6,6 +6,7 @@ import { changeSubtask, changeTodo, createTodo, handleTodos } from "./routes/tod
 import { createGoal, handleGoal, handleGoals, saveGoal } from "./routes/goals";
 import { handleExport, handleReview } from "./routes/review";
 import { handleSettings, saveSettings } from "./routes/settings";
+import { checkForUpdates, restartToUpdate, updateStatus } from "./routes/updates";
 import { contentRevision } from "./vault/revision";
 import styles from "../public/styles.css" with { type: "text" };
 import script from "../public/app.js" with { type: "text" };
@@ -41,6 +42,7 @@ async function route(req: Request, ctx: AppContext): Promise<Response> {
 
   if (req.method === "GET" || req.method === "HEAD") {
     if (pathname === "/settings") return handleSettings(req, ctx);
+    if (pathname === "/updates") return updateStatus(ctx);
     if (pathname === "/todo-version")
       return Response.json(
         { revision: contentRevision(ctx.vault.peekTodos()) },
@@ -58,6 +60,8 @@ async function route(req: Request, ctx: AppContext): Promise<Response> {
 
   if (req.method === "POST") {
     if (pathname === "/settings") return saveSettings(req, ctx);
+    if (pathname === "/updates/check") return checkForUpdates(ctx);
+    if (pathname === "/updates/restart") return restartToUpdate(ctx);
     if (pathname === "/journal") return createEntries(req, ctx);
     if (parts[0] === "journal" && (parts.length === 2 || parts.length === 3))
       return changeEntry(req, ctx, parts[1], parts[2]);

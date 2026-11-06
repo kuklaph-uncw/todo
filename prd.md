@@ -232,8 +232,9 @@ The user can open the vault in any editor or Obsidian, read it, and add or chang
 Every page shares a left rail with:
 
 - Nav links (Today, Todos, Goals, Review) with their `g` shortcut. Todos shows the count of open TODOs.
-- The vault path, with the note "Plain Markdown files. Back up by copying the folder."
-- A "Keyboard shortcuts" button that opens the shortcut list.
+- A Settings link with a gear icon. Settings contains the notes folder path and a Copy path button.
+- A "Keyboard shortcuts" button with a keyboard icon that opens the shortcut list.
+- One line with the app version and a persistent update control for checking, download progress, and user-requested restart actions. Development runs show updates as unavailable.
 
 Today is the main page. Todos and Goals support the workflow but should not dominate it.
 
@@ -296,13 +297,13 @@ The default landing page. It answers:
 
 **Quick capture.** One bordered box with formatting controls, time spent ("Add time"), a star toggle, and "Add to ledger". Time and star apply to the entry. The box grows with the text up to 75% of the window. Focus mode (the expand button or `Ctrl + Shift + F`) fills the window with the box; `Esc` or saving leaves it.
 
-**Rich-text writing.** Every editable multiline field uses the same visual editor: journal capture and edits, goal descriptions, and TODO notes. The toolbar provides bold, italic, inline code, heading, subheading, normal text, bulleted and numbered lists, and Markdown source. Text remains Markdown on disk and in journal drafts. Existing text that cannot round-trip exactly opens in source mode, where its syntax is preserved. Pasted HTML keeps supported text structure; scripts, images, styling, and unsupported formatting are discarded. `Ctrl+Shift+V` pastes literal text. Single-line titles keep their existing behavior. Without the script, multiline fields remain ordinary textareas.
+**Rich-text writing.** Every editable multiline field uses the same visual editor: journal capture and edits, goal descriptions, and TODO notes. An Aa button or `Ctrl+Shift+X` reveals the formatting strip; its open state is remembered across editors. The strip provides bold, italic, inline code, code blocks, heading, subheading, normal text, bulleted and numbered lists, and Markdown source. In visual mode, typing `* `, `- ` or `1. ` starts a list, `# ` or `## ` starts a heading, closing backticks format inline code, and three backticks followed by Enter start a code block. Enter on an empty last line leaves the block. Backspace immediately after a conversion restores the typed characters. Text remains Markdown on disk and in journal drafts. Existing text that cannot round-trip exactly opens in source mode, where its syntax is preserved. Pasted HTML keeps supported text structure; scripts, images, styling, and unsupported formatting are discarded. Code blocks keep their text literal, including pasted text. `Ctrl+Shift+V` pastes literal text. Single-line titles keep their existing behavior. Without the script, multiline fields remain ordinary textareas.
 
 **Inline tags and goals.** With the script, each field that takes `#tags` (capture, entry edit, TODO add and edit) becomes an editor where tags and goal links show as pills; goal pills show the goal's title. Typing `#` or `/` at the start of a word opens suggestions at the caret (arrows move, `Tab`/`Enter` pick, `Esc` closes). When nothing matches, the list says why (no goals yet, no match). The hidden original field always holds the plain text that is saved (`#tag`, `[[slug]]`), so drafts and the server see no difference.
 
 **Draft protection.** Unsent capture text is saved in `localStorage` (key `draft:today` on today, `draft:YYYY-MM-DD` on other days). It restores after a reload and clears after a successful save.
 
-**Display.** On Today, goal evidence and Review, entries render paragraphs (single line breaks become `<br>`), `-`, `*` or `+` bullets and `1.` numbered lists nested by indent, `#` headings shifted down two levels (at most `h6`), `**bold**`, `*italic*` or `_italic_`, and backtick code spans. Underscores inside words stay literal; asterisks can emphasize part of a word. Other Markdown, including ordinary links, images, HTML, fenced code and checkboxes, stays literal. All text is HTML-escaped first. Inline `#tags` and `[[links]]` are styled outside code spans. Tags and links not written inline, and time spent, show as chips under the entry. A `[[link]]` that matches no goal is dimmed with a hint to check the spelling. TODO text keeps its inline tags and links without Markdown formatting.
+**Display.** On Today, goal evidence and Review, entries render paragraphs (single line breaks become `<br>`), `-`, `*` or `+` bullets and `1.` numbered lists nested by indent, `#` headings shifted down two levels (at most `h6`), `**bold**`, `*italic*` or `_italic_`, backtick code spans, and fenced code blocks. Fenced blocks show escaped, undecorated text in a monospace block. Underscores inside words stay literal; asterisks can emphasize part of a word. Other Markdown, including ordinary links, images, HTML and checkboxes, stays literal. All text is HTML-escaped first. Inline `#tags` and `[[links]]` are styled outside code; tokens inside code blocks do not count as metadata. Tags and links not written inline, and time spent, show as chips under the entry. A `[[link]]` that matches no goal is dimmed with a hint to check the spelling. TODO text keeps its inline tags and links without Markdown formatting.
 
 ---
 
@@ -958,7 +959,7 @@ Agent access: local MCP client → authenticated 127.0.0.1:<port>/mcp → task o
 - A second launch focuses the existing window instead of opening another.
 - Startup failures show an error box ("ToDo couldn't start") and quit.
 - The app ID `com.workledger.app` matches in `electron-builder.yml` and `main.ts`. Changing it breaks taskbar pins.
-- Installed builds check stable releases in `kuklaph-uncw/todo` on launch and download newer versions. A native dialog offers Restart now or Later. Later leaves the app running and asks again on the next launch; closing normally does not install the update.
+- Installed builds check stable releases in `kuklaph-uncw/todo` on launch and download newer versions in the background. The persistent rail icon and Settings show progress and readiness. Nothing prompts or restarts automatically. Choosing Restart to update opens the install action; changed, unsaved forms require Restart and discard changes. Unsent ledger drafts are preserved. Closing normally does not install the update. Already-installed older builds retain their native prompt for the upgrade that replaces them.
 - Update failures are logged without stopping the app. Source/development runs do not check for updates.
 
 ### 17.4 Where Notes Live
@@ -1220,7 +1221,7 @@ Copy-Item -Recurse "$HOME\Work Ledger" "$HOME\Backups\Work Ledger $(Get-Date -Fo
 | `markdown.test.ts`     | Paragraph breaks, nested ordered and unordered lists, heading levels, escaping before emphasis, code-span isolation, literal unsupported syntax, intraword underscore and asterisk rules, underscored tags and goal labels. |
 | `review.test.ts`       | Grouping, ordering, stats, goal grouping, filters, newest first, exact Markdown output with multi-line entries in every list, whole-item HTML and single-paragraph spacing, empty range, JSON and JSONL shape and preserved line breaks, filter parsing and the 12-month default. |
 | `validation.test.ts`   | Tags, priority, status, time-spent parsing, slugs, `safeReturnPath`.                    |
-| `updates.test.ts`      | Stable update checks, automatic downloads, restart permission, and check/download/prompt failures. |
+| `updates.test.ts`      | Stable update state, automatic downloads and progress, explicit restart, duplicate request guards, and check/download/install failures. |
 
 ### 23.2 Integration (`tests/integration/`)
 
@@ -1231,10 +1232,13 @@ Copy-Item -Recurse "$HOME\Work Ledger" "$HOME\Backups\Work Ledger $(Get-Date -Fo
 | `server.test.ts`         | Dev server over real HTTP: CSP, assets, form post and redirect, 404, path traversal.   |
 | `app-protocol.test.ts`   | `app://` handler: CSP and nosniff, host check, origin check for posts, assets, traversal. |
 | `launch.test.ts`         | Vault path resolution, error log writing.                                              |
+| `update-routes.test.ts`  | Update status, explicit check/restart, unavailable builds, and rejection of foreign-origin update actions. |
 
 ### 23.3 Browser (`tests/browser/`)
 
 `rich-text.test.ts` exercises journal capture, goal descriptions, TODO notes, formatting round trips, pasted HTML filtering, undo, draft restoration, source fallback, formatted tag metadata, keyboard toolbar navigation, and narrow layouts. It uses a disposable vault through the real development request handler.
+
+`formatting.test.ts` covers the Aa disclosure and selection, typed Markdown conversions and Backspace reversal, fenced code entry/paste/copy/save, literal character preservation, source mode, and the compact Add to ledger button. `updates.test.ts` covers check/progress/ready/error states, explicit restart with unsaved-change warnings, kept ledger drafts, panel keyboard controls, unavailable builds, and responsive layouts with reduced motion. The update client is a stand-in in these tests.
 
 The native Electron window, installer, and installed-to-installed updater are not covered by these browser tests.
 
@@ -1243,7 +1247,7 @@ The native Electron window, installer, and installed-to-installed updater are no
 Run against a build from `bun run build`:
 
 1. Install from the NSIS installer without admin rights.
-2. Launch. One window opens on Today. The rail shows the notes path, `C:\Users\<name>\Work Ledger`.
+2. Launch. One window opens on Today. The rail shows the version and update icon. In Settings, Notes folder shows `C:\Users\<name>\Work Ledger` and Copy path copies it.
 3. Launch again. The existing window comes forward. No second window.
 4. Submit an entry with several paragraphs and a nested Markdown list. Confirm it stays one entry, edit it and confirm its line breaks survive. Add two more entries in separate submits and one for yesterday.
 5. Add three TODOs. On Todos, type in search and change each filter select; results update in place, focus and caret stay put, and typing adds no history entries. With the script off, confirm Apply works. Mark two TODOs done, one while viewing yesterday. It counts on yesterday.
@@ -1257,6 +1261,7 @@ Run against a build from `bun run build`:
 13. Reopen. Data persisted.
 14. Confirm no menu bar, F12 and Ctrl+Shift+I do nothing, and a link to an outside site doesn't navigate.
 15. Launch with `--remote-debugging-port=9222`. The app refuses to start.
+16. With a controlled newer release available, confirm the update downloads without opening a dialog. Open the update panel, choose Not now, and keep working. Change an edit form, then confirm the restart action warns about unsaved changes. Save the form, leave an unsent ledger draft, and choose Restart to update. Confirm the new version opens with the draft intact. These installed-update checks require a real release and are not proved by browser tests or packaging.
 
 ---
 
@@ -1360,7 +1365,7 @@ If logging consistency is below 50% after a month, the likely issue is UX fricti
 | Review output is noisy             | Stars, starred-only mode, tag and goal filters.                             |
 | Accidental deletion loses history  | Confirm deletes. Append whole deleted items to `.trash/deleted.md`.         |
 | Completion dates become unreliable | Freeze completion dates. Never date a TODO in the future.                   |
-| Vault is lost                      | Show the vault path on every page. Backup is a folder copy.                 |
+| Vault is lost                      | Keep the vault path and Copy path in Settings. Quit the app before copying the folder for backup. |
 | Hand edits break the app           | Unrecognized lines are left alone. Missing IDs are added on read. Writes are atomic. |
 | Goal links drift                   | Slugs never change. Unknown `[[links]]` are flagged in the UI.              |
 | Desktop app attack surface         | No port, sandboxed renderer, no IPC, CSP, fuses, locked navigation.         |

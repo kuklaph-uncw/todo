@@ -19,12 +19,19 @@ const ICON_PATHS: Record<string, string> = {
   undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
   clock: '<circle cx="12" cy="13" r="7"/><path d="M12 9.5V13l2.5 1.5M10 3.5h4"/>',
   expand: '<path d="M14 4h6v6M20 4l-6.5 6.5M10 20H4v-6M4 20l6.5-6.5"/>',
+  settings:
+    '<circle cx="12" cy="12" r="2.6"/><circle cx="12" cy="12" r="6.4"/><circle cx="12" cy="12" r="8.3" stroke-width="2.6" stroke-dasharray="2.7 3.82" stroke-linecap="butt"/>',
+  keyboard:
+    '<rect x="3" y="6.5" width="18" height="11" rx="2"/><path d="M7 10.5h.01M10.3 10.5h.01M13.7 10.5h.01M17 10.5h.01M8.5 14h7"/>',
+  refresh: '<path d="M19 12a7 7 0 1 1-2.05-4.95L19 9"/><path d="M19 4.5V9h-4.5"/>',
+  update: '<circle cx="12" cy="12" r="8"/><path d="M12 16V8.5M8.5 12l3.5-3.5 3.5 3.5"/>',
+  alert: '<circle cx="12" cy="12" r="8"/><path d="M12 7.8v4.6M12 15.9h.01"/>',
   grip: '<circle cx="9" cy="6" r="1.2"/><circle cx="15" cy="6" r="1.2"/><circle cx="9" cy="12" r="1.2"/><circle cx="15" cy="12" r="1.2"/><circle cx="9" cy="18" r="1.2"/><circle cx="15" cy="18" r="1.2"/>',
 };
 
-export function icon(name: keyof typeof ICON_PATHS | string, filled = false): string {
+export function icon(name: keyof typeof ICON_PATHS | string, filled = false, extraClass = ""): string {
   const fill = filled ? "currentColor" : "none";
-  return `<svg class="icon" viewBox="0 0 24 24" width="16" height="16" fill="${fill}" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name] ?? ""}</svg>`;
+  return `<svg class="icon${extraClass ? ` ${extraClass}` : ""}" viewBox="0 0 24 24" width="16" height="16" fill="${fill}" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON_PATHS[name] ?? ""}</svg>`;
 }
 
 export type GoalIndex = Map<string, Goal>;

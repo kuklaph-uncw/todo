@@ -10,13 +10,12 @@ export function handleSettings(
   status = 200,
 ): Response {
   const access = ctx.agentAccess;
-  const main = access
-    ? renderSettings(
-        { ...access.snapshot(), ...(error ? { error } : {}) },
-        new URL(req.url).searchParams.has("saved") ? "Settings saved." : null,
-        token,
-      )
-    : '<div class="page"><h1>Settings</h1><p class="page-sub">Agent access settings are available in the desktop app.</p></div>';
+  const main = renderSettings(
+    access ? { ...access.snapshot(), ...(error ? { error } : {}) } : null,
+    { vaultPath: ctx.vaultPath, updatesAvailable: Boolean(ctx.updates) },
+    new URL(req.url).searchParams.has("saved") ? "Settings saved." : null,
+    token,
+  );
   const response = page(ctx, "Settings", "settings", main, status);
   response.headers.set("cache-control", "no-store");
   return response;

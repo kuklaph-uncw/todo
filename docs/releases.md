@@ -2,7 +2,7 @@
 
 ToDo uses public [GitHub Releases](https://github.com/kuklaph-uncw/todo/releases) for Windows x64 updates. Azure DevOps remains a source remote; it is not the download feed. No GitHub login or token is needed on users' machines.
 
-The installed app checks once on launch, downloads a newer stable release, then asks whether to restart. Later keeps the app running and defers the prompt until the next launch. Closing the app normally does not install an update. Development runs do not check for updates. An offline or failed check is logged in `<vault>/.workledger/error.log` and leaves the app usable.
+The installed app checks once on launch, downloads a newer stable release, and shows its progress in the update icon beside the version, at the bottom of the sidebar. It never shows a restart prompt and never restarts on its own: the user chooses Restart to update from that icon or from Settings › Updates, and is warned first if the page has unsaved edits. The unsent ledger entry draft is kept. Closing the app normally does not install an update. Settings › Updates can also check again. Development runs do not check for updates and show updates as unavailable. An offline or failed check is logged in `<vault>/.workledger/error.log` and leaves the app usable.
 
 ## Build
 
@@ -70,6 +70,6 @@ Version 1.3.0 adds marked blocks in `todos.md` when notes need blank lines, inde
 
 ## Verify an update
 
-Use disposable Windows test profiles or a VM so real notes and drafts are untouched. Install one updater-enabled version, then publish a higher version to a separate test repository configured as that build's feed. Confirm the older installed app downloads it, Later keeps it running, and Restart now runs the installer and reopens the newer version with notes and drafts intact. Test offline startup too.
+Use disposable Windows test profiles or a VM so real notes and drafts are untouched. Install one updater-enabled version, then publish a higher version to a separate test repository configured as that build's feed. Confirm the older installed app downloads it without prompting, Not now keeps it running, and Restart to update runs the installer and reopens the newer version with notes and the ledger draft intact. Installed copies of 1.3.0 still use their own restart prompt for the update that replaces them. Test offline startup too.
 
-Unit tests cover restart permission and failure handling. A successful build and generated `latest.yml` alone do not prove an installed-to-installed update.
+Unit, route and browser tests cover update states, explicit restart, unsaved-edit warnings and failure handling. A successful build and generated `latest.yml` alone do not prove an installed-to-installed update.

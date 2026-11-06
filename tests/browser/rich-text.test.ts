@@ -8,6 +8,12 @@ const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: devFetch(ctx) 
 let browser: Browser;
 let page: Page;
 
+/** The formatting strip is hidden until asked for; its open state is remembered per window. */
+async function showFormatting() {
+  const toggle = page.getByRole("button", { name: "Formatting", exact: true }).first();
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+}
+
 beforeAll(async () => {
   browser = await chromium.launch({ channel: "msedge", headless: true });
   page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
@@ -56,12 +62,42 @@ it("round-trips adjacent formatting and boundary backticks in inline code", asyn
   expect(result.codes).toEqual(["`", "``", "`start", "end`", " both "]);
 });
 
+it("round-trips fenced code literally and turns pasted <pre> into a safe code block", async () => {
+  await page.goto(server.url.href);
+  const result = await page.evaluate(async () => {
+    const url = "/rich-text.js";
+    const { editorMarkdown, renderEntryMarkdown } = await import(url);
+    const roundTrip = (markdown: string) => {
+      const view = document.createElement("div");
+      view.innerHTML = renderEntryMarkdown(markdown);
+      return editorMarkdown(view);
+    };
+    const samples = [
+      "```js\nconst a = `x` **b** #tag \\* <i>&amp;\n\n  indented\n```",
+      "Before\n\n~~~\n```\n~~~\n\nAfter",
+      "- Item\n\n  ```\n  code\n  ```",
+      "```\n```",
+      "\\`\\`\\` stays text",
+    ];
+    const pasted = document.createElement("div");
+    pasted.innerHTML =
+      '<pre class="x"><span style="color:red">one</span>\n<b>two</b><br>```<script>bad()</script><img src=x onerror="bad()"></pre>';
+    const info = document.createElement("div");
+    info.innerHTML = '<pre data-fence="```" data-info="a`b\nc"><code>x</code></pre>';
+    return { same: samples.map((s) => roundTrip(s) === s), pasted: editorMarkdown(pasted), info: editorMarkdown(info) };
+  });
+  expect(result.same).toEqual([true, true, true, true, true]);
+  expect(result.pasted).toBe("````\none\ntwo\n```\n````");
+  expect(result.info).toBe("~~~a`b c\nx\n~~~");
+});
+
 it("keeps formatted tag metadata and ignores clipboard token attributes", async () => {
   await page.goto(server.url.href);
   const editor = page.locator("#capture");
   await editor.fill("");
   await editor.pressSequentially("Tagged #ops ");
   await editor.press("Control+a");
+  await showFormatting();
   await page.getByRole("button", { name: "Bold", exact: true }).click();
   await page.getByRole("button", { name: "Add to ledger", exact: true }).click();
   await page.locator(".entry-text").filter({ hasText: "#ops" }).waitFor();
@@ -84,6 +120,7 @@ it("edits goal descriptions and todo notes with the same formatting and keeps re
   });
   await goalEditor.fill("Rich goal description");
   await goalEditor.press("Control+a");
+  await showFormatting();
   await goalEditor.locator("..").getByRole("button", { name: "Bold", exact: true }).click();
   await page.getByRole("button", { name: "Save goal", exact: true }).click();
   await page.locator(".prose strong").waitFor();
@@ -123,16 +160,26 @@ it("restores rich drafts and keeps unsupported Markdown editable without rewriti
   await page.goto(server.url.href);
   await page.locator("#capture").fill("Draft to keep");
   await page.locator("#capture").press("Control+a");
+  await showFormatting();
   await page.getByRole("button", { name: "Italic", exact: true }).click();
   await page.reload();
   expect(await page.locator("#capture em").textContent()).toBe("Draft to keep");
   await page.evaluate(() => localStorage.removeItem("draft:today"));
-  const body = "```\n**literal** [[ link with spaces ]]\n```";
+  // Visual mode would save "* " bullets as "- ", so this opens as Markdown source.
+  const body = "* starred bullet\n**literal** [[ link with spaces ]]";
   const goal = ctx.vault.createGoal({ title: "Literal goal", cycle: "2026", body });
   await page.goto(`${server.url}goals/${goal.slug}?edit=1`);
+  await showFormatting();
   expect(await page.getByRole("button", { name: "Markdown source", exact: true }).getAttribute("aria-pressed")).toBe(
     "true",
   );
+  expect(
+    await page
+      .locator(".format-toolbar")
+      .first()
+      .evaluate((el) => (el as HTMLElement).hidden),
+  ).toBe(false);
+  expect(await page.locator(".lens-face").first().textContent()).toBe("MD");
   await page.getByRole("button", { name: "Save goal", exact: true }).click();
   await page.getByRole("button", { name: "Save goal", exact: true }).waitFor({ state: "hidden" });
   expect(ctx.vault.getGoal(goal.slug)?.body).toBe(body);
@@ -149,6 +196,7 @@ it("formats a journal entry, supports undo, saves Markdown, and restores its for
   const editor = page.locator("#capture");
   await editor.fill("An important update");
   await editor.press("Control+a");
+  await showFormatting();
   await page.getByRole("button", { name: "Bold", exact: true }).click();
   expect(await editor.locator("strong, b").textContent()).toBe("An important update");
   await editor.press("Control+z");
@@ -178,6 +226,7 @@ it("keeps tag and goal suggestions in journal entries and supports keyboard tool
   await page.locator("#suggest [role=option]").first().waitFor();
   await editor.press("Enter");
   expect(await editor.locator(".pill-goal").count()).toBe(1);
+  await showFormatting();
   await editor.press("Tab");
   expect(
     await page
@@ -221,6 +270,7 @@ it("applies headings, lists and inline code through the keyboard and toolbar", a
   const editor = page.getByRole("textbox", { name: "What does success look like?", exact: true });
   const box = editor.locator("..");
   await editor.fill("A heading");
+  await showFormatting();
   await editor.press("Control+Alt+1");
   expect(await editor.locator("h3").textContent()).toBe("A heading");
   await box.getByRole("button", { name: "Normal text", exact: true }).click();
