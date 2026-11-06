@@ -7,7 +7,7 @@ import { createGoal, handleGoal, handleGoals, saveGoal } from "./routes/goals";
 import { handleExport, handleReview } from "./routes/review";
 import { handleSettings, saveSettings } from "./routes/settings";
 import { checkForUpdates, restartToUpdate, updateStatus } from "./routes/updates";
-import { contentRevision } from "./vault/revision";
+import { vaultRevision } from "./vault/revision";
 import styles from "../public/styles.css" with { type: "text" };
 import script from "../public/app.js" with { type: "text" };
 import { richTextSource } from "./rich-text-source" with { type: "macro" };
@@ -44,10 +44,7 @@ async function route(req: Request, ctx: AppContext): Promise<Response> {
     if (pathname === "/settings") return handleSettings(req, ctx);
     if (pathname === "/updates") return updateStatus(ctx);
     if (pathname === "/todo-version")
-      return Response.json(
-        { revision: contentRevision(ctx.vault.peekTodos()) },
-        { headers: { "cache-control": "no-store" } },
-      );
+      return Response.json({ revision: vaultRevision(ctx.vault) }, { headers: { "cache-control": "no-store" } });
     if (pathname === "/") return handleToday(req, ctx);
     if (pathname === "/todos") return handleTodos(req, ctx);
     if (pathname === "/goals") return handleGoals(req, ctx);

@@ -1727,7 +1727,10 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
       const notice = document.getElementById("change-notice");
       if (main === document.querySelector("main") && revision !== main.dataset.todoVersion && notice.hidden) {
         notice.hidden = false;
-        announce(document.getElementById("change-text"), "Todos changed outside this page. Refresh when ready.");
+        announce(
+          document.getElementById("change-text"),
+          "Ledger or todos changed outside this page. Refresh when ready.",
+        );
       }
     } catch {
       // The app may be shutting down. Leave the current page and every draft alone.

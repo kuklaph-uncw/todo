@@ -1,6 +1,7 @@
 import { escapeHtml } from "../lib/html";
 import { addDays, formatMinutes, monthDay, parseLocalDate, weekdayName } from "../lib/date";
 import { editableText, type Entry, type Goal, type Todo } from "../vault/format";
+import { contentRevision } from "../vault/revision";
 import {
   COMPOSER_HINT,
   composerData,
@@ -106,7 +107,7 @@ function entryEditForm(entry: Entry, returnTo: string, retry: URLSearchParams | 
   const content = retry?.get("content") ?? editableText(entry.text, entry.tags, entry.goals);
   const minutes = retry?.get("minutes") ?? String(entry.minutes ?? "");
   return `<form class="edit-form" method="post" action="/journal/${entry.id}">
-      ${hidden("date", entry.date)}${hidden("return_to", `${returnTo}#entry-${entry.id}`)}
+      ${hidden("date", entry.date)}${hidden("return_to", `${returnTo}#entry-${entry.id}`)}${hidden("expected_revision", contentRevision(entry))}
       <label class="sr-only" for="edit-${entry.id}">Entry text</label>
       <textarea id="edit-${entry.id}" name="content" rows="2" required autofocus data-composer>${escapeHtml(content)}</textarea>
       ${COMPOSER_HINT}
@@ -134,7 +135,7 @@ function entryRow(entry: Entry, data: TodayViewData, goals: GoalIndex, returnTo:
           label: starred ? "Unstar entry" : "Star entry as a highlight",
           body: icon("star", starred),
           returnTo: `${returnTo}#entry-${entry.id}`,
-          fields: { date: entry.date },
+          fields: { date: entry.date, expected_revision: contentRevision(entry) },
           className: `icon-btn star-btn${starred ? " is-on" : ""}`,
           pressed: starred,
           id: `star-${entry.id}`,
@@ -145,7 +146,7 @@ function entryRow(entry: Entry, data: TodayViewData, goals: GoalIndex, returnTo:
           label: "Delete entry",
           body: icon("trash"),
           returnTo,
-          fields: { date: entry.date },
+          fields: { date: entry.date, expected_revision: contentRevision(entry) },
           className: "icon-btn danger",
           confirm: "Delete this entry? A copy is kept in the notes folder's .trash/deleted.md file.",
         })}

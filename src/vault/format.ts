@@ -174,6 +174,12 @@ function parseBody(raw: string): ParsedBody {
     const token = match[2];
     if (token.startsWith("#") && !isTag(token.slice(1))) break;
     if (token.includes("|")) break;
+    // A first-line fence hides its info string from Markdown metadata discovery.
+    // Trailing tokens still hold entry metadata written by formatEntryLine.
+    if (/^(?:`{3,}|~{3,})/.test(body)) {
+      if (token.startsWith("#")) tags.unshift(token.slice(1).toLowerCase());
+      else goals.unshift(token.slice(2, -2).trim());
+    }
     text = match[1];
   }
 

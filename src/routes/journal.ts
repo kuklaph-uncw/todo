@@ -1,7 +1,9 @@
 import { isValidDateString, localTimeString } from "../lib/date";
 import { parseMinutes } from "../lib/validation";
 import { parseEntryInput } from "../vault/vault";
-import { notFound, readForm, redirect, redirectWithError, today, type AppContext } from "./shared";
+import { contentRevision } from "../vault/revision";
+import { escapeHtml } from "../lib/html";
+import { notFound, page, readForm, redirect, redirectWithError, today, type AppContext } from "./shared";
 
 const TIME_HELP = "Time spent should look like 45m, 1h, 1h 30m or 90 minutes.";
 
@@ -46,6 +48,23 @@ export async function changeEntry(
   const date = form.text("date");
   const back = form.returnTo(`/?date=${date}`);
   if (!isValidDateString(date)) return notFound(ctx, "That entry");
+
+  const revision = form.text("expected_revision");
+  if (revision) {
+    const existing = ctx.vault.peekEntries(date).find((entry) => entry.id === id);
+    if (!existing || revision !== contentRevision(existing)) {
+      return page(
+        ctx,
+        "Entry changed",
+        "today",
+        `<div class="page"><h1>Entry changed</h1><p class="notice" role="alert">This entry changed after the page was opened. Your action was not saved. Review the current entry before trying again.</p>
+        <label class="field">Your submitted text<textarea readonly rows="8">${escapeHtml(form.text("content"))}</textarea></label>
+        <p>Submitted time spent: ${escapeHtml(form.text("minutes"))}</p>
+        <p><a class="btn" href="/?date=${date}">Review current ledger</a></p></div>`,
+        409,
+      );
+    }
+  }
 
   if (action === "delete") {
     return ctx.vault.deleteEntry(date, id) ? redirect(back) : notFound(ctx, "That entry");

@@ -867,7 +867,7 @@ Every page and form goes through `handleRequest` in `src/server.ts`. `HEAD` is t
 | `/review/export.json`         | JSON download.                                             |
 | `/review/export.jsonl`        | JSONL download.                                            |
 | `/settings`                   | Desktop agent access settings, status, and connection examples. |
-| `/todo-version`               | Read-only todo revision for a draft-safe change notice.    |
+| `/todo-version`               | Read-only ledger and todo revision for a draft-safe change notice. |
 | `/styles.css`, `/app.js`, `/rich-text.js`, `/icon.svg` | Bundled assets (exact paths only).                 |
 
 Anything else, including a path with a malformed `%` escape, returns the "Not found" page (404).
@@ -947,7 +947,7 @@ Without the script, the date picker shows a "Go" button and TODO filters keep th
 ```txt
 Desktop app:  window → app://local/... → protocol.handle("app") → serveAppRequest → handleRequest → Vault
 Development:  browser → http://127.0.0.1:41820/... → devFetch → handleRequest → Vault
-Agent access: local MCP client → authenticated 127.0.0.1:<port>/mcp → task operations → same Vault
+Agent access: local MCP client → authenticated 127.0.0.1:<port>/mcp → ledger/task operations → same Vault
 ```
 
 `handleRequest` doesn't know which one called it. Each entry point checks where the request came from first and adds security headers: CSP and `nosniff` in the app, CSP in development (section 21).
@@ -1123,7 +1123,7 @@ Listed in the app's shortcuts dialog (`?`). Single-key shortcuts are ignored whi
 | Area            | Requirement                                                                   |
 | --------------- | ----------------------------------------------------------------------------- |
 | Network         | Pages use `app://`. No listener by default. Opt-in MCP binds only `127.0.0.1`, default port 41821. |
-| Outbound calls  | GitHub update checks/downloads. No telemetry or app-initiated notes uploads. Authorized MCP clients receive todo data and may send it to their agent provider. |
+| Outbound calls  | GitHub update checks/downloads. No telemetry or app-initiated notes uploads. Authorized MCP clients receive ledger entries, goal summaries and todo data and may send it to their agent provider. |
 | Auth            | MCP requires a revocable bearer token on every request. Settings and UI mutations retain `app://local` origin checks. |
 | Data            | Plain Markdown files in a local folder. Not encrypted at rest.                |
 | Backups         | Copy the folder.                                                              |
@@ -1164,11 +1164,13 @@ Agent access is disabled by default. The Settings link is in the rail footer. Pr
 
 The MCP listener and UI share one synchronous Vault in the Electron main process. MCP serves only `POST /mcp`, with the official SDK's stateless handler and legacy-client compatibility. Requests require the configured loopback Host and bearer token. Requests with an Origin header or cross-site fetch metadata are refused, CORS is not enabled, and JSON request bodies are limited to 1 MiB. Bind failures leave the app usable and show an error in Settings. Disabling access or quitting closes the listener.
 
-Tools are `list_todos`, `get_todo`, `add_todo`, `update_todo`, `set_todo_status`, `add_subtask`, `set_subtask_done`, and `delete_todo`. They preserve the app's completion dates, Markdown notes, subtasks, and trash behavior. Every mutation of an existing todo requires its current content revision; stale requests are rejected. Writes require a unique `requestId`; exact retries of the most recent 1024 successful calls reuse their results while this app process runs, including listener restarts. This is not a durable exactly-once guarantee: after an app restart, read current state before retrying a create. Reusing a remembered ID with different arguments is rejected.
+Todo tools are `list_todos`, `get_todo`, `add_todo`, `update_todo`, `set_todo_status`, `add_subtask`, `set_subtask_done`, and `delete_todo`. Ledger tools are `list_entries`, `get_entry`, `add_entry`, `update_entry`, and `delete_entry`; `list_goals` and `list_tags` discover existing metadata. Entries support multiline Markdown, inline or structured tags/goal links, minutes spent, stars and a local date/clock time. Dates are validated before file access. Lists default to today and support date ranges, filters and pagination. See [ledger field and retry rules](docs/mcp.md).
 
-Read tools do not assign IDs or change files. A hand-written todo with no block ID can be read, but must be opened in ToDo before editing through MCP. Task forms include revisions too; stale forms return a conflict with submitted text retained for recovery. Older callers omitting the form revision retain their previous behavior. External editor writes are not coordinated by a cross-process lock.
+Tools preserve completion dates, Markdown notes and entry text, subtasks, and trash behavior. Every mutation of an existing todo or entry requires its current content revision; entry targets also include their date. Stale requests are rejected. Writes require a unique `requestId`; the ledger and todo services each remember their most recent 1024 successful calls while this app process runs, including listener restarts. Exact retries reuse results. This is not a durable exactly-once guarantee: after an app restart, read current state before retrying a create. Reusing a remembered ID with different arguments is rejected.
 
-Visible pages check the todo revision every five seconds and on focus. Changes show a notice without replacing page content or moving focus. Refresh is explicit and warns before discarding typed edits. Ledger capture drafts keep their existing localStorage protection. MCP access is local to this computer; remote agents need a separately designed connection.
+Read tools do not assign IDs or change files. Hand-written todos and entries with no block ID can be listed, but must be opened in ToDo before editing through MCP. Task and ledger forms include revisions too; stale forms return a conflict with submitted text retained for recovery. Older callers omitting the form revision retain their previous behavior. External editor writes are not coordinated by a cross-process lock.
+
+Visible pages check the combined ledger/todo revision every five seconds and on focus. Changes show a notice without replacing page content or moving focus. Refresh is explicit and warns before discarding typed edits. Ledger capture drafts keep their existing localStorage protection. MCP access is local to this computer; remote agents need a separately designed connection.
 
 ### 21.4 Development server request guards
 
@@ -1233,6 +1235,7 @@ Copy-Item -Recurse "$HOME\Work Ledger" "$HOME\Backups\Work Ledger $(Get-Date -Fo
 | `app-protocol.test.ts`   | `app://` handler: CSP and nosniff, host check, origin check for posts, assets, traversal. |
 | `launch.test.ts`         | Vault path resolution, error log writing.                                              |
 | `update-routes.test.ts`  | Update status, explicit check/restart, unavailable builds, and rejection of foreign-origin update actions. |
+| `mcp-ledger.test.ts` | Read-only discovery including entries without IDs, filtered/paged lists, entry metadata round trips, patches, revisions, retries, trash and validation. |
 
 ### 23.3 Browser (`tests/browser/`)
 
@@ -1320,12 +1323,12 @@ Run against a build from `bun run build`:
 | AC-22 | Double-click opens the app. Closing quits by default; optional MCP background mode hides to tray. Explicit Quit always stops the app and MCP. |
 | AC-23 | A second launch focuses the existing window.                                |
 | AC-24 | Data persists in the vault folder after restart.                            |
-| AC-25 | No network listener by default. Enabled MCP listens only on authenticated loopback; authorized clients can read/write todos. UI remains on `app://`. |
+| AC-25 | No network listener by default. Enabled MCP listens only on authenticated loopback; authorized clients can read/write ledger entries and todos, and discover goals/tags. UI remains on `app://`. |
 | AC-26 | The vault can be backed up and restored by copying the folder.              |
 | AC-27 | The vault reads as plain Markdown. Hand edits are picked up and kept.       |
 | AC-28 | The installer needs no admin rights.                                        |
 | AC-29 | Agent access and background preferences persist. Tokens are shown once, stored as hashes, and replaceable. |
-| AC-30 | MCP and task forms reject stale edits. Agent changes never automatically replace typed text. |
+| AC-30 | MCP and task/ledger forms reject stale edits. Agent changes never automatically replace typed text. |
 
 ### Tags and AI Export
 

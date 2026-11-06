@@ -55,7 +55,7 @@ export function renderSettings(
     : `<p class="mcp-state${state.running ? " is-running" : ""}">${state.running ? "Running. Agents with your token can connect." : "Off. Agents can't connect."}</p>`;
   return `${top}
     <section aria-labelledby="access-title"><h2 class="section-title" id="access-title">Agent access</h2>
-      <p class="field-hint">Agent access (MCP) lets AI tools on this computer read and change your todos, notes, and subtasks.</p>${status}
+      <p class="field-hint">Agent access (MCP) lets AI tools on this computer read and change your ledger entries, todos, notes, and subtasks, and look up goals and tags.</p>${status}
       <form class="stack-form" method="post" action="/settings">
         <input type="hidden" name="intent" value="save">
         <fieldset class="settings-options"><legend class="sr-only">Agent access preferences</legend>

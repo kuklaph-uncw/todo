@@ -245,6 +245,13 @@ export class Vault {
     return this.readDay(date).blocks.map((block) => block.entry);
   }
 
+  /** MCP reads must not assign IDs or rewrite hand-written daily notes. */
+  peekEntries(date: string): Entry[] {
+    return parseEntryBlocks(readLines(this.dayPath(date)), date)
+      .map((block) => block.entry)
+      .filter((entry) => entry.text);
+  }
+
   getEntriesInRange(from: string, to: string): Entry[] {
     return this.listDates()
       .filter((date) => date >= from && date <= to)

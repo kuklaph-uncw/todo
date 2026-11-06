@@ -3,7 +3,7 @@ import { safeReturnPath } from "../lib/validation";
 import type { Vault } from "../vault/vault";
 import type { AgentAccess } from "../mcp/access";
 import type { Updates } from "../electron/updates";
-import { contentRevision } from "../vault/revision";
+import { vaultRevision } from "../vault/revision";
 import { renderLayout, type NavKey } from "../views/layout";
 
 export interface AppContext {
@@ -30,7 +30,7 @@ export function page(ctx: AppContext, title: string, active: NavKey | null, main
     openTodos,
     agentAccess: ctx.agentAccess?.snapshot().running,
     updates: ctx.updates?.snapshot() ?? { status: "unavailable" },
-    todoVersion: contentRevision(ctx.vault.peekTodos()),
+    todoVersion: vaultRevision(ctx.vault),
   });
   return new Response(html, { status, headers: { "content-type": "text/html; charset=utf-8" } });
 }

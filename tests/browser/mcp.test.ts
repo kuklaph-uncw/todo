@@ -4,6 +4,7 @@ import { chromium, type Browser, type Page } from "playwright";
 import { devFetch } from "../../src/dev-server";
 import { AgentAccess } from "../../src/mcp/access";
 import { createTestContext } from "../helpers/test-vault";
+import { LedgerService } from "../../src/mcp/ledger";
 
 const base = createTestContext();
 const ctx = { ...base, agentAccess: new AgentAccess(join(base.root, "mcp.json"), base.vault, base.clock) };
@@ -55,6 +56,28 @@ it("announces changed tasks without replacing typed text, and rejects a stale ed
   await page.getByRole("heading", { name: "Todo changed", exact: true }).waitFor();
   expect(await page.getByLabel("Your submitted text").inputValue()).toBe("My unfinished edit");
   expect(ctx.vault.getTodo(todo.id)?.task).toBe("Agent update");
+}, 20000);
+
+it("notices MCP ledger edits without replacing a draft and rejects a stale entry save", async () => {
+  const ledger = new LedgerService(ctx.vault, ctx.clock);
+  ledger.execute("add_entry", { text: "Original ledger text", requestId: "entry-create" });
+  const entry = ledger.list({}).entries[0];
+  await page.goto(`${server.url}?edit=${entry.id}`);
+  const editor = page.getByRole("textbox", { name: "Entry text", exact: true });
+  await editor.fill("My unfinished ledger edit");
+  ledger.execute("update_entry", {
+    date: entry.date,
+    id: entry.id,
+    expectedRevision: entry.revision,
+    text: "Agent ledger update",
+    requestId: "entry-update",
+  });
+  await page.locator("#change-notice").waitFor({ state: "visible" });
+  expect(await editor.textContent()).toBe("My unfinished ledger edit");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("heading", { name: "Entry changed", exact: true }).waitFor();
+  expect(await page.getByLabel("Your submitted text").inputValue()).toBe("My unfinished ledger edit");
+  expect(ledger.get(entry).text).toBe("Agent ledger update");
 }, 20000);
 
 it("confirms refresh when only a goal's status selection has changed", async () => {

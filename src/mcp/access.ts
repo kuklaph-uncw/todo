@@ -2,6 +2,7 @@ import type { Vault } from "../vault/vault";
 import { McpSettingsStore, type McpPreferences } from "./settings";
 import { startMcp } from "./server";
 import { TodoService } from "./todos";
+import { LedgerService } from "./ledger";
 
 /** One owner for settings and the listener, including when the window is hidden. */
 export class AgentAccess {
@@ -11,6 +12,7 @@ export class AgentAccess {
   private stopped = false;
   readonly store: McpSettingsStore;
   private readonly todos: TodoService;
+  private readonly ledger: LedgerService;
 
   constructor(
     path: string,
@@ -20,6 +22,7 @@ export class AgentAccess {
   ) {
     this.store = new McpSettingsStore(path);
     this.todos = new TodoService(vault, clock);
+    this.ledger = new LedgerService(vault, clock);
   }
 
   snapshot() {
@@ -80,6 +83,7 @@ export class AgentAccess {
             preferences.port,
             (token) => this.store.acceptsToken(token),
             this.todos,
+            this.ledger,
           );
         } catch (error) {
           this.error = `Could not start agent access on port ${preferences.port}. Choose another port if it is in use.`;

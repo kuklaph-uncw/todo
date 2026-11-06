@@ -25,6 +25,11 @@ writeFileSync(
 );
 const executable = createRequire(import.meta.url)("electron") as string;
 const environment: Record<string, string> = { ...process.env, VAULT_PATH: join(root, "vault") };
+mkdirSync(join(root, "vault", "goals"), { recursive: true });
+writeFileSync(
+  join(root, "vault", "goals", "delivery.md"),
+  "---\ntitle: Delivery\ncycle: 2026\nstatus: active\n---\n\nShip carefully.\n",
+);
 // Electron's launcher must run as an app, even if the invoking editor sets this variable.
 delete environment.ELECTRON_RUN_AS_NODE;
 let desktop: ElectronApplication | null = null;
@@ -76,6 +81,33 @@ try {
       arguments: { task: "Created while window closed", requestId: "background-create" },
     });
     assert(!added.isError, "MCP must accept writes while the window is hidden");
+    const goals = await client.callTool({ name: "list_goals", arguments: {} });
+    assert(!goals.isError);
+    assert.equal((goals.structuredContent as { goals: { slug: string }[] }).goals[0]?.slug, "delivery");
+    const entry = await client.callTool({
+      name: "add_entry",
+      arguments: {
+        text: "Ledger entry while hidden #mcp [[delivery]]",
+        minutes: 45,
+        isHighlight: true,
+        requestId: "background-ledger-create",
+      },
+    });
+    assert(!entry.isError, "MCP must accept ledger writes while hidden");
+    const saved = entry.structuredContent as { id: string; date: string; revision: string };
+    const changed = await client.callTool({
+      name: "update_entry",
+      arguments: {
+        id: saved.id,
+        date: saved.date,
+        expectedRevision: saved.revision,
+        minutes: 90,
+        requestId: "background-ledger-edit",
+      },
+    });
+    assert(!changed.isError);
+    assert.deepEqual((changed.structuredContent as { goals: string[] }).goals, ["delivery"]);
+    assert.equal((changed.structuredContent as { minutes: number }).minutes, 90);
   } finally {
     await client.close();
   }
@@ -98,6 +130,9 @@ try {
   await page.waitForFunction(() => document.visibilityState === "visible");
   await secondExited;
   secondInstance = null;
+  await page.locator('nav[aria-label="Main"] a[href="/"]').click();
+  await page.locator(".entry-text").filter({ hasText: "Ledger entry while hidden" }).waitFor();
+  await page.getByRole("link", { name: /^Settings/ }).click();
   await page.getByLabel("Keep MCP running when the window is closed").uncheck();
   await page.getByRole("button", { name: "Save settings", exact: true }).click();
   await page.getByText("Settings saved.", { exact: true }).waitFor();
@@ -119,7 +154,7 @@ try {
   desktop = null;
   await assert.rejects(fetch(url, { signal: AbortSignal.timeout(2000) }));
   console.log(
-    "Verified Electron: settings persist; MCP writes while hidden; second launch restores; close without background and explicit quit stop MCP.",
+    "Verified Electron: settings persist; todo and ledger MCP writes while hidden; ledger metadata and goal lookup; second launch restores the written entry; close without background and explicit quit stop MCP.",
   );
 } finally {
   secondInstance?.kill();
