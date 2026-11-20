@@ -1756,7 +1756,7 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
         notice.hidden = false;
         announce(
           document.getElementById("change-text"),
-          "Ledger or todos changed outside this page. Refresh when ready.",
+          "Ledger, todos or goals changed outside this page. Refresh when ready.",
         );
       }
     } catch {

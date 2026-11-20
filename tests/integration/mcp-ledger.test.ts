@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it } from "bun:test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { LedgerService } from "../../src/mcp/ledger";
+import { GoalService } from "../../src/mcp/goals";
 import { createTestContext } from "../helpers/test-vault";
 
 let ctx: ReturnType<typeof createTestContext>;
@@ -21,12 +22,14 @@ it("reads ledger entries and discovers goals/tags without assigning missing IDs"
   expect(listed.today).toBe("2026-09-28");
   expect(listed.entries).toHaveLength(1);
   expect(listed.entries[0]).toMatchObject({ id: "", date: "2026-09-28", text: "Hand written\nKeep **Markdown**" });
-  expect(service.goals().goals).toContainEqual({
+  // list_goals moved to the goal service; it keeps these fields and adds a revision.
+  expect(new GoalService(ctx.vault, ctx.clock).list({}).goals).toContainEqual({
     slug: goal.slug,
     title: "Delivery",
     cycle: "2026",
     status: "draft",
     kind: "goal",
+    revision: expect.stringMatching(/^[a-f0-9]{64}$/),
   });
   expect(service.tags().tags).toEqual([
     { tag: "ops", count: 2 },

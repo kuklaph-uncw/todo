@@ -116,6 +116,60 @@ it("exposes ledger tools over HTTP and preserves metadata through create, patch,
   expect((await call("list_entries", {})).structuredContent.entries).toEqual([]);
 });
 
+it("exposes goal tools over HTTP: read-only reads, writes with retries and revisions, and no delete", async () => {
+  const tools = (await readRpc(await rpc("tools/list"))).result.tools;
+  const tool = (name: string) => tools.find((item: { name: string }) => item.name === name);
+  expect(tool("get_goal")?.annotations.readOnlyHint).toBe(true);
+  expect(tool("list_goals")?.annotations.readOnlyHint).toBe(true);
+  for (const name of ["add_goal", "update_goal"]) expect(tool(name)?.annotations.readOnlyHint).toBe(false);
+  expect(tool("update_goal")?.description).toContain('status "dropped"');
+  expect(tools.some((item: { name: string }) => /delete_goal|remove_goal/.test(item.name))).toBe(false);
+
+  const call = async (name: string, args: object) =>
+    (await readRpc(await rpc("tools/call", { name, arguments: args }))).result;
+  const args = { title: "Delivery", description: "Ship.", requestId: "goal-create" };
+  const added = await call("add_goal", args);
+  expect(added.isError).not.toBe(true);
+  expect(added.structuredContent).toMatchObject({ slug: "delivery", cycle: "2026", status: "draft", order: 1 });
+  expect((await call("add_goal", args)).structuredContent).toEqual(added.structuredContent);
+  expect(ctx.vault.getGoals()).toHaveLength(1);
+  expect((await call("get_goal", { slug: "delivery" })).structuredContent).toEqual(added.structuredContent);
+  const changed = await call("update_goal", {
+    slug: "delivery",
+    expectedRevision: added.structuredContent.revision,
+    status: "agreed",
+    requestId: "goal-edit",
+  });
+  expect(changed.structuredContent).toMatchObject({ status: "agreed", description: "Ship." });
+  const stale = await call("update_goal", {
+    slug: "delivery",
+    expectedRevision: added.structuredContent.revision,
+    title: "Stale",
+    requestId: "goal-stale",
+  });
+  expect(stale.isError).toBe(true);
+  expect(stale.content[0].text).toContain("This goal changed");
+  expect((await call("get_goal", { slug: "missing" })).isError).toBe(true);
+  expect((await call("list_goals", { cycle: "2026" })).structuredContent.goals).toEqual([
+    {
+      slug: "delivery",
+      title: "Delivery",
+      cycle: "2026",
+      status: "agreed",
+      kind: "goal",
+      revision: changed.structuredContent.revision,
+    },
+  ]);
+  expect((await call("list_goals", { cycle: "2025" })).structuredContent.goals).toEqual([]);
+});
+
+it("rejects goal calls without a valid token before touching the vault", async () => {
+  validToken = "replacement";
+  const response = await rpc("tools/call", { name: "add_goal", arguments: { title: "Sneaky", requestId: "x" } });
+  expect(response.status).toBe(401);
+  expect(ctx.vault.getGoals()).toEqual([]);
+});
+
 it("rejects invalid JSON, oversized bodies, and unrelated routes", async () => {
   const send = (body: string) =>
     fetch(running.url, {

@@ -84,6 +84,8 @@ export interface Goal {
   exceeding: string;
   /** The user's own talking points, never copied to FCP. */
   notes: string;
+  /** Frontmatter lines the app has no use for (hand-written keys like `tags`), kept as written. */
+  otherFrontmatter?: string[];
 }
 
 /** Sheet order within a cycle: goals before activities, then by order, then title. */
@@ -660,7 +662,31 @@ export function parseGoal(slug: string, source: string): Goal {
     meeting: text(lines.meeting),
     exceeding: text(lines.exceeding),
     notes: [text(preamble), text(lines.notes)].filter(Boolean).join("\n\n"),
+    ...otherFrontmatter(source),
   };
+}
+
+/** The frontmatter keys formatGoal writes; anything else is the user's and is kept. */
+const GOAL_KEYS = ["title", "cycle", "status", "kind", "order", "dropped"];
+
+/**
+ * Frontmatter lines for keys the app doesn't know, raw, in order. A key's
+ * value lines (indented, or `- list` items) stay with it. Comments and blank
+ * lines are kept wherever they are. The app's own keys, and the value lines
+ * under them, are written fresh instead.
+ */
+function otherFrontmatter(source: string): { otherFrontmatter?: string[] } {
+  const match = /^---\n([\s\S]*?)\n---\n?/.exec(source.replace(/\r\n/g, "\n"));
+  if (!match) return {};
+  const kept: string[] = [];
+  let keep = true;
+  for (const line of match[1].split("\n")) {
+    const key = /^([^\s:#-][^:]*):/.exec(line)?.[1].trim();
+    if (key !== undefined) keep = !GOAL_KEYS.includes(key);
+    const valueLine = /^(\s|- |-$)/.test(line);
+    if (key !== undefined || valueLine ? keep : true) kept.push(line);
+  }
+  return kept.length ? { otherFrontmatter: kept } : {};
 }
 
 export function formatGoal(goal: Goal): string {
@@ -675,5 +701,10 @@ export function formatGoal(goal: Goal): string {
       .join("\n");
     return `## ${heading}\n\n${text}\n`;
   });
-  return [formatFrontmatter(data), ...sections].join("\n");
+  // The app's own keys first, then the user's, unchanged.
+  const head = formatFrontmatter(data);
+  const frontmatter = goal.otherFrontmatter
+    ? `${head.slice(0, -"---\n".length)}${goal.otherFrontmatter.join("\n")}\n---\n`
+    : head;
+  return [frontmatter, ...sections].join("\n");
 }

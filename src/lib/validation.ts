@@ -55,16 +55,38 @@ export function isGoalSlug(value: string): boolean {
   return /^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u.test(value);
 }
 
+/** The first `length` characters, counting a letter outside the BMP as one, never half of a surrogate pair. */
+export function firstCharacters(text: string, length: number): string {
+  return Array.from(text).slice(0, Math.max(0, length)).join("");
+}
+
+/**
+ * Slugs no goal may have: "carry" is the POST /goals/carry route, and Windows
+ * treats con, prn, aux, nul, com1-9 and lpt1-9 as devices even with an extension.
+ */
+export function isReservedSlug(slug: string): boolean {
+  return /^(?:carry|con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(slug);
+}
+
+/**
+ * A cycle as stored: control characters (tabs, line breaks, C1 controls, line and
+ * paragraph separators) become spaces, and the ends are trimmed. Other spacing is
+ * kept, so a hand-written cycle like "FY  2027" stays the same cycle.
+ */
+export function cleanCycle(text: string): string {
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: matching them is the point.
+  return text.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, " ").trim();
+}
+
 /** "Improve platform reliability!" -> "improve-platform-reliability" */
 export function slugify(title: string): string {
-  return title
+  const slug = title
     .toLowerCase()
     .normalize("NFKD")
     .replace(/\p{M}/gu, "")
     .replace(/[^\p{L}\p{N}]+/gu, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48)
-    .replace(/-+$/, "");
+    .replace(/^-+|-+$/g, "");
+  return firstCharacters(slug, 48).replace(/-+$/, "");
 }
 
 /** Only same-origin absolute paths, so a form can't redirect off-site. */

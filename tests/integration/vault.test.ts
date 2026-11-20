@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { applyTodoPatch, renameInBlocks, type Vault } from "../../src/vault/vault";
-import { slugify } from "../../src/lib/validation";
+import { isGoalSlug, slugify } from "../../src/lib/validation";
 import { entryView, parseEntryBlocks, type Todo } from "../../src/vault/format";
 import { createTestVault } from "../helpers/test-vault";
 
@@ -540,9 +540,14 @@ describe("goals", () => {
       expect(vault.goalLinkProblem("old", "carry")).toBe("That link is reserved. Pick another.");
       expect(vault.goalLinkProblem("old", "taken")).toBe("Another goal already uses [[taken]].");
       expect(vault.goalLinkProblem("old", "fresh")).toBeNull();
-      // Cutting at 48 characters can split a rare character, leaving a link no goal page could open.
-      const split = slugify(`${"a".repeat(47)}\u{20000}b`);
-      expect(vault.goalLinkProblem("old", split)).toBe("Use letters and numbers, joined by single hyphens.");
+      // slugify no longer splits a rare character at its 48-character cut, so the link stays usable.
+      const long = slugify(`${"a".repeat(47)}\u{20000}b`);
+      expect(long).toBe(`${"a".repeat(47)}\u{20000}`);
+      expect(vault.goalLinkProblem("old", long)).toBeNull();
+      // Half of one, or anything else that isn't a slug, is still refused.
+      expect(vault.goalLinkProblem("old", `${"a".repeat(47)}\uD840`)).toBe(
+        "Use letters and numbers, joined by single hyphens.",
+      );
       expect(() => vault.renameGoal("old", "taken")).toThrow("Another goal already uses [[taken]].");
       expect(vault.getGoal("old")).not.toBeNull();
       expect(vault.renameGoal("missing", "fresh")).toBeNull();
@@ -622,6 +627,23 @@ describe("goals", () => {
     expect(vault.getGoal(second.slug)?.title).toBe(title);
   });
 
+  it("turns control characters in names and cycles into spaces, as it does line breaks", () => {
+    const goal = vault.createGoal({ title: "Ship\u0001it\u007f now", cycle: "\u00002026\u001f" });
+    expect(goal).toMatchObject({ title: "Ship it now", cycle: "2026" });
+    expect(vault.getGoal(goal.slug)).toMatchObject({ title: "Ship it now", cycle: "2026" });
+    const saved = vault.saveGoal(goal.slug, { ...goal, title: "Ship\u0007 again" })!;
+    expect(saved.title).toBe("Ship again");
+    const control = (char: string) => (char < " " && char !== "\t" && char !== "\n") || char === "\u007f";
+    expect([...read("goals", `${goal.slug}.md`)].filter(control)).toEqual([]);
+  });
+
+  it("keeps a cycle's own spacing, so a goal joins a hand-written cycle like 'FY  2027'", () => {
+    expect(vault.createGoal({ title: "Spaced", cycle: "FY  2027" }).cycle).toBe("FY  2027");
+    expect(vault.createGoal({ title: "Wide", cycle: "FY\u00a02027" }).cycle).toBe("FY\u00a02027");
+    expect(vault.createGoal({ title: "Odd", cycle: "FY\u00852027\u2028" }).cycle).toBe("FY 2027");
+    expect(vault.createGoal({ title: "Next\u0085line", cycle: "2026" }).title).toBe("Next line");
+  });
+
   it("names a goal reused in a new cycle after that cycle", () => {
     vault.createGoal({ title: "Improve reliability", cycle: "2026" });
     expect(vault.createGoal({ title: "Improve reliability", cycle: "2027" }).slug).toBe("improve-reliability-2027");
@@ -634,6 +656,63 @@ describe("goals", () => {
     expect(next).toStartWith("improve-client-communication-service-");
     expect(next).toEndWith("-2027");
     expect(next.length).toBeLessThanOrEqual(48);
+  });
+
+  it("always writes a slug the app can open, even when a long name ends in a letter outside the BMP", () => {
+    const title = `${"a".repeat(47)}\u{20000}`;
+    const first = vault.createGoal({ title, cycle: "2026" });
+    const second = vault.createGoal({ title, cycle: "2026" });
+    for (const goal of [first, second]) {
+      expect(isGoalSlug(goal.slug)).toBe(true);
+      expect(vault.getGoal(goal.slug)?.title).toBe(title);
+    }
+    expect(first.slug).toBe(`${"a".repeat(47)}\u{20000}`);
+    expect(vault.getGoals()).toHaveLength(2);
+  });
+
+  it("drops the cycle suffix when a long cycle leaves no room for the name", () => {
+    vault.createGoal({ title: "Same", cycle: "2026" });
+    const cycle = "b".repeat(50);
+    const goal = vault.createGoal({ title: "Same", cycle });
+    expect(isGoalSlug(goal.slug)).toBe(true);
+    expect(goal.slug).toBe("same-2");
+    expect(vault.getGoal(goal.slug)?.cycle).toBe(cycle);
+    // A cycle that leaves some room keeps a shortened name in front of it.
+    const roomy = vault.createGoal({ title: "Same", cycle: "c".repeat(40) });
+    expect(roomy.slug).toBe(`same-${"c".repeat(40)}`);
+  });
+
+  it("keeps hand-written frontmatter keys when it renumbers, saves or moves a goal", () => {
+    mkdirSync(join(root, "goals"), { recursive: true });
+    const extras = ["tags: [work]", "aliases: hand-goal", "related:", "  - first", "created: 2020-01-01"];
+    writeFileSync(
+      join(root, "goals", "hand.md"),
+      ["---", "title: Hand", ...extras, "cycle: 2026", "---", ""].join("\n"),
+    );
+    // Adding a goal to the same cycle numbers the hand-written one first, rewriting its file.
+    vault.createGoal({ title: "New", cycle: "2026" });
+    const lines = () => read("goals", "hand.md").split("\n");
+    expect(vault.getGoal("hand")?.order).toBe(1);
+    for (const extra of extras) expect(lines()).toContain(extra);
+    expect(lines().indexOf("related:") + 1).toBe(lines().indexOf("  - first"));
+
+    const hand = vault.getGoal("hand")!;
+    vault.saveGoal("hand", { ...hand, notes: "Edited." });
+    vault.moveGoal("hand", "down");
+    expect(vault.getGoal("hand")).toMatchObject({ notes: "Edited.", order: 2 });
+    for (const extra of extras) expect(lines()).toContain(extra);
+  });
+
+  it("never names a goal after a Windows device name, which Windows won't open as a file", () => {
+    expect(vault.createGoal({ title: "Con", cycle: "2026" }).slug).toBe("con-2");
+    expect(vault.createGoal({ title: "NUL", cycle: "2026" }).slug).toBe("nul-2");
+    expect(vault.createGoal({ title: "LPT9", cycle: "2026" }).slug).toBe("lpt9-2");
+    // Only the exact names: ones that merely start with them are fine.
+    for (const title of ["Console", "COM10", "Auxiliary", "com0"])
+      expect(vault.createGoal({ title, cycle: "2026" }).slug).toBe(title.toLowerCase());
+    expect(vault.goalLinkProblem("con-2", "aux")).toBe("That link is reserved. Pick another.");
+    expect(vault.goalLinkProblem("con-2", "COM1")).toBe("That link is reserved. Pick another.");
+    expect(vault.goalLinkProblem("con-2", "com10")).not.toBe("That link is reserved. Pick another.");
   });
 
   it("never names a goal after the carry-over route", () => {

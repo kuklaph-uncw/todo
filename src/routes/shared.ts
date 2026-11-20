@@ -56,10 +56,16 @@ export function redirect(location: string): Response {
  * Redirects back to the form's page with an error message the page will show.
  * `keep` carries what the user typed so the page can put it back.
  */
-export function redirectWithError(returnTo: string, message: string, keep: [string, string][] = []): Response {
+export function redirectWithError(
+  returnTo: string,
+  message: string,
+  keep: [string, string][] = [],
+  /** Also send back fields the user emptied, for forms where empty means "cleared", not "unchanged". */
+  keepEmpty = false,
+): Response {
   const url = new URL(returnTo, "http://local");
   url.searchParams.set("error", message);
-  for (const [name, value] of keep) if (value) url.searchParams.append(name, value);
+  for (const [name, value] of keep) if (value || keepEmpty) url.searchParams.append(name, value);
   return redirect(`${url.pathname}${url.search}${url.hash}`);
 }
 

@@ -1,6 +1,7 @@
-import { isValidGoalKind, isValidGoalStatus, slugify } from "../lib/validation";
+import { cleanCycle, isValidGoalKind, isValidGoalStatus, slugify } from "../lib/validation";
 import { collectItems } from "../review";
 import type { Goal } from "../vault/format";
+import { contentRevision } from "../vault/revision";
 import { readGoalsView, saveGoalsView, type GoalsView } from "../preferences";
 import { goalStats, goalsUrl, renderGoal, renderGoals, type GoalStats, type LinkChange } from "../views/goals";
 import { notFound, page, readForm, redirect, redirectWithError, today, type AppContext } from "./shared";
@@ -110,7 +111,7 @@ function viewField(value: string): GoalsView {
 export async function createGoal(req: Request, ctx: AppContext): Promise<Response> {
   const form = await readForm(req);
   const title = form.text("title").trim();
-  const cycle = form.text("cycle").trim() || today(ctx).slice(0, 4);
+  const cycle = cleanCycle(form.text("cycle")) || today(ctx).slice(0, 4);
   const rawKind = form.text("kind");
   const kind = isValidGoalKind(rawKind) ? rawKind : "goal";
   const view = viewField(form.text("view"));
@@ -134,7 +135,7 @@ export async function createGoal(req: Request, ctx: AppContext): Promise<Respons
     status: form.text("status") === "agreed" ? "agreed" : "draft",
     ...text,
   });
-  return redirect(goalsUrl(view, cycle, {}, `goal-${goal.slug}`));
+  return redirect(goalsUrl(view, goal.cycle, {}, `goal-${goal.slug}`));
 }
 
 /** POST /goals/:slug */
@@ -161,6 +162,15 @@ export async function saveGoal(req: Request, ctx: AppContext, slug: string): Pro
         name,
         form.text(name),
       ]),
+      // An emptied field stays empty on the way back; the form fills in only fields not sent at all.
+      true,
+    );
+  // The form carries the revision it was opened with, so a change made meanwhile (say, by
+  // an agent) isn't silently undone. Older posts without one are still accepted.
+  const expected = form.text("expected_revision");
+  if (expected && expected !== contentRevision(existing))
+    return backToForm(
+      "This goal changed somewhere else while you were editing, perhaps by an agent. Your text is kept below: save to replace that change, or cancel to see it.",
     );
   const problem = ctx.vault.goalLinkProblem(slug, link);
   if (problem) return backToForm(problem);
@@ -201,12 +211,25 @@ export async function saveGoal(req: Request, ctx: AppContext, slug: string): Pro
   return redirect(goalsUrl(view, existing.cycle, extra, `goal-${link}`));
 }
 
+// Also what a double-click gets, so it doesn't blame anyone in particular.
+const CHANGED_ELSEWHERE = "This goal changed after this page loaded. Check it and try again.";
+
+/**
+ * True when a quick action's form came from a page showing an older version of
+ * the goal. Posts without a revision (older pages) are still accepted.
+ */
+function isStale(form: Awaited<ReturnType<typeof readForm>>, goal: Goal): boolean {
+  const expected = form.text("expected_revision");
+  return Boolean(expected) && expected !== contentRevision(goal);
+}
+
 /** POST /goals/:slug/status, e.g. "Mark agreed" on a draft. */
 export async function setGoalStatus(req: Request, ctx: AppContext, slug: string): Promise<Response> {
   const form = await readForm(req);
   const existing = ctx.vault.getGoal(slug);
   if (!existing) return notFound(ctx, "That goal");
   const back = form.returnTo(`/goals?cycle=${encodeURIComponent(existing.cycle)}#goal-${slug}`);
+  if (isStale(form, existing)) return redirectWithError(back, CHANGED_ELSEWHERE);
   const status = form.text("status");
   if (!isValidGoalStatus(status)) return redirectWithError(back, "Pick Draft, Agreed or Dropped.");
   ctx.vault.saveGoal(slug, { ...existing, status }, today(ctx));
@@ -219,6 +242,9 @@ export async function moveGoal(req: Request, ctx: AppContext, slug: string): Pro
   const existing = ctx.vault.getGoal(slug);
   if (!existing) return notFound(ctx, "That goal");
   const back = form.returnTo(`/goals?cycle=${encodeURIComponent(existing.cycle)}#goal-${slug}`);
+  // Only the moved goal is checked: it's the one the user sees. A move only
+  // renumbers its cycle's goals, read fresh, so no text or status is lost.
+  if (isStale(form, existing)) return redirectWithError(back, CHANGED_ELSEWHERE);
   const direction = form.text("direction");
   if (direction !== "up" && direction !== "down") return redirectWithError(back, "Move a goal up or down.");
   ctx.vault.moveGoal(slug, direction);
@@ -233,7 +259,8 @@ export async function moveGoal(req: Request, ctx: AppContext, slug: string): Pro
 export async function carryGoals(req: Request, ctx: AppContext): Promise<Response> {
   const form = await readForm(req);
   const from = form.text("from");
-  const cycle = form.text("cycle").trim();
+  // Cleaned as createGoal stores it, so the double-post check and the redirect see the same cycle.
+  const cycle = cleanCycle(form.text("cycle"));
   const view = viewField(form.text("view"));
   const picked = new Set(form.all("goal"));
   const all = ctx.vault.getGoals();

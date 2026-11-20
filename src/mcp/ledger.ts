@@ -100,14 +100,6 @@ export class LedgerService {
     return { ...entry, revision: contentRevision(entry) };
   }
 
-  goals() {
-    return {
-      goals: this.vault
-        .getGoals()
-        .map(({ slug, title, cycle, status, kind }) => ({ slug, title, cycle, status, kind })),
-    };
-  }
-
   tags() {
     const counts = new Map<string, number>();
     const items = [

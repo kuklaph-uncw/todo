@@ -108,6 +108,42 @@ try {
     assert(!changed.isError);
     assert.deepEqual((changed.structuredContent as { goals: string[] }).goals, ["delivery"]);
     assert.equal((changed.structuredContent as { minutes: number }).minutes, 90);
+    // Its own cycle, so adding it doesn't renumber (and rewrite) the hand-written delivery.md.
+    const goal = await client.callTool({
+      name: "add_goal",
+      arguments: {
+        title: "Goal added while hidden",
+        cycle: "2027",
+        description: "Written by an agent.",
+        requestId: "background-goal-create",
+      },
+    });
+    assert(!goal.isError, "MCP must accept goal writes while hidden");
+    const createdGoal = goal.structuredContent as { slug: string; revision: string; status: string };
+    assert.equal(createdGoal.status, "draft");
+    const readGoal = await client.callTool({ name: "get_goal", arguments: { slug: createdGoal.slug } });
+    assert(!readGoal.isError);
+    assert.deepEqual(readGoal.structuredContent, goal.structuredContent);
+    const agreed = await client.callTool({
+      name: "update_goal",
+      arguments: {
+        slug: createdGoal.slug,
+        expectedRevision: createdGoal.revision,
+        status: "agreed",
+        requestId: "background-goal-edit",
+      },
+    });
+    assert(!agreed.isError);
+    assert.equal((agreed.structuredContent as { status: string }).status, "agreed");
+    const cycleGoals = await client.callTool({ name: "list_goals", arguments: { cycle: "2027" } });
+    assert(!cycleGoals.isError);
+    assert.deepEqual(
+      (cycleGoals.structuredContent as { goals: { slug: string; status: string }[] }).goals.map(({ slug, status }) => ({
+        slug,
+        status,
+      })),
+      [{ slug: createdGoal.slug, status: "agreed" }],
+    );
   } finally {
     await client.close();
   }
@@ -168,7 +204,7 @@ try {
   desktop = null;
   await assert.rejects(fetch(url, { signal: AbortSignal.timeout(2000) }));
   console.log(
-    "Verified Electron: settings persist; todo and ledger MCP writes while hidden; ledger metadata and goal lookup; second launch restores the entry; web links call the OS launcher without navigating the app; close and explicit quit stop MCP.",
+    "Verified Electron: settings persist; todo, ledger and goal MCP writes while hidden; ledger metadata, goal lookup, goal read, update and cycle listing; second launch restores the entry; web links call the OS launcher without navigating the app; close and explicit quit stop MCP.",
   );
 } finally {
   secondInstance?.kill();

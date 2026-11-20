@@ -14,7 +14,15 @@ import { dirname, join, relative } from "node:path";
 import { isValidDateString, localDateString, nowUtcIso } from "../lib/date";
 import { mapOutsideFences } from "../lib/lines";
 import type { Priority, Status } from "../lib/validation";
-import { isGoalSlug, isValidPriority, isValidStatus, slugify } from "../lib/validation";
+import {
+  cleanCycle,
+  firstCharacters,
+  isGoalSlug,
+  isReservedSlug,
+  isValidPriority,
+  isValidStatus,
+  slugify,
+} from "../lib/validation";
 import {
   allSubtasks,
   compareGoals,
@@ -580,20 +588,25 @@ export class Vault {
 
   /** A new goal starts as a draft at the end of its cycle and kind. */
   createGoal(input: NewGoal): Goal {
-    const cycle = input.cycle.trim();
+    const cycle = cleanCycle(input.cycle);
     const kind = input.kind ?? "goal";
-    const base = slugify(input.title) || "goal";
-    // "carry" would collide with the POST /goals/carry route.
-    const taken = (candidate: string) => candidate === "carry" || existsSync(join(this.goalsDir, `${candidate}.md`));
+    // Every candidate is checked, so the file is always one the app can open.
+    const base = [slugify(input.title), "goal"].find(isGoalSlug)!;
+    // Reserved slugs: a route, or a name Windows won't open as a file.
+    const taken = (candidate: string) =>
+      isReservedSlug(candidate) || existsSync(join(this.goalsDir, `${candidate}.md`));
     // Reusing a goal name in a new cycle gets a readable link like
     // [[improve-reliability-2027]] before falling back to -2, -3...
-    // Long FCP names fill slugify's 48 characters, so make room for the cycle.
+    // Long FCP names fill slugify's 48 characters, so make room for the cycle;
+    // with no room left for the name, skip the cycle link.
     const suffix = slugify(cycle);
-    const withCycle = suffix ? `${base.slice(0, 47 - suffix.length).replace(/-+$/, "")}-${suffix}` : "";
-    const sameName = this.getGoal(base);
+    const shortBase = firstCharacters(base, 47 - Array.from(suffix).length).replace(/-+$/, "");
+    const withCycle = suffix && shortBase ? `${shortBase}-${suffix}` : "";
+    const sameName = isReservedSlug(base) ? null : this.getGoal(base);
     const otherCycle = sameName !== null && sameName.cycle !== cycle;
-    let slug = otherCycle && withCycle && !taken(withCycle) ? withCycle : base;
+    let slug = otherCycle && isGoalSlug(withCycle) && !taken(withCycle) ? withCycle : base;
     for (let n = 2; taken(slug); n++) slug = `${base}-${n}`;
+    if (!isGoalSlug(slug)) throw new Error("Could not make a link for this goal. Try another name.");
 
     // Goals written before ordering sort last, so number them first, in sheet
     // order; otherwise the new goal would jump ahead of them.
@@ -646,7 +659,7 @@ export class Vault {
     if (!to) return "A link needs at least one letter or number.";
     // slugify cuts at 48 characters, which can split a rare character in two.
     if (!isGoalSlug(to)) return "Use letters and numbers, joined by single hyphens.";
-    if (to === "carry") return "That link is reserved. Pick another.";
+    if (isReservedSlug(to)) return "That link is reserved. Pick another.";
     // Exact names, so a case-only change of this goal's own file isn't "taken"
     // on Windows, and existsSync for another goal that differs only in case.
     const exact = existsSync(this.goalsDir) && readdirSync(this.goalsDir).includes(`${to}.md`);
@@ -757,9 +770,14 @@ export function renameInBlocks(
   return result;
 }
 
-/** Goal names are one line, so they stay valid frontmatter. */
+/**
+ * Goal names are one line of plain text, so they stay valid frontmatter: line
+ * breaks, other control characters and runs of spaces become one space. Cycles
+ * use cleanCycle, which keeps their spacing.
+ */
 function oneLine(text: string): string {
-  return text.replace(/\s+/g, " ").trim();
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: matching them is the point.
+  return text.replace(/[\u0000-\u001f\u007f-\u009f\s]+/g, " ").trim();
 }
 
 /** Form posts send CRLF line endings; files use LF. */

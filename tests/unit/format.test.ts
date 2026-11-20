@@ -447,6 +447,53 @@ describe("frontmatter and goals", () => {
     expect(legacy("someday").status).toBe("draft");
   });
 
+  it("keeps frontmatter keys it doesn't know, exactly as written, after its own", () => {
+    const source = [
+      "---",
+      "# written in Obsidian",
+      "aliases: hand-goal",
+      "title: Hand",
+      "tags: [work]",
+      "related:",
+      "  - first",
+      "  - second",
+      "status: active",
+      "created: 2020-01-01",
+      "---",
+      "",
+      "Body.",
+      "",
+    ].join("\n");
+    const goal = parseGoal("hand", source);
+    expect(goal).toMatchObject({ title: "Hand", status: "agreed", notes: "Body." });
+    const written = formatGoal({ ...goal, order: 1 });
+    expect(written).toBe(
+      [
+        "---",
+        "title: Hand",
+        "cycle: ",
+        "status: agreed",
+        "kind: goal",
+        "order: 1",
+        "# written in Obsidian",
+        "aliases: hand-goal",
+        "tags: [work]",
+        "related:",
+        "  - first",
+        "  - second",
+        "created: 2020-01-01",
+        "---",
+        "",
+        "## Notes",
+        "",
+        "Body.",
+        "",
+      ].join("\n"),
+    );
+    expect(parseGoal("hand", written)).toEqual({ ...goal, order: 1 });
+    expect(formatGoal(parseGoal("hand", written))).toBe(written);
+  });
+
   it("keeps text written above the first section by moving it into notes", () => {
     const parsed = parseGoal(
       "g",

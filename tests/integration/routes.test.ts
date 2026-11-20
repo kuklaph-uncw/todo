@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { devFetch } from "../../src/dev-server";
 import { handleRequest } from "../../src/server";
 import { escapeHtml } from "../../src/lib/html";
+import { contentRevision } from "../../src/vault/revision";
 import { createTestContext, formPost, get } from "../helpers/test-vault";
 import packageJson from "../../package.json";
 
@@ -657,6 +658,55 @@ describe("goals", () => {
     expect((await send(formPost("/goals/missing/move", { direction: "up" }))).status).toBe(404);
   });
 
+  it("refuses a stale Mark agreed or move from a page loaded before another change", async () => {
+    const first = ctx.vault.createGoal({ title: "First", cycle: "2026" });
+    ctx.vault.createGoal({ title: "Second", cycle: "2026" });
+    const page = await html("/goals?view=reader&cycle=2026");
+    const revisionIn = (action: string) =>
+      new RegExp(
+        `action="${action}"[^>]*>\\s*<input type="hidden" name="return_to" value="[^"]*">\\s*<input type="hidden" name="expected_revision" value="([a-f0-9]{64})">`,
+      ).exec(page)?.[1];
+    const statusRevision = revisionIn("/goals/first/status");
+    const moveRevision = revisionIn("/goals/first/move");
+    expect(statusRevision).toMatch(/^[a-f0-9]{64}$/);
+    expect(moveRevision).toBe(statusRevision);
+
+    // An agent drops the goal after the page loaded.
+    ctx.vault.saveGoal(first.slug, { ...first, status: "dropped" }, "2026-09-20");
+    const back = "/goals?view=reader&cycle=2026#goal-first";
+    const status = (fields: Record<string, string>) =>
+      send(formPost("/goals/first/status", { status: "agreed", return_to: back, ...fields }));
+    const move = (fields: Record<string, string>) =>
+      send(formPost("/goals/first/move", { direction: "down", return_to: back, ...fields }));
+    const notice = "This goal changed after this page loaded. Check it and try again.";
+
+    for (const response of [
+      await status({ expected_revision: statusRevision! }),
+      await move({ expected_revision: moveRevision! }),
+    ]) {
+      const location = response.headers.get("location")!;
+      expect(location).toStartWith("/goals?view=reader&cycle=2026&error=");
+      expect(location).toEndWith("#goal-first");
+      expect(await html(location)).toContain(escapeHtml(notice));
+    }
+    expect(ctx.vault.getGoal("first")).toMatchObject({ status: "dropped", droppedOn: "2026-09-20", order: 1 });
+
+    // With the current revision, or none (older pages), the buttons work.
+    const current = { expected_revision: contentRevision(ctx.vault.getGoal("first")!) };
+    expect((await status(current)).headers.get("location")).toBe(back);
+    expect(ctx.vault.getGoal("first")).toMatchObject({ status: "agreed", droppedOn: null });
+    expect(
+      (await move({ expected_revision: contentRevision(ctx.vault.getGoal("first")!) })).headers.get("location"),
+    ).toBe(back);
+    expect(ctx.vault.getGoal("first")?.order).toBe(2);
+    expect((await move({})).headers.get("location")).toBe(back);
+    expect(ctx.vault.getGoal("first")?.order).toBe(2);
+    expect(
+      (await send(formPost("/goals/first/move", { direction: "up", return_to: back }))).headers.get("location"),
+    ).toBe(back);
+    expect(ctx.vault.getGoal("first")?.order).toBe(1);
+  });
+
   it("marks a draft agreed from the sheet", async () => {
     const goal = ctx.vault.createGoal({ title: "Client communication", cycle: "2026", description: "Kept." });
     const back = "/goals?view=reader&cycle=2026#goal-client-communication";
@@ -869,6 +919,7 @@ describe("goals", () => {
     for (const [link, message] of [
       ["taken", "Another goal already uses [[taken]]."],
       ["carry", "That link is reserved. Pick another."],
+      ["aux", "That link is reserved. Pick another."],
       ["!!", "A link needs at least one letter or number."],
     ]) {
       const location = (await post(link)).headers.get("location")!;
@@ -883,6 +934,44 @@ describe("goals", () => {
     expect(ctx.vault.getGoal("ship")).toMatchObject({ status: "draft", description: "Old." });
   });
 
+  it("doesn't let a stale edit form undo a change made elsewhere, such as by an agent", async () => {
+    const goal = ctx.vault.createGoal({
+      title: "Ship",
+      cycle: "2026",
+      description: "Old description.",
+      notes: "Mine.",
+    });
+    const form = await html(`/goals?view=reader&cycle=2026&edit=${goal.slug}`);
+    const revision = /name="expected_revision" value="([a-f0-9]{64})"/.exec(form)![1];
+    ctx.vault.saveGoal(goal.slug, { ...goal, notes: "From an agent." });
+    const post = (expected: string) =>
+      send(
+        formPost(`/goals/${goal.slug}`, {
+          title: "Ship",
+          status: "draft",
+          // Cleared by the user: it must stay cleared, not refill with the stored text.
+          description: "",
+          notes: "Typed in the form.",
+          link: goal.slug,
+          view: "reader",
+          expected_revision: expected,
+          return_to: "/goals?view=reader&cycle=2026#goal-ship",
+        }),
+      );
+    const location = (await post(revision)).headers.get("location")!;
+    expect(location).toStartWith("/goals?view=reader&cycle=2026&edit=ship&error=");
+    const page = await html(location);
+    expect(page).toContain("This goal changed somewhere else while you were editing");
+    expect(page).toContain("Typed in the form.</textarea>");
+    expect(page).toMatch(/name="description" rows="4" placeholder="[^"]*" data-plain><\/textarea>/);
+    expect(page).not.toContain("Old description.</textarea>");
+    expect(ctx.vault.getGoal("ship")).toMatchObject({ notes: "From an agent.", description: "Old description." });
+    // Saving again from that form, which now carries the current revision, replaces it on purpose.
+    const fresh = /name="expected_revision" value="([a-f0-9]{64})"/.exec(page)![1];
+    expect((await post(fresh)).headers.get("location")).toBe("/goals?view=reader&cycle=2026#goal-ship");
+    expect(ctx.vault.getGoal("ship")).toMatchObject({ notes: "Typed in the form.", description: "" });
+  });
+
   it("edits an activity with one activity field and keeps any expectation text it has", async () => {
     const plan = ctx.vault.createGoal({ title: "Learn", cycle: "2026", kind: "activity", meeting: "Hand-written." });
     const form = section(await html(`/goals?view=reader&cycle=2026&edit=${plan.slug}`), plan.slug);
@@ -893,6 +982,29 @@ describe("goals", () => {
       formPost(`/goals/${plan.slug}`, { title: "Learn", status: "agreed", description: "Courses.", notes: "" }),
     );
     expect(ctx.vault.getGoal(plan.slug)).toMatchObject({ description: "Courses.", meeting: "Hand-written." });
+  });
+
+  it("cleans control characters out of names and cycles posted by the goal forms", async () => {
+    await send(formPost("/goals", { title: "Ship\u0001 it", cycle: "2026\u007f", kind: "goal", view: "reader" }));
+    expect(ctx.vault.getGoal("ship-it")).toMatchObject({ title: "Ship it", cycle: "2026" });
+    await send(
+      formPost("/goals/ship-it", { title: "Ship\u0000 again", status: "draft", link: "ship-it", view: "reader" }),
+    );
+    expect(ctx.vault.getGoal("ship-it")?.title).toBe("Ship again");
+  });
+
+  it("keeps a hand-written cycle's spacing when adding to it or carrying into it", async () => {
+    ctx.vault.createGoal({ title: "First", cycle: "FY  2027" });
+    const res = await send(formPost("/goals", { title: "Second", cycle: "FY  2027", kind: "goal", view: "reader" }));
+    expect(ctx.vault.getGoal("second")?.cycle).toBe("FY  2027");
+    expect(res.headers.get("location")).toContain(`cycle=${encodeURIComponent("FY  2027").replace(/%20/g, "+")}`);
+
+    ctx.vault.createGoal({ title: "Carried", cycle: "2026" });
+    const carry = { from: "2026", cycle: "Q1  2027", goal: "carried", view: "reader" };
+    const first = await send(formPost("/goals/carry", carry));
+    await send(formPost("/goals/carry", carry));
+    expect(ctx.vault.getGoals().filter((goal) => goal.cycle === "Q1  2027")).toHaveLength(1);
+    expect(first.headers.get("location")).toContain(`cycle=${encodeURIComponent("Q1  2027").replace(/%20/g, "+")}`);
   });
 
   it("adds a goal or activity in place and keeps typed text when the name is missing", async () => {

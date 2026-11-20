@@ -95,6 +95,12 @@ describe("slugify", () => {
     expect(slugify("  ---  ")).toBe("");
     expect(slugify("Résumé refresh")).toBe("resume-refresh");
   });
+
+  it("cuts at 48 characters, counting a letter outside the BMP as one", () => {
+    expect(slugify("a".repeat(60))).toBe("a".repeat(48));
+    expect(slugify(`${"a".repeat(47)} bcd`)).toBe("a".repeat(47));
+    expect(slugify(`${"a".repeat(47)}\u{20000}xyz`)).toBe(`${"a".repeat(47)}\u{20000}`);
+  });
 });
 
 describe("safeReturnPath", () => {

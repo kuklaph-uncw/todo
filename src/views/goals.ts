@@ -6,6 +6,7 @@ import type { Goal } from "../vault/format";
 import type { GoalsView } from "../preferences";
 import type { ReviewItem } from "../review";
 import { cycleYear } from "../timeline";
+import { contentRevision } from "../vault/revision";
 import {
   emptyState,
   entryHtml,
@@ -207,7 +208,7 @@ function moveButtons(goal: Goal, opts: ClauseOptions): string {
   const button = (direction: "up" | "down", enabled: boolean) =>
     `<button class="icon-btn" type="submit" name="direction" value="${direction}"${enabled ? "" : " disabled"} aria-label="${escapeHtml(`Move ${goal.title} ${direction}`)}" title="Move ${direction}">${icon(direction)}</button>`;
   return `<form class="move-goal" method="post" action="${goalPath(goal)}/move" data-full-page>
-      ${hidden("return_to", opts.returnTo)}${button("up", opts.move.up)}${button("down", opts.move.down)}
+      ${hidden("return_to", opts.returnTo)}${hidden("expected_revision", contentRevision(goal))}${button("up", opts.move.up)}${button("down", opts.move.down)}
     </form>`;
 }
 
@@ -228,7 +229,7 @@ function record(goal: Goal, opts: ClauseOptions): string {
   }
   if (goal.status === "draft" && opts.returnTo) {
     parts.push(`<form method="post" action="${goalPath(goal)}/status" data-full-page>
-        ${hidden("return_to", opts.returnTo)}${hidden("status", "agreed")}
+        ${hidden("return_to", opts.returnTo)}${hidden("expected_revision", contentRevision(goal))}${hidden("status", "agreed")}
         <button class="btn small" type="submit" aria-label="${escapeHtml(`Mark agreed: ${goal.title}`)}">${icon("check")} Mark agreed</button>
       </form>`);
   }
@@ -314,7 +315,7 @@ function goalForm(opts: FormOptions): string {
     : goalsUrl(opts.view, opts.cycle);
   const action = goal ? goalPath(goal) : "/goals";
   const fields = goal
-    ? hidden("view", opts.view)
+    ? `${hidden("view", opts.view)}${hidden("expected_revision", contentRevision(goal))}`
     : `${hidden("cycle", opts.cycle)}${hidden("kind", kind)}${hidden("view", opts.view)}`;
   // The link is what entries and todos type; changing it rewrites them (see the route).
   const link = goal
