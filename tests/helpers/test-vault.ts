@@ -10,10 +10,24 @@ export function createTestVault(): { vault: Vault; root: string; cleanup: () => 
   return { vault: new Vault(root), root, cleanup: () => rmSync(root, { recursive: true, force: true }) };
 }
 
-/** App context with the clock pinned to 2026-09-28 14:05 local time. */
+/**
+ * App context with the clock pinned to 2026-09-28 14:05 local time.
+ * Preferences go in a file beside the vault, as the desktop app keeps them outside it.
+ */
 export function createTestContext(): AppContext & { root: string; cleanup: () => void } {
   const { vault, root, cleanup } = createTestVault();
-  return { vault, vaultPath: root, clock: () => new Date(2026, 8, 28, 14, 5), root, cleanup };
+  const preferencesPath = `${root}-preferences.json`;
+  return {
+    vault,
+    vaultPath: root,
+    preferencesPath,
+    clock: () => new Date(2026, 8, 28, 14, 5),
+    root,
+    cleanup: () => {
+      cleanup();
+      rmSync(preferencesPath, { force: true });
+    },
+  };
 }
 
 /** Builds a same-origin form POST like a browser would send. */

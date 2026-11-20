@@ -101,7 +101,11 @@ export class LedgerService {
   }
 
   goals() {
-    return { goals: this.vault.getGoals().map(({ slug, title, cycle, status }) => ({ slug, title, cycle, status })) };
+    return {
+      goals: this.vault
+        .getGoals()
+        .map(({ slug, title, cycle, status, kind }) => ({ slug, title, cycle, status, kind })),
+    };
   }
 
   tags() {

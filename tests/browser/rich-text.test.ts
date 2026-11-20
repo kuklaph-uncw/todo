@@ -62,6 +62,56 @@ it("round-trips adjacent formatting and boundary backticks in inline code", asyn
   expect(result.codes).toEqual(["`", "``", "`start", "end`", " both "]);
 });
 
+it("renders saved web links and retains their destinations through visual edits and HTML paste", async () => {
+  const text = "See [Staging index](https://example.com/open.act?id=example&type=page) for details.";
+  const [entry] = ctx.vault.addEntries("2026-09-28", [text], {
+    tags: [],
+    goals: [],
+    minutes: null,
+    isHighlight: false,
+    time: null,
+  });
+  await page.goto(server.url.href);
+  const link = page.locator(`#entry-${entry.id}`).getByRole("link", { name: "Staging index" });
+  expect(await link.getAttribute("href")).toBe("https://example.com/open.act?id=example&type=page");
+  await page.goto(`${server.url}?edit=${entry.id}`);
+  const editor = page.getByRole("textbox", { name: "Entry text", exact: true });
+  expect(await editor.locator("a").count()).toBe(1);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).waitFor({ state: "hidden" });
+  expect(ctx.vault.peekEntries("2026-09-28").find((value) => value.id === entry.id)?.text).toBe(text);
+  const pasted = await page.evaluate(async () => {
+    const url = "/rich-text.js";
+    const { editorMarkdown } = await import(url);
+    const content = document.createElement("div");
+    content.innerHTML =
+      '<p><a href="https://example.com/a_(b)?x=1&amp;y=2">Plan</a> <a href="javascript:alert(1)">Bad</a></p>';
+    return editorMarkdown(content);
+  });
+  expect(pasted).toBe("[Plan](https://example.com/a_(b)?x=1&y=2) Bad");
+  const unusual = await page.evaluate(async () => {
+    const url = "/rich-text.js";
+    const { editorMarkdown, renderEntryMarkdown } = await import(url);
+    return ["https://example.com/a)", "https://example.com/a(b", "https://example.com/a?x=%22quote%22&y=2"].map(
+      (href) => {
+        const content = document.createElement("div");
+        const link = document.createElement("a");
+        link.href = href;
+        link.textContent = href.includes("%22") ? "[Label](https://example.org)" : "Label [brackets]";
+        content.append(link);
+        const markdown = editorMarkdown(content);
+        content.innerHTML = renderEntryMarkdown(markdown);
+        return { href: content.querySelector("a")?.getAttribute("href"), label: content.textContent };
+      },
+    );
+  });
+  expect(unusual).toEqual([
+    { href: "https://example.com/a)", label: "Label [brackets]" },
+    { href: "https://example.com/a(b", label: "Label [brackets]" },
+    { href: "https://example.com/a?x=%22quote%22&y=2", label: "[Label](https://example.org)" },
+  ]);
+}, 30000);
+
 it("round-trips fenced code literally and turns pasted <pre> into a safe code block", async () => {
   await page.goto(server.url.href);
   const result = await page.evaluate(async () => {
@@ -91,6 +141,27 @@ it("round-trips fenced code literally and turns pasted <pre> into a safe code bl
   expect(result.info).toBe("~~~a`b c\nx\n~~~");
 });
 
+it("keeps Markdown link syntax pasted as literal text inactive after save and reload", async () => {
+  await page.goto(server.url.href);
+  const literal = "[Literal pasted link](https://example.com/reference?one=1&two=2)";
+  await page.locator("#capture").fill("");
+  await page.locator("#capture").focus();
+  await page.locator("#capture").evaluate((editor, text) => {
+    editor.dispatchEvent(new KeyboardEvent("keydown", { key: "v", ctrlKey: true, shiftKey: true, bubbles: true }));
+    const data = new DataTransfer();
+    data.setData("text/plain", text);
+    data.setData("text/html", '<a href="https://example.com/reference">Literal pasted link</a>');
+    editor.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  }, literal);
+  expect(await page.locator("#capture a").count()).toBe(0);
+  await page.getByRole("button", { name: "Add to ledger", exact: true }).click();
+  await page.locator(".entry-text").filter({ hasText: "Literal pasted link" }).waitFor();
+  await page.reload();
+  const entry = page.locator(".entry-text").filter({ hasText: "Literal pasted link" });
+  expect(await entry.textContent()).toBe(literal);
+  expect(await entry.locator("a").count()).toBe(0);
+}, 30000);
+
 it("keeps formatted tag metadata and ignores clipboard token attributes", async () => {
   await page.goto(server.url.href);
   const editor = page.locator("#capture");
@@ -111,20 +182,19 @@ it("keeps formatted tag metadata and ignores clipboard token attributes", async 
   expect(await page.locator("#capture").textContent()).toBe("Visible text");
 }, 30000);
 
-it("edits goal descriptions and todo notes with the same formatting and keeps real subtasks", async () => {
-  const goal = ctx.vault.createGoal({ title: "Editor goal", cycle: "2026", body: "" });
+it("edits goal notes and todo notes with the same formatting and keeps real subtasks", async () => {
+  const goal = ctx.vault.createGoal({ title: "Editor goal", cycle: "2026" });
   await page.goto(`${server.url}goals/${goal.slug}?edit=1`);
-  const goalEditor = page.getByRole("textbox", {
-    name: "Success criteria, progress notes, self-assessment",
-    exact: true,
-  });
+  // The parts pasted into FCP stay plain text fields; only notes get the editor.
+  expect(await page.getByLabel("Description", { exact: true }).evaluate((el) => el.tagName)).toBe("TEXTAREA");
+  const goalEditor = page.getByRole("textbox", { name: "Notes", exact: true });
   await goalEditor.fill("Rich goal description");
   await goalEditor.press("Control+a");
   await showFormatting();
   await goalEditor.locator("..").getByRole("button", { name: "Bold", exact: true }).click();
   await page.getByRole("button", { name: "Save goal", exact: true }).click();
   await page.locator(".prose strong").waitFor();
-  expect(ctx.vault.getGoal(goal.slug)?.body).toBe("**Rich goal description**");
+  expect(ctx.vault.getGoal(goal.slug)?.notes).toBe("**Rich goal description**");
 
   const todo = ctx.vault.addTodo({
     task: "Rich notes todo",
@@ -167,7 +237,7 @@ it("restores rich drafts and keeps unsupported Markdown editable without rewriti
   await page.evaluate(() => localStorage.removeItem("draft:today"));
   // Visual mode would save "* " bullets as "- ", so this opens as Markdown source.
   const body = "* starred bullet\n**literal** [[ link with spaces ]]";
-  const goal = ctx.vault.createGoal({ title: "Literal goal", cycle: "2026", body });
+  const goal = ctx.vault.createGoal({ title: "Literal goal", cycle: "2026", notes: body });
   await page.goto(`${server.url}goals/${goal.slug}?edit=1`);
   await showFormatting();
   expect(await page.getByRole("button", { name: "Markdown source", exact: true }).getAttribute("aria-pressed")).toBe(
@@ -182,7 +252,7 @@ it("restores rich drafts and keeps unsupported Markdown editable without rewriti
   expect(await page.locator(".lens-face").first().textContent()).toBe("MD");
   await page.getByRole("button", { name: "Save goal", exact: true }).click();
   await page.getByRole("button", { name: "Save goal", exact: true }).waitFor({ state: "hidden" });
-  expect(ctx.vault.getGoal(goal.slug)?.body).toBe(body);
+  expect(ctx.vault.getGoal(goal.slug)?.notes).toBe(body);
 }, 30000);
 
 afterAll(async () => {
@@ -215,7 +285,7 @@ it("formats a journal entry, supports undo, saves Markdown, and restores its for
 }, 30000);
 
 it("keeps tag and goal suggestions in journal entries and supports keyboard toolbar navigation", async () => {
-  const goal = ctx.vault.createGoal({ title: "Keyboard goal", cycle: "2026", body: "" });
+  const goal = ctx.vault.createGoal({ title: "Keyboard goal", cycle: "2026" });
   await page.goto(server.url.href);
   const editor = page.locator("#capture");
   await editor.fill("Tagged journal ");
@@ -250,8 +320,8 @@ it("keeps tag and goal suggestions in journal entries and supports keyboard tool
 
 it("keeps the editor and formatting controls inside a narrow viewport", async () => {
   await page.setViewportSize({ width: 320, height: 800 });
-  await page.goto(`${server.url}goals`);
-  const editor = page.getByRole("textbox", { name: "What does success look like?", exact: true });
+  await page.goto(`${server.url}goals?view=reader&cycle=2026&add=goal`);
+  const editor = page.getByRole("textbox", { name: "Notes", exact: true });
   await editor.fill("A readable goal description");
   const box = editor.locator("..");
   const bounds = await box.boundingBox();
@@ -266,8 +336,8 @@ it("keeps the editor and formatting controls inside a narrow viewport", async ()
 }, 30000);
 
 it("applies headings, lists and inline code through the keyboard and toolbar", async () => {
-  await page.goto(`${server.url}goals`);
-  const editor = page.getByRole("textbox", { name: "What does success look like?", exact: true });
+  await page.goto(`${server.url}goals?view=reader&cycle=2026&add=goal`);
+  const editor = page.getByRole("textbox", { name: "Notes", exact: true });
   const box = editor.locator("..");
   await editor.fill("A heading");
   await showFormatting();

@@ -21,21 +21,64 @@ const vault = new Vault(root);
 const today = localDateString();
 const year = today.slice(0, 4);
 
-const reliability = vault.createGoal({
-  title: "Improve platform reliability",
+// Goals in Full Cycle Performance's shape: name, description, meeting and exceeding expectations.
+const delivery = vault.createGoal({
+  title: "Improve Workflow Efficiency and Operational Processes",
   cycle: year,
-  body: "Cut pages per week in half and get every service an owner and a runbook.\n\nMeasured by: on-call page count, incident count, runbook coverage.",
+  status: "agreed",
+  description:
+    "Improve, automate, and document workflows that reduce manual effort, increase consistency, clarify processes, and improve the experience of technicians, clients, and end users.",
+  meeting:
+    "Meeting expectations may include contributions to forms, workflows, routing, dashboards, reports, documentation, process maps, automation, ticketing processes, content-management workflows, document workflows, or other recurring operational processes.",
+  exceeding:
+    "Exceeding expectations may include delivering high-impact workflow improvements, integrating processes across systems, moving significant enhancements into production, developing meaningful automation, or establishing reusable workflow standards adopted by the team.",
+  notes:
+    "The billing cutover is the big one for year-end. Ask whether the cutover checklist can become the team standard, since that reads as exceeding.",
+}).slug;
+vault.createGoal({
+  title: "Strengthen Data, Content, Document, and Digital Asset Stewardship",
+  cycle: year,
+  status: "agreed",
+  description:
+    "Improve the quality, structure, accessibility, maintainability, and lifecycle management of data, content, documents, PDFs, and digital assets.",
+  meeting:
+    "Meeting expectations may include contributions to data cleanup, content maintenance, metadata improvements, document/PDF processes, reporting, data extraction, data validation, data transformation, standards, accessibility, ownership, hosting, or lifecycle management.",
+  exceeding:
+    "Exceeding expectations may include delivering repeatable or automated data/content improvements, establishing adopted standards, improving reporting or visibility, strengthening long-term maintainability, or solving complex data, content, document, or asset-management problems with clear operational benefit.",
+  notes: "Nothing linked yet. The PDF accessibility backlog would fit here; raise it at the next check-in.",
+});
+const reliability = vault.createGoal({
+  title: "Develop Technical Solutions, Tools, Applications, and Integrations",
+  cycle: year,
+  status: "agreed",
+  description:
+    "Develop and improve technical solutions that support automation, reporting, system integration, client needs, team efficiency, platform capabilities, and responsible use of emerging development workflows.",
+  meeting:
+    "Meeting expectations may include creating or enhancing scripts, applications, dashboards, browser extensions, APIs, reusable code, integrations, cloud/local functions, prototypes, plugins, MCP servers, AI-assisted development workflows, agentic coding workflows, DevOps improvements, or custom technical implementations.",
+  exceeding:
+    "Exceeding expectations may include moving significant tools or integrations into production, developing reusable solutions adopted by others, improving security or reliability, leading impactful new capabilities, implementing strategic API integrations, or creating responsible AI-assisted or agentic development patterns that improve efficiency and maintainability.",
 }).slug;
 const mentoring = vault.createGoal({
-  title: "Grow the team through mentoring",
+  title: "Improve Client Communication, Service Delivery, and Stakeholder Engagement Across Campus Units",
   cycle: year,
-  body: "Pair weekly with the two newest engineers and help one of them lead a project end to end.",
+  description:
+    "Improve how requests, updates, and outcomes are communicated to clients and stakeholders across campus units. This includes setting clear expectations at intake, giving timely status updates on longer projects, and closing the loop when work is finished.",
+  meeting:
+    "Meeting expectations may include responding to client requests within agreed timeframes, keeping ticket notes and status updates current, and confirming requirements before work begins.",
+  exceeding:
+    "Exceeding expectations may include establishing a repeatable communication approach, such as intake templates, status update schedules, or project summaries, that other team members adopt.",
+  notes: "My manager wants fewer units named in the description. Rework after the next check-in, then mark agreed.",
 }).slug;
-const delivery = vault.createGoal({
-  title: "Ship the billing migration",
+const retired = vault.createGoal({ title: "Retire the Legacy Intranet Server", cycle: year, status: "agreed" });
+vault.saveGoal(retired.slug, { ...retired, status: "dropped" }, addDays(today, -40));
+vault.createGoal({
+  title: "Technical expertise",
   cycle: year,
-  body: "Move all invoicing to the new billing service with zero customer-facing incidents.",
-}).slug;
+  kind: "activity",
+  status: "agreed",
+  description:
+    "Continue developing technical expertise in areas relevant to the current role and future growth, including AI-assisted and agentic development workflows, MCP servers, custom plugins, DevOps practices, APIs, automation, CMS/backend administration, analytics, data architecture, security, and system integration.",
+});
 
 const POOL: { text: string; tags: string[]; goals: string[]; minutes: number | null; star?: boolean }[] = [
   {

@@ -3,7 +3,7 @@ import { notFound } from "./routes/shared";
 import { handleToday } from "./routes/today";
 import { changeEntry, createEntries } from "./routes/journal";
 import { changeSubtask, changeTodo, createTodo, handleTodos } from "./routes/todos";
-import { createGoal, handleGoal, handleGoals, saveGoal } from "./routes/goals";
+import { carryGoals, createGoal, handleGoal, handleGoals, moveGoal, saveGoal, setGoalStatus } from "./routes/goals";
 import { handleExport, handleReview } from "./routes/review";
 import { handleSettings, saveSettings } from "./routes/settings";
 import { checkForUpdates, restartToUpdate, updateStatus } from "./routes/updates";
@@ -68,7 +68,10 @@ async function route(req: Request, ctx: AppContext): Promise<Response> {
     if (parts[0] === "subtasks" && (parts.length === 2 || parts.length === 3))
       return changeSubtask(req, ctx, parts[1], parts[2]);
     if (pathname === "/goals") return createGoal(req, ctx);
+    if (pathname === "/goals/carry") return carryGoals(req, ctx);
     if (parts[0] === "goals" && parts.length === 2) return saveGoal(req, ctx, parts[1]);
+    if (parts[0] === "goals" && parts.length === 3 && parts[2] === "status") return setGoalStatus(req, ctx, parts[1]);
+    if (parts[0] === "goals" && parts.length === 3 && parts[2] === "move") return moveGoal(req, ctx, parts[1]);
   }
 
   return notFound(ctx);

@@ -111,7 +111,7 @@ export function presetRange(preset: RangePreset, today: string): { from: string;
   }
 }
 
-const MONTHS = [
+export const MONTHS = [
   "January",
   "February",
   "March",

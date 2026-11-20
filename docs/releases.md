@@ -68,6 +68,8 @@ Existing 1.1.0 and earlier installations need one manual install of the first up
 
 Version 1.3.0 adds marked blocks in `todos.md` when notes need blank lines, indentation, or literal checkboxes. Use 1.3.0 or newer to edit those notes. Older versions do not understand these blocks and can change their formatting when saving. Existing notes are read without a migration; blocks are written only when a todo is saved with formatting that needs them.
 
+Version 1.5.0 writes goals in Full Cycle Performance's shape: `kind`, `order` and `dropped` in the frontmatter, and the description, expectations and notes as `##` sections. Statuses are now draft, agreed and dropped; older active and achieved goals read as agreed. Use 1.5.0 or newer to edit goals. Older versions show the sections as one block of text, read draft and agreed as active, and drop the new frontmatter fields when saving a goal. Todos can carry a `📅 YYYY-MM-DD` due date, which older versions show as part of the task text.
+
 ## Verify an update
 
 Use disposable Windows test profiles or a VM so real notes and drafts are untouched. Install one updater-enabled version, then publish a higher version to a separate test repository configured as that build's feed. Confirm the older installed app downloads it without prompting, Not now keeps it running, and Restart to update runs the installer and reopens the newer version with notes and the ledger draft intact. Installed copies of 1.3.0 still use their own restart prompt for the update that replaces them. Test offline startup too.

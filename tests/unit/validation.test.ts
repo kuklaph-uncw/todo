@@ -103,5 +103,6 @@ describe("safeReturnPath", () => {
     expect(safeReturnPath("//evil.example", "/")).toBe("/");
     expect(safeReturnPath("https://evil.example", "/")).toBe("/");
     expect(safeReturnPath("/\\evil.example", "/")).toBe("/");
+    expect(safeReturnPath("/\t/evil.example", "/")).toBe("/");
   });
 });

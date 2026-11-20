@@ -4,6 +4,7 @@
  * after each code change. Never shipped; the desktop app is src/electron/main.ts.
  */
 import { homedir } from "node:os";
+import { resolve } from "node:path";
 import { CSP } from "./electron/protocol";
 import { resolveVaultPath } from "./launch";
 import type { AppContext } from "./routes/shared";
@@ -91,7 +92,13 @@ if (import.meta.main) {
     home: homedir(),
     cwd: process.cwd(),
   });
-  const ctx: AppContext = { vault: new Vault(vaultPath), vaultPath, clock: () => new Date() };
+  const ctx: AppContext = {
+    vault: new Vault(vaultPath),
+    vaultPath,
+    // Outside the vault, in the git-ignored tmp/ folder, like the desktop app's userData.
+    preferencesPath: resolve(process.cwd(), "tmp", "dev-preferences.json"),
+    clock: () => new Date(),
+  };
   const server = Bun.serve({ hostname: "127.0.0.1", port: Number(process.env.PORT ?? 41820), fetch: devFetch(ctx) });
   console.log(`ToDo (development) is running at ${server.url}\nNotes: ${vaultPath}`);
 }

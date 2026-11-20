@@ -70,7 +70,7 @@ it("serves legacy MCP clients, lists tools, and creates through the real HTTP tr
 });
 
 it("exposes ledger tools over HTTP and preserves metadata through create, patch, retry and delete", async () => {
-  ctx.vault.createGoal({ title: "Delivery", cycle: "2026", body: "Ship" });
+  ctx.vault.createGoal({ title: "Delivery", cycle: "2026", description: "Ship" });
   const tools = (await readRpc(await rpc("tools/list"))).result.tools;
   for (const name of ["list_entries", "get_entry", "list_goals", "list_tags"]) {
     expect(tools.find((tool: { name: string }) => tool.name === name)?.annotations.readOnlyHint).toBe(true);

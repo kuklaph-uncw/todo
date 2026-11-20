@@ -1,6 +1,6 @@
 import { escapeHtml } from "../lib/html";
 import { renderEntryMarkdown } from "../lib/markdown";
-import { formatMinutes } from "../lib/date";
+import { formatMinutes, shortMonthDay } from "../lib/date";
 import { allSubtasks, findLinks, findTags, type Goal, type Subtask, type Todo } from "../vault/format";
 import { contentRevision } from "../vault/revision";
 
@@ -16,6 +16,9 @@ const ICON_PATHS: Record<string, string> = {
   download: '<path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/>',
   print: '<path d="M7 9V4h10v5M7 17H5v-7h14v7h-2M7 14h10v6H7z"/>',
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+  down: '<path d="M12 5v14M6 13l6 6 6-6"/>',
   undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
   clock: '<circle cx="12" cy="13" r="7"/><path d="M12 9.5V13l2.5 1.5M10 3.5h4"/>',
   expand: '<path d="M14 4h6v6M20 4l-6.5 6.5M10 20H4v-6M4 20l6.5-6.5"/>',
@@ -112,6 +115,13 @@ export function subtaskCount(todo: Todo): string {
   if (all.length === 0) return "";
   const done = all.filter((subtask) => subtask.done).length;
   return `<span class="progress${done === all.length ? " is-complete" : ""}"><span aria-hidden="true">${done}/${all.length}</span><span class="sr-only">${done} of ${all.length} subtasks done</span></span>`;
+}
+
+/** "Due Oct 5" on an open todo, flagged once the day has passed. */
+export function dueDate(todo: Todo, today: string): string {
+  if (!todo.dueOn || todo.status === "Done") return "";
+  const overdue = todo.dueOn < today;
+  return `<span class="due-date${overdue ? " is-overdue" : ""}" title="${overdue ? "Overdue" : "Due date"}">Due ${shortMonthDay(todo.dueOn)}</span>`;
 }
 
 /** Makes a todo's title open and close its subtasks on click (app.js). */
@@ -255,12 +265,19 @@ export function options(values: readonly string[], selected: string | null, blan
 /**
  * Tags and goals for the #tag and /goal suggestions in text fields marked
  * `data-composer` (see app.js). Rendered inside <main> so it stays current
- * when app.js swaps the page in place.
+ * when app.js swaps the page in place. Every goal is listed so typed links
+ * still show as pills, but only `active` ones (from `currentCycle`, not
+ * dropped) are suggested. Today passes the viewed day's year, so backfilling
+ * late December in January still offers that year's goals; Todos pass this year.
  */
-export function composerData(tagCounts: [string, number][], goals: Goal[]): string {
+export function composerData(tagCounts: [string, number][], goals: Goal[], currentCycle: string): string {
   const data = {
     tags: tagCounts,
-    goals: goals.map((goal) => ({ slug: goal.slug, title: goal.title, active: goal.status === "active" })),
+    goals: goals.map((goal) => ({
+      slug: goal.slug,
+      title: goal.title,
+      active: goal.cycle === currentCycle && goal.status !== "dropped",
+    })),
   };
   // Escaping "<" means a goal title can't close the script tag.
   return `<script type="application/json" id="composer-data">${JSON.stringify(data).replace(/</g, "\\u003c")}</script>`;

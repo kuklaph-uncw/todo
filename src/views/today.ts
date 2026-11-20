@@ -5,6 +5,7 @@ import { contentRevision } from "../vault/revision";
 import {
   COMPOSER_HINT,
   composerData,
+  dueDate,
   emptyState,
   entryHtml,
   goalIndex,
@@ -190,8 +191,9 @@ function closedRow(todo: Todo, goals: GoalIndex, returnTo: string): string {
     </li>`;
 }
 
-function trayTodo(todo: Todo, goals: GoalIndex, returnTo: string, date: string): string {
+function trayTodo(todo: Todo, goals: GoalIndex, returnTo: string, date: string, today: string): string {
   const meta = [
+    dueDate(todo, today),
     todo.priority ? `<span class="priority p-${todo.priority.toLowerCase()}">${todo.priority}</span>` : "",
     metaChips({ ...todo, text: todo.task, minutes: null }, goals, subtaskCount(todo)),
   ].join("");
@@ -222,7 +224,7 @@ function tray(data: TodayViewData, goals: GoalIndex, returnTo: string): string {
   // On today, send no date (like the capture form) so a window left open overnight dates to the new day.
   const doneOn = data.date === data.today ? "" : data.date;
   const list = data.activeTodos.length
-    ? `<ul class="todo-list">${data.activeTodos.map((todo) => trayTodo(todo, goals, returnTo, doneOn)).join("")}</ul>`
+    ? `<ul class="todo-list">${data.activeTodos.map((todo) => trayTodo(todo, goals, returnTo, doneOn, data.today)).join("")}</ul>`
     : "";
 
   return `<aside class="tray" aria-labelledby="tray-title">
@@ -289,6 +291,6 @@ export function renderToday(data: TodayViewData): string {
       </div>
     </section>
     ${tray(data, goals, returnTo)}
-    ${composerData(data.tagCounts, data.goals)}
+    ${composerData(data.tagCounts, data.goals, data.date.slice(0, 4))}
   </div>`;
 }

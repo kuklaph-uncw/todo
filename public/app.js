@@ -51,7 +51,8 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
     // After drafts, so a restored draft shows up with its pills.
     const data = document.getElementById("composer-data");
     if (data) composerData = JSON.parse(data.textContent);
-    root.querySelectorAll("input[data-composer], textarea:not([readonly])").forEach(enhanceComposer);
+    // Fields marked data-plain stay plain text (goal parts pasted into another app as typed).
+    root.querySelectorAll("input[data-composer], textarea:not([readonly], [data-plain])").forEach(enhanceComposer);
 
     // Settings › Updates arrives with each page; the rail's state fills it in.
     renderUpdates();
@@ -258,8 +259,8 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
         ? "Number-only tags like #123 aren't tags."
         : "Type a name for a new tag."
       : composerData.goals.some((goal) => goal.active)
-        ? `No active goal matches “${query}”.`
-        : "No active goals yet. Add one on the Goals page.";
+        ? `No goal this cycle matches “${query}”.`
+        : "No goals for this cycle yet. Add one on the Goals page.";
     showSuggestions(
       editor,
       suggestions(isTag, query),
@@ -1023,7 +1024,8 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
       updateTodoSearch(form);
       return;
     }
-    if (form.method.toLowerCase() !== "post") return;
+    // data-full-page posts normally, so the browser follows the redirect to its #anchor.
+    if (form.method.toLowerCase() !== "post" || form.hasAttribute("data-full-page")) return;
     event.preventDefault();
 
     if (form.dataset.confirm && !confirm(form.dataset.confirm)) return;
@@ -1195,9 +1197,11 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
 
     const copyButton = target.closest("[data-copy]");
     if (copyButton) {
-      const source = document.querySelector(copyButton.dataset.copy);
-      const html = copyButton.dataset.copyHtml ? document.querySelector(copyButton.dataset.copyHtml)?.innerHTML : null;
-      const status = document.querySelector(copyButton.dataset.copyStatus || "");
+      // "#id" references, looked up by id: a goal's id holds its file name, which needn't be a valid selector.
+      const byRef = (ref) => (ref ? document.getElementById(ref.replace(/^#/, "")) : null);
+      const source = byRef(copyButton.dataset.copy);
+      const html = byRef(copyButton.dataset.copyHtml)?.innerHTML ?? null;
+      const status = byRef(copyButton.dataset.copyStatus);
       try {
         try {
           if (!html || !window.ClipboardItem) throw new Error("plain text only");
@@ -1214,6 +1218,7 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
         announce(status, copyButton.dataset.copyMessage || "Copied. Paste it into your review.");
       } catch {
         source.closest("details")?.setAttribute("open", "");
+        source.hidden = false;
         source.select();
         announce(status, "Couldn't reach the clipboard. The text is selected below; press Ctrl+C.");
       }
@@ -1232,6 +1237,28 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
 
     const focusButton = target.closest("[data-focus-mode]");
     if (focusButton) setFocusMode(focusButton.form, focusButton.getAttribute("aria-pressed") !== "true");
+  });
+
+  // ---- Goals: timeline rows unfold in place; switching views keeps your place
+
+  document.addEventListener("click", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const unfold = target?.closest("[data-unfold]");
+    if (unfold) {
+      // Without this script the button submits its GET form, which opens the row.
+      event.preventDefault();
+      const detail = document.getElementById(unfold.getAttribute("aria-controls"));
+      if (!detail) return;
+      detail.hidden = !detail.hidden;
+      unfold.setAttribute("aria-expanded", String(!detail.hidden));
+      return;
+    }
+    const viewSwitch = target?.closest("a[data-view-switch]");
+    if (viewSwitch && scrollY > 50) {
+      // Both views give each goal the same id, so land on the one at the top of the window.
+      const here = [...document.querySelectorAll("[data-goal]")].find((el) => el.getBoundingClientRect().bottom > 80);
+      if (here) viewSwitch.hash = here.id;
+    }
   });
 
   // ---- Subtasks: a todo's title opens and closes its list -----------------

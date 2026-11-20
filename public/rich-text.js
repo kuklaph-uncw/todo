@@ -4,6 +4,45 @@ const escapeHtml = (value) =>
     /[&<>"']/g,
     (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char],
   );
+
+/** Shared with Electron: only absolute web URLs may leave the app. */
+export function isWebUrl(value) {
+  if (!/^https?:\/\//i.test(value) || /[\s\p{Cc}\\]/u.test(value)) return false;
+  try {
+    const url = new URL(value);
+    return Boolean(url.hostname && !url.username && !url.password);
+  } catch {
+    return false;
+  }
+}
+
+const unescapeHtml = (value) =>
+  value.replace(
+    /&(?:amp|lt|gt|quot|#39);/g,
+    (entity) => ({ "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'" })[entity],
+  );
+
+/** Inline destinations can contain balanced parentheses, as in a wiki article URL. */
+function markdownLink(text) {
+  const label = /^\[((?:\\.|[^[\]\\\n])+)\]\(/.exec(text);
+  if (!label) return null;
+  const start = label[0].length;
+  if (text.startsWith("&lt;", start)) {
+    const end = text.indexOf("&gt;)", start + 4);
+    if (end < 0) return null;
+    const href = unescapeHtml(text.slice(start + 4, end));
+    return isWebUrl(href) ? { label: label[1], href, length: end + 5 } : null;
+  }
+  let depth = 1;
+  for (let at = label[0].length; at < text.length; at++) {
+    if (text[at] === "(") depth++;
+    if (text[at] === ")" && --depth === 0) {
+      const href = unescapeHtml(text.slice(label[0].length, at));
+      return isWebUrl(href) ? { label: label[1], href, length: at + 1 } : null;
+    }
+  }
+  return null;
+}
 function continuationEnd(lines, start, indent) {
   let end = start;
   for (let next = start; next < lines.length; next++) {
@@ -18,7 +57,7 @@ function continuationEnd(lines, start, indent) {
 /**
  * A small, safe subset of Markdown as HTML, for entry text. Everything is escaped first;
  * only paragraphs, indented bullet and numbered lists, headings (offset by two, max h6),
- * bold, italic and code spans become markup. Other Markdown stays literal.
+ * bold, italic, code spans/blocks and HTTP(S) links become markup. Other Markdown stays literal.
  * `inline` decorates escaped runs outside code spans, for example tag pills.
  */
 export function renderEntryMarkdown(text, inline = (s) => s) {
@@ -28,7 +67,7 @@ export function renderEntryMarkdown(text, inline = (s) => s) {
 }
 
 /** Keeps code spans literal and undecorated, applying emphasis and the inline hook everywhere else. */
-function renderInline(escaped, inline) {
+function renderInline(escaped, inline, links = true) {
   const tokens = [];
   const openers = [];
   let plain = "";
@@ -54,9 +93,18 @@ function renderInline(escaped, inline) {
     if (token.canOpen && token.count) openers.push(token);
   };
   for (let at = 0; at < escaped.length; ) {
-    if (escaped[at] === "\\" && /[\\`*_#.+-]/.test(escaped[at + 1] ?? "")) {
+    if (escaped[at] === "\\" && /[\\`*_#.+\-[\]]/.test(escaped[at + 1] ?? "")) {
       plain += escaped[at + 1];
       at += 2;
+      continue;
+    }
+    const link = links && escaped[at] === "[" && escaped[at - 1] !== "!" && markdownLink(escaped.slice(at));
+    if (link) {
+      flush();
+      tokens.push({
+        html: `<a href="${escapeHtml(link.href)}" target="_blank" rel="noopener noreferrer">${renderInline(link.label, (text) => text, false)}</a>`,
+      });
+      at += link.length;
       continue;
     }
     const code = /^`+/.exec(escaped.slice(at))?.[0];
@@ -208,6 +256,10 @@ const escapeMarkdown = (text) =>
   text
     .replace(/ /g, " ")
     .replace(/[\\*`_]/g, "\\$&")
+    // A text node is literal. Actual anchors serialize separately below.
+    .replace(/\[/g, (bracket, at, source) =>
+      source[at - 1] !== "!" && markdownLink(escapeHtml(source.slice(at))) ? "\\[" : bracket,
+    )
     .replace(/(^|\n)(#{1,6} |[-+] |\d+\.)/g, (_match, lead, marker) => `${lead}${marker.replace(/[.#\-+]/, "\\$&")}`);
 
 /** A code block's text as typed: line breaks and nested lines kept, markup dropped. */
@@ -256,6 +308,16 @@ export function editorMarkdown(node) {
       return `${fence}${pad ? " " : ""}${text}${pad ? " " : ""}${fence}`;
     }
     const text = [...child.childNodes].map(inline).join("");
+    if (child.nodeName === "A" && isWebUrl(child.getAttribute("href") ?? "")) {
+      const label = text.replace(/(?<!\\)[[\]]/g, "\\$&");
+      const href = child.getAttribute("href");
+      const link = `[${label}](${href})`;
+      const escaped = escapeHtml(link);
+      // Angle brackets keep an unbalanced parenthesis in a pasted URL inside its destination.
+      return markdownLink(escaped)?.length === escaped.length
+        ? link
+        : `[${label}](<${href.replace(/</g, "%3C").replace(/>/g, "%3E")}>)`;
+    }
     const mark = /^(B|STRONG)$/.test(child.nodeName) ? "**" : /^(I|EM)$/.test(child.nodeName) ? "*" : "";
     // Whitespace stays outside marks, which Markdown interprets consistently.
     if (mark && text.trim())

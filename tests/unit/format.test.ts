@@ -11,9 +11,13 @@ import {
   parseGoal,
   parseTodoBlocks,
   plainText,
+  renameEntryLinks,
+  renameTodoLinks,
+  renderWithRenamedLinks,
   splitFrontmatter,
 } from "../../src/vault/format";
 import { parseEntryInput, parseTaskInput } from "../../src/vault/vault";
+import { renderEntryMarkdown } from "../../src/lib/markdown";
 
 describe("journal entry lines", () => {
   it("parses time, text, trailing tags, goal links, minutes, star and id", () => {
@@ -239,6 +243,21 @@ describe("todo blocks", () => {
     expect(formatTodo(first.todo)).toEqual([lines[4].replace("[/]", "[ ]"), ...lines.slice(5, 7)]);
   });
 
+  it("reads and writes a due date in Obsidian Tasks order", () => {
+    const line = "- [ ] Renew badge 🔼 ➕ 2026-09-20 📅 2026-10-15 ✅ 2026-09-28 ^d4e5f6";
+    const [block] = parseTodoBlocks([line]);
+    expect(block.todo).toMatchObject({ task: "Renew badge", createdOn: "2026-09-20", dueOn: "2026-10-15" });
+    expect(formatTodo(block.todo)).toEqual([line]);
+    expect(parseTodoBlocks(lines)[0].todo.dueOn).toBeNull();
+  });
+
+  it("keeps an impossible or typed-in due date as task text", () => {
+    const [bad] = parseTodoBlocks(["- [ ] Pay rent 📅 2026-13-01 ^d1"]);
+    expect(bad.todo).toMatchObject({ task: "Pay rent 📅 2026-13-01", dueOn: null });
+    const [typed] = parseTodoBlocks(["- [ ] Pay rent 📅 2026-10-01 ➕ 2026-09-20 📅 2026-10-05 ^d2"]);
+    expect(typed.todo).toMatchObject({ task: "Pay rent 📅 2026-10-01", dueOn: "2026-10-05" });
+  });
+
   it("still ignores task lines with a mark it doesn't know", () => {
     expect(parseTodoBlocks(["- [?] Not a todo ^q1"])).toEqual([]);
   });
@@ -342,24 +361,106 @@ describe("frontmatter and goals", () => {
     });
   });
 
-  it("quotes titles that would confuse YAML and reads them back", () => {
-    const goal = {
-      slug: "g",
-      title: "Scope: platform reliability",
-      cycle: "FY26",
-      status: "active" as const,
-      body: "Why.",
-    };
+  const goal = {
+    slug: "g",
+    title: "Scope: platform reliability",
+    cycle: "FY26",
+    status: "agreed" as const,
+    kind: "goal" as const,
+    order: 2,
+    droppedOn: null,
+    description: "Why it matters.",
+    meeting: "Meeting expectations may include runbooks.",
+    exceeding: "Exceeding expectations may include\n\nadopted standards.",
+    notes: "Ask about **owners**.",
+  };
+
+  it("quotes titles that would confuse YAML and round-trips every field", () => {
     const source = formatGoal(goal);
     expect(source).toContain('title: "Scope: platform reliability"');
     expect(parseGoal("g", source)).toEqual(goal);
   });
 
-  it("falls back to active status and the slug as title", () => {
+  it("keeps a line break in a value inside that value", () => {
+    const forged = { ...goal, cycle: "2026\nstatus: agreed\nkind: activity\n---", status: "draft" as const };
+    const source = formatGoal(forged);
+    expect(parseGoal("g", source)).toEqual(forged);
+  });
+
+  it("writes the FCP parts as Markdown sections and leaves empty ones out", () => {
+    const source = formatGoal({ ...goal, meeting: "", notes: "" });
+    expect(source).toBe(
+      '---\ntitle: "Scope: platform reliability"\ncycle: FY26\nstatus: agreed\nkind: goal\norder: 2\n---\n\n## Description\n\nWhy it matters.\n\n## Exceeding expectations\n\nExceeding expectations may include\n\nadopted standards.\n',
+    );
+  });
+
+  it("round-trips a dropped activity with its drop date", () => {
+    const activity = {
+      ...goal,
+      status: "dropped" as const,
+      kind: "activity" as const,
+      droppedOn: "2026-05-12",
+      meeting: "",
+      exceeding: "",
+    };
+    const source = formatGoal(activity);
+    expect(source).toContain("dropped: 2026-05-12\n");
+    expect(source).not.toContain("## Meeting");
+    expect(parseGoal("g", source)).toEqual(activity);
+  });
+
+  // A line of field text that reads like one of the section headings is written
+  // with a leading backslash, so it stays text (Markdown shows "## Notes").
+  it("keeps heading-like lines inside a field as text", () => {
+    const tricky = {
+      ...goal,
+      description: "Intro\n## Notes\nstill the description\n\\## Notes",
+      notes: "## Meeting expectations",
+    };
+    const source = formatGoal(tricky);
+    expect(source).toContain("\nIntro\n\\## Notes\nstill the description\n\\\\## Notes\n");
+    expect(source).toContain("## Notes\n\n\\## Meeting expectations\n");
+    expect(parseGoal("g", source)).toEqual(tricky);
+  });
+
+  it("reads legacy goals: old statuses, no kind or order, and a free-form body as notes", () => {
+    const legacy = (status: string) =>
+      parseGoal(
+        "old",
+        `---\ntitle: Old\ncycle: 2025\nstatus: ${status}\n---\n\nSuccess criteria.\n\n## Self-assessment\n\nMet it.\n`,
+      );
+    expect(legacy("active")).toEqual({
+      slug: "old",
+      title: "Old",
+      cycle: "2025",
+      status: "agreed",
+      kind: "goal",
+      order: Number.POSITIVE_INFINITY,
+      droppedOn: null,
+      description: "",
+      meeting: "",
+      exceeding: "",
+      notes: "Success criteria.\n\n## Self-assessment\n\nMet it.",
+    });
+    expect(legacy("achieved").status).toBe("agreed");
+    expect(legacy("dropped").status).toBe("dropped");
+    expect(legacy("someday").status).toBe("draft");
+  });
+
+  it("keeps text written above the first section by moving it into notes", () => {
+    const parsed = parseGoal(
+      "g",
+      "---\ntitle: G\n---\nStray line.\n\n## Description\n\nThe goal.\n\n## Notes\n\nTalk points.\n",
+    );
+    expect(parsed).toMatchObject({ description: "The goal.", notes: "Stray line.\n\nTalk points." });
+  });
+
+  it("falls back to draft status and the slug as title", () => {
     expect(parseGoal("my-goal", "no frontmatter")).toMatchObject({
       title: "my-goal",
-      status: "active",
-      body: "no frontmatter",
+      status: "draft",
+      kind: "goal",
+      notes: "no frontmatter",
     });
   });
 });
@@ -388,5 +489,102 @@ describe("helpers", () => {
     expect(plainText("Led [[reliability]] work and [[infra|the infra]] review")).toBe(
       "Led reliability work and the infra review",
     );
+  });
+});
+
+describe("renaming goal links", () => {
+  const date = "2026-09-01";
+  const entryOf = (lines: string[]) => parseEntryBlocks(lines, date)[0].entry;
+  /** Every code block (with its fence and info string) and code span, as the app renders the entry. */
+  const codeOf = (lines: string[]) =>
+    renderEntryMarkdown(entryOf(lines).text).match(/<pre[^>]*>|<code>[\s\S]*?<\/code>/g) ?? [];
+
+  /**
+   * The rename changes exactly what the renderer counts as a link: every
+   * rendered link to `old` now points at `new`, nothing else in the rendered
+   * entry changed, its goals changed only by old → new, and code reads the same.
+   */
+  function expectRenamed(lines: string[]) {
+    const after = renameEntryLinks(lines, date, "old", "new");
+    expect(after).toHaveLength(lines.length);
+    expect(renderEntryMarkdown(entryOf(after).text)).toBe(renderWithRenamedLinks(entryOf(lines).text, "old", "new"));
+    const goals = entryOf(lines).goals.map((goal) => (goal === "old" ? "new" : goal));
+    expect(entryOf(after).goals.sort()).toEqual([...new Set(goals)].sort());
+    expect(codeOf(after)).toEqual(codeOf(lines));
+    return after;
+  }
+
+  it("renames links the renderer counts and leaves code, prefixes and other slugs alone", () => {
+    const after = expectRenamed([
+      "- Escaped \\` [[old]] then `code [[old]]` [[old|label]] [[ old ]] ^aaaaaa",
+      "    Empty `` pair [[old]] then ``[[old]]``, unclosed ` [[old]]",
+      "    [[old-2]] [[older]] [[Old]] ~~~ [[old]]",
+    ]);
+    expect(after).toEqual([
+      "- Escaped \\` [[new]] then `code [[old]]` [[new|label]] [[ new ]] ^aaaaaa",
+      // As the renderer reads it, "`` pair [[old]] then ``" is the code span.
+      "    Empty `` pair [[old]] then ``[[new]]``, unclosed ` [[new]]",
+      "    [[old-2]] [[older]] [[Old]] ~~~ [[new]]",
+    ]);
+  });
+
+  // Hand-written layouts where a simpler set of rules disagreed with the renderer.
+  it.each([
+    ["a tab after the clock time", ["- 09:00\t```", "    [[old]] in code", "    ```", "    after [[old]]"], ["new"]],
+    [
+      "two spaces after the clock time",
+      ["- 09:00  ```", "    [[old]] in code", "    ```", "    after [[old]]"],
+      ["new"],
+    ],
+    [
+      "a fence indented past the entry body, which is text",
+      ["- Note ^aaaaaa", "    para", "", "        ```", "        [[old]]", "        ```"],
+      ["new"],
+    ],
+    [
+      "an over-indented closing fence, which doesn't close",
+      ["- Code ^aaaaaa", "    ```", "    [[old]] in code", "        ```", "    [[old]] still code"],
+      [],
+    ],
+    [
+      "a nested fence closed at the parent's indent",
+      ["- List ^aaaaaa", "    - item", "      ```", "      code", "    ```", "    [[old]] after"],
+      [],
+    ],
+    ["a backtick inside an earlier link", ["- see [[x`y]] and [[old]] and `z` ^aaaaaa"], ["new", "x`y"]],
+    ["a link in a fence's info string", ["- 09:00 ```[[old]] ^aaaaaa", "    code [[old]]", "    ```"], []],
+    [
+      "trailing metadata after a fenced first line",
+      ["- 09:00 ```js [[old]] ^aaaaaa", "    x = [[old]]", "    ```", "    After [[old]]"],
+      ["new"],
+    ],
+  ])("handles %s", (_name, lines, goalsAfter) => {
+    const after = expectRenamed(lines);
+    expect(entryOf(after).goals.sort()).toEqual(goalsAfter.sort());
+    // Lines holding only code come through byte for byte.
+    for (const [i, line] of lines.entries()) if (!after[i].includes("[[new")) expect(after[i]).toBe(line);
+  });
+
+  it("renames todo task, notes and subtask links the same way", () => {
+    const lines = [
+      "- [ ] Call [[old]] about `[[old]]` ^dddddd",
+      "    <!-- todo-notes -->",
+      "    ```",
+      "    [[old]] in a note's code",
+      "    ```",
+      "    Real [[old]]",
+      "    <!-- /todo-notes -->",
+      "    - [ ] Sub [[old|label]] ^eeeeee",
+    ];
+    expect(renameTodoLinks(lines, "old", "new")).toEqual([
+      "- [ ] Call [[new]] about `[[old]]` ^dddddd",
+      "    <!-- todo-notes -->",
+      "    ```",
+      "    [[old]] in a note's code",
+      "    ```",
+      "    Real [[new]]",
+      "    <!-- /todo-notes -->",
+      "    - [ ] Sub [[new|label]] ^eeeeee",
+    ]);
   });
 });

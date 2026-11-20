@@ -11,6 +11,7 @@ const text = z.string().trim().min(1).max(32000);
 const id = z.string().min(1).max(128);
 const requestId = z.string().min(1).max(128);
 const priority = z.enum(["High", "Medium", "Low"]).nullable();
+const localDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const target = { id, expectedRevision: z.string().regex(/^[a-f0-9]{64}$/), requestId };
 
 function toolResult(action: () => object): CallToolResult {
@@ -64,7 +65,7 @@ export function createTodoMcpHandler(service: TodoService, ledger: LedgerService
         "list_goals",
         {
           description:
-            "List existing goal slugs, titles, cycles and statuses. Use a slug in [[goal]] links or an entry's goals array. Does not change goals.",
+            "List existing goal slugs, titles, cycles, statuses (draft, agreed or dropped) and kinds (goal, or activity for the talent development plan). Use a slug in [[goal]] links or an entry's goals array. Does not change goals.",
           inputSchema: z.object({}),
           annotations: readOnly,
         },
@@ -133,11 +134,13 @@ export function createTodoMcpHandler(service: TodoService, ledger: LedgerService
       server.registerTool(
         "add_todo",
         {
-          description: "Add an open todo. Reuse requestId only for an exact retry.",
+          description:
+            "Add an open todo. dueOn is an optional local YYYY-MM-DD due date. Reuse requestId only for an exact retry.",
           inputSchema: z.object({
             task: text,
             priority: priority.optional(),
             notes: z.string().max(128000).optional(),
+            dueOn: localDate.optional(),
             requestId,
           }),
           annotations: writes,
@@ -147,12 +150,14 @@ export function createTodoMcpHandler(service: TodoService, ledger: LedgerService
       server.registerTool(
         "update_todo",
         {
-          description: "Patch task text, priority or notes, preserving omitted fields. Requires the current revision.",
+          description:
+            "Patch task text, priority, notes or due date (local YYYY-MM-DD; null clears it), preserving omitted fields. Requires the current revision.",
           inputSchema: z.object({
             ...target,
             task: text.optional(),
             priority: priority.optional(),
             notes: z.string().max(128000).optional(),
+            dueOn: localDate.nullable().optional(),
           }),
           annotations: { ...writes, destructiveHint: true },
         },
@@ -166,10 +171,7 @@ export function createTodoMcpHandler(service: TodoService, ledger: LedgerService
           inputSchema: z.object({
             ...target,
             status: z.enum(["Open", "Done"]),
-            completedOn: z
-              .string()
-              .regex(/^\d{4}-\d{2}-\d{2}$/)
-              .optional(),
+            completedOn: localDate.optional(),
           }),
           annotations: { ...writes, destructiveHint: true },
         },

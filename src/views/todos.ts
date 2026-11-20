@@ -7,6 +7,7 @@ import { contentRevision } from "../vault/revision";
 import {
   COMPOSER_HINT,
   composerData,
+  dueDate,
   emptyState,
   goalIndex,
   grip,
@@ -33,11 +34,15 @@ export interface TodoFilters {
 
 export interface TodosViewData {
   todos: Todo[];
+  /** Local date, to flag overdue todos. */
+  today: string;
   filters: TodoFilters;
   allTags: string[];
   goals: Goal[];
   /** Every tag in the vault with its use count, for #tag suggestions. */
   tagCounts: [string, number][];
+  /** The review cycle whose goals are suggested: this year, as on the Goals page. */
+  currentCycle: string;
   editId: string | null;
   error: string | null;
   returnTo: string;
@@ -101,6 +106,7 @@ function editForm(todo: Todo, data: TodosViewData): string {
   const back = data.back ?? `${data.returnTo}#todo-${todo.id}`;
   const retry = data.retry;
   const priority = retry?.has("priority") ? retry.get("priority") : todo.priority;
+  const due = retry?.has("due") ? retry.get("due") : todo.dueOn;
   const clear = todo.completedOn
     ? `<div class="completion-note">
         <p>Completed on <strong>${todo.completedOn}</strong>. This date stays even if you reopen the todo, and is reused if you mark it done again.</p>
@@ -126,6 +132,7 @@ function editForm(todo: Todo, data: TodosViewData): string {
         ${COMPOSER_HINT}
         <div class="field-row">
           <label class="field"><span>Priority</span><select name="priority">${options(PRIORITIES, priority, "None")}</select></label>
+          <label class="field"><span>Due</span><input type="date" name="due" value="${escapeHtml(due ?? "")}"></label>
         </div>
         <div class="field"><span id="notes-label-${todo.id}">Notes</span><textarea name="notes" rows="3" aria-labelledby="notes-label-${todo.id}">${escapeHtml(retry?.get("notes") ?? todo.notes)}</textarea></div>
         <div class="edit-bar">
@@ -163,6 +170,7 @@ function todoRow(todo: Todo, goals: GoalIndex, data: TodosViewData): string {
       ? `<span class="done-date" title="Completed">Done ${shortMonthDay(todo.completedOn)}</span>`
       : `<span title="Marking it done again reuses this date">Kept: done ${shortMonthDay(todo.completedOn)}</span>`;
   const dates = [
+    dueDate(todo, data.today),
     todo.createdOn ? `<span title="Added">Added ${shortMonthDay(todo.createdOn)}</span>` : "",
     completion,
   ].join("");
@@ -249,6 +257,8 @@ function addForm(data: TodosViewData): string {
       <input id="new-task" name="task" required placeholder="Add a todo. Type # for tags, / for goals." autocomplete="off" data-shortcut="t" data-composer>
       <label class="sr-only" for="new-priority">Priority</label>
       <select id="new-priority" name="priority"><option value="">No priority</option>${PRIORITIES.map((p) => `<option>${p}</option>`).join("")}</select>
+      <label class="sr-only" for="new-due">Due date (optional)</label>
+      <input id="new-due" type="date" name="due" title="Due date (optional)">
       <button class="btn primary" type="submit">Add todo</button>
     </form>`;
 }
@@ -307,6 +317,6 @@ export function renderTodos(data: TodosViewData): string {
     ${addForm(data)}
     ${filterBar(data)}
     <div id="todo-results">${body}</div>
-    ${composerData(data.tagCounts, data.goals)}
+    ${composerData(data.tagCounts, data.goals, data.currentCycle)}
   </div>`;
 }

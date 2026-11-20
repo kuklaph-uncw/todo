@@ -3,7 +3,7 @@
  * src/electron/protocol.ts. MCP is an opt-in loopback listener in this process.
  * Security follows https://www.electronjs.org/docs/latest/tutorial/security.
  */
-import { app, BrowserWindow, dialog, Menu, protocol, session, Tray, nativeImage } from "electron";
+import { app, BrowserWindow, dialog, Menu, protocol, session, Tray, nativeImage, shell } from "electron";
 import electronUpdater from "electron-updater";
 import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
@@ -15,6 +15,7 @@ import { AgentAccess } from "../mcp/access";
 import { WindowLifecycle } from "./lifecycle";
 import { APP_ORIGIN, isAppUrl, serveAppRequest } from "./protocol";
 import { Updates } from "./updates";
+import { externalNavigationUrl } from "./navigation";
 
 // Must match appId in electron-builder.yml, so taskbar pins group with the app.
 const APP_ID = "com.workledger.app";
@@ -47,7 +48,12 @@ async function start(): Promise<void> {
     cwd: process.cwd(),
   });
   if (app.isPackaged) logErrorsTo(join(vaultPath, ".workledger", "error.log"));
-  const ctx: AppContext = { vault: new Vault(vaultPath), vaultPath, clock: () => new Date() };
+  const ctx: AppContext = {
+    vault: new Vault(vaultPath),
+    vaultPath,
+    preferencesPath: join(profilePath, "preferences.json"),
+    clock: () => new Date(),
+  };
 
   await app.whenReady();
   // No menu bar, and with it no reload or developer-tools shortcuts. Kept while developing.
@@ -167,7 +173,7 @@ async function start(): Promise<void> {
   await mainWindow.loadURL(`${APP_ORIGIN}/`);
 }
 
-// Lock down every page the app creates: no leaving the app, no pop-ups, no embedded browsers.
+// Keep remote pages out of the app. Valid web links open in the system browser.
 // will-frame-navigate covers the main frame and any frames inside it.
 app.on("web-contents-created", (_event, contents) => {
   contents.on("will-frame-navigate", (event) => {
@@ -176,7 +182,12 @@ app.on("web-contents-created", (_event, contents) => {
   contents.on("will-redirect", (event) => {
     if (!isAppUrl(event.url)) event.preventDefault();
   });
-  contents.setWindowOpenHandler(() => ({ action: "deny" }));
+  contents.setWindowOpenHandler((details) => {
+    const external = externalNavigationUrl(contents.getURL(), details.url);
+    if (external && !details.postBody)
+      void shell.openExternal(external).catch((error) => console.error("Could not open link", error));
+    return { action: "deny" };
+  });
   contents.on("will-attach-webview", (event) => event.preventDefault());
 });
 

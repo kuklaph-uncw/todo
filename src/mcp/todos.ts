@@ -11,6 +11,7 @@ export interface TodoCommand {
   task?: string;
   priority?: Priority | null;
   notes?: string;
+  dueOn?: string | null;
   status?: Status;
   completedOn?: string;
   text?: string;
@@ -68,6 +69,7 @@ export class TodoService {
           task: input.task!,
           priority: input.priority ?? null,
           notes: input.notes ?? "",
+          dueOn: input.dueOn,
           status: "Open",
           tags: [],
           goals: [],
@@ -80,7 +82,11 @@ export class TodoService {
       if (todo.revision !== input.expectedRevision) throw new Error("This todo changed. Read it again before editing.");
       switch (name) {
         case "update_todo":
-          this.vault.updateTodo(todo.id, { task: input.task, priority: input.priority, notes: input.notes }, today);
+          this.vault.updateTodo(
+            todo.id,
+            { task: input.task, priority: input.priority, notes: input.notes, dueOn: input.dueOn },
+            today,
+          );
           break;
         case "set_todo_status":
           this.vault.updateTodo(todo.id, { status: input.status, completedOn: input.completedOn }, today);

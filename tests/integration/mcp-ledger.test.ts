@@ -15,13 +15,19 @@ it("reads ledger entries and discovers goals/tags without assigning missing IDs"
   const source = "- 09:00 Hand written #ops [[delivery]]\n    Keep **Markdown**\n";
   writeFileSync(path, source);
   writeFileSync(join(ctx.root, "todos.md"), "- [ ] Follow up #ops #support\n");
-  const goal = ctx.vault.createGoal({ title: "Delivery", cycle: "2026", body: "Ship carefully" });
+  const goal = ctx.vault.createGoal({ title: "Delivery", cycle: "2026", description: "Ship carefully" });
   const service = new LedgerService(ctx.vault, ctx.clock);
   const listed = service.list({});
   expect(listed.today).toBe("2026-09-28");
   expect(listed.entries).toHaveLength(1);
   expect(listed.entries[0]).toMatchObject({ id: "", date: "2026-09-28", text: "Hand written\nKeep **Markdown**" });
-  expect(service.goals().goals).toContainEqual({ slug: goal.slug, title: "Delivery", cycle: "2026", status: "active" });
+  expect(service.goals().goals).toContainEqual({
+    slug: goal.slug,
+    title: "Delivery",
+    cycle: "2026",
+    status: "draft",
+    kind: "goal",
+  });
   expect(service.tags().tags).toEqual([
     { tag: "ops", count: 2 },
     { tag: "support", count: 1 },
@@ -33,7 +39,7 @@ it("reads ledger entries and discovers goals/tags without assigning missing IDs"
 
 it("creates entries with inline and structured metadata and returns the persisted revision", () => {
   const service = new LedgerService(ctx.vault, ctx.clock);
-  const goal = ctx.vault.createGoal({ title: "Delivery", cycle: "2026", body: "" });
+  const goal = ctx.vault.createGoal({ title: "Delivery", cycle: "2026" });
   const added = service.execute("add_entry", {
     text: "Shipped #ops [[delivery]]\n\n```sh\necho done  \n```",
     tags: ["Support"],

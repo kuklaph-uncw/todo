@@ -13,10 +13,11 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renam
 import { dirname, join, relative } from "node:path";
 import { isValidDateString, localDateString, nowUtcIso } from "../lib/date";
 import { mapOutsideFences } from "../lib/lines";
-import type { GoalStatus, Priority, Status } from "../lib/validation";
-import { isValidPriority, isValidStatus, slugify } from "../lib/validation";
+import type { Priority, Status } from "../lib/validation";
+import { isGoalSlug, isValidPriority, isValidStatus, slugify } from "../lib/validation";
 import {
   allSubtasks,
+  compareGoals,
   entryContent,
   formatEntry,
   formatGoal,
@@ -26,6 +27,10 @@ import {
   parseEntryLine,
   parseGoal,
   parseTodoBlocks,
+  renameEntryLinks,
+  renameTodoLinks,
+  entryView,
+  todoView,
   type Entry,
   type EntryBlock,
   type Goal,
@@ -49,12 +54,23 @@ export interface NewTodo {
   tags: string[];
   goals: string[];
   notes: string;
+  dueOn?: string | null;
 }
+
+export type GoalText = Pick<Goal, "description" | "meeting" | "exceeding" | "notes">;
+
+export type NewGoal = Pick<Goal, "title" | "cycle"> & Partial<Pick<Goal, "kind" | "status"> & GoalText>;
+
+export type GoalChange = Pick<Goal, "title" | "status"> & GoalText;
+
+export const DUE_DATE_ERROR = "Due date must be a valid date.";
 
 export interface TodoPatch {
   task?: string;
   priority?: Priority | null;
   notes?: string;
+  /** null clears the due date. */
+  dueOn?: string | null;
   status?: Status;
   /** Local date to record if this patch completes the todo. Defaults to today. */
   completedOn?: string;
@@ -71,6 +87,7 @@ export function applyTodoPatch(todo: Todo, patch: TodoPatch, today: string): Tod
   if (patch.task !== undefined) Object.assign(next, parseTaskInput(patch.task));
   if (patch.priority !== undefined) next.priority = patch.priority;
   if (patch.notes !== undefined) next.notes = patch.notes;
+  if (patch.dueOn !== undefined) next.dueOn = patch.dueOn;
   if (patch.isHighlight !== undefined) next.isHighlight = patch.isHighlight;
   if (patch.status !== undefined) {
     next.status = patch.status;
@@ -384,6 +401,7 @@ export class Vault {
     if (!parseTaskInput(input.task).task) throw new Error("A todo needs a task.");
     if (!isValidPriority(input.priority)) throw new Error("Pick High, Medium, Low or no priority.");
     if (!isValidStatus(input.status)) throw new Error("That status isn't one the app knows.");
+    if (input.dueOn && !isValidDateString(input.dueOn)) throw new Error(DUE_DATE_ERROR);
     const { lines, blocks } = this.readTodoFile();
     const parsed = parseTaskInput(input.task);
     const todo: Todo = {
@@ -396,6 +414,7 @@ export class Vault {
       minutes: null,
       isHighlight: false,
       createdOn: today,
+      dueOn: input.dueOn || null,
       completedOn: input.status === "Done" ? today : null,
       notes: input.notes,
       subtasks: [],
@@ -421,6 +440,7 @@ export class Vault {
     if (patch.completedOn !== undefined && (!isValidDateString(patch.completedOn) || patch.completedOn > today)) {
       throw new Error("Completion date must be a valid date on or before today.");
     }
+    if (patch.dueOn && !isValidDateString(patch.dueOn)) throw new Error(DUE_DATE_ERROR);
     const { lines, blocks } = this.readTodoFile();
     const block = blocks.find((candidate) => candidate.todo.id === id);
     if (!block) return null;
@@ -548,42 +568,201 @@ export class Vault {
         const slug = file.slice(0, -3);
         return parseGoal(slug, readFileSync(join(this.goalsDir, file), "utf8"));
       })
-      .sort((a, b) => b.cycle.localeCompare(a.cycle) || a.title.localeCompare(b.title));
+      .sort((a, b) => b.cycle.localeCompare(a.cycle) || compareGoals(a, b));
   }
 
   getGoal(slug: string): Goal | null {
     // Only plain slugs, so a URL can never point outside the goals folder.
-    if (!/^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u.test(slug)) return null;
+    if (!isGoalSlug(slug)) return null;
     const path = join(this.goalsDir, `${slug}.md`);
     return existsSync(path) ? parseGoal(slug, readFileSync(path, "utf8")) : null;
   }
 
-  createGoal(input: { title: string; cycle: string; body: string }): Goal {
+  /** A new goal starts as a draft at the end of its cycle and kind. */
+  createGoal(input: NewGoal): Goal {
+    const cycle = input.cycle.trim();
+    const kind = input.kind ?? "goal";
     const base = slugify(input.title) || "goal";
-    const taken = (candidate: string) => existsSync(join(this.goalsDir, `${candidate}.md`));
+    // "carry" would collide with the POST /goals/carry route.
+    const taken = (candidate: string) => candidate === "carry" || existsSync(join(this.goalsDir, `${candidate}.md`));
     // Reusing a goal name in a new cycle gets a readable link like
     // [[improve-reliability-2027]] before falling back to -2, -3...
-    const withCycle = slugify(`${base} ${input.cycle}`);
-    const otherCycle = taken(base) && this.getGoal(base)?.cycle !== input.cycle.trim();
+    // Long FCP names fill slugify's 48 characters, so make room for the cycle.
+    const suffix = slugify(cycle);
+    const withCycle = suffix ? `${base.slice(0, 47 - suffix.length).replace(/-+$/, "")}-${suffix}` : "";
+    const sameName = this.getGoal(base);
+    const otherCycle = sameName !== null && sameName.cycle !== cycle;
     let slug = otherCycle && withCycle && !taken(withCycle) ? withCycle : base;
     for (let n = 2; taken(slug); n++) slug = `${base}-${n}`;
+
+    // Goals written before ordering sort last, so number them first, in sheet
+    // order; otherwise the new goal would jump ahead of them.
+    const peers = this.getGoals().filter((goal) => goal.cycle === cycle && goal.kind === kind);
+    let last = Math.max(0, ...peers.filter((goal) => Number.isFinite(goal.order)).map((goal) => goal.order));
+    for (const peer of peers.filter((goal) => !Number.isFinite(goal.order))) {
+      writeAtomic(join(this.goalsDir, `${peer.slug}.md`), formatGoal({ ...peer, order: ++last }));
+    }
     const goal: Goal = {
       slug,
-      title: input.title.trim(),
-      cycle: input.cycle.trim(),
-      status: "active",
-      body: input.body,
+      title: oneLine(input.title),
+      cycle,
+      status: input.status ?? "draft",
+      kind,
+      order: last + 1,
+      droppedOn: null,
+      description: cleanText(input.description),
+      meeting: cleanText(input.meeting),
+      exceeding: cleanText(input.exceeding),
+      notes: cleanText(input.notes),
     };
     writeAtomic(join(this.goalsDir, `${slug}.md`), formatGoal(goal));
     return goal;
   }
 
-  /** Title/cycle/status/body change in place; the slug (and so every [[link]]) stays stable. */
-  saveGoal(slug: string, change: { title: string; cycle: string; status: GoalStatus; body: string }): Goal | null {
+  /**
+   * Name, status and text change in place; the slug (and so every [[link]]),
+   * cycle, kind and order stay. Dropping stamps today's date once; any other
+   * status clears it.
+   */
+  saveGoal(slug: string, change: GoalChange, today: string = localDateString()): Goal | null {
     const existing = this.getGoal(slug);
     if (!existing) return null;
-    const goal: Goal = { ...existing, ...change, title: change.title.trim(), cycle: change.cycle.trim() };
+    const goal: Goal = {
+      ...existing,
+      title: oneLine(change.title),
+      status: change.status,
+      droppedOn: change.status !== "dropped" ? null : existing.status === "dropped" ? existing.droppedOn : today,
+      description: cleanText(change.description),
+      meeting: cleanText(change.meeting),
+      exceeding: cleanText(change.exceeding),
+      notes: cleanText(change.notes),
+    };
     writeAtomic(join(this.goalsDir, `${slug}.md`), formatGoal(goal));
     return goal;
   }
+
+  /** Why `to` can't be a goal's new link, or null if it can. */
+  goalLinkProblem(from: string, to: string): string | null {
+    if (!to) return "A link needs at least one letter or number.";
+    // slugify cuts at 48 characters, which can split a rare character in two.
+    if (!isGoalSlug(to)) return "Use letters and numbers, joined by single hyphens.";
+    if (to === "carry") return "That link is reserved. Pick another.";
+    // Exact names, so a case-only change of this goal's own file isn't "taken"
+    // on Windows, and existsSync for another goal that differs only in case.
+    const exact = existsSync(this.goalsDir) && readdirSync(this.goalsDir).includes(`${to}.md`);
+    const caseOnly = to.toLowerCase() === from.toLowerCase();
+    if (to !== from && (exact || (!caseOnly && existsSync(join(this.goalsDir, `${to}.md`)))))
+      return `Another goal already uses [[${to}]].`;
+    return null;
+  }
+
+  /**
+   * Changes a goal's link to `to`, an already checked slug (see
+   * goalLinkProblem): renames its file, then points `[[from]]` links in
+   * journal entries and todos (task, notes and subtasks) at it. Every file is
+   * read and changed first. An entry or todo keeps its text as it was, and
+   * counted in `failed`, when the change wouldn't read the same with only the
+   * link renamed, or its file can't be written (another app has it locked).
+   */
+  renameGoal(from: string, to: string): { slug: string; entries: number; todos: number; failed: number } | null {
+    if (!this.getGoal(from)) return null;
+    const problem = this.goalLinkProblem(from, to);
+    if (problem) throw new Error(problem);
+
+    const writes: { path: string; lines: string[]; changed: number; kind: "entries" | "todos" }[] = [];
+    const counts = { entries: 0, todos: 0, failed: 0 };
+    for (const date of this.listDates()) {
+      const lines = readLines(this.dayPath(date));
+      const result = renameInBlocks(
+        lines,
+        parseEntryBlocks(lines, date),
+        (block) => renameEntryLinks(block, date, from, to),
+        (block, renamed) => (renamed ? entryView(block, date, from, to) : entryView(block, date)),
+      );
+      counts.failed += result.failed;
+      if (result.changed) writes.push({ path: this.dayPath(date), lines, changed: result.changed, kind: "entries" });
+    }
+    const todoLines = readLines(this.todosPath);
+    const todoResult = renameInBlocks(
+      todoLines,
+      parseTodoBlocks(todoLines),
+      (block) => renameTodoLinks(block, from, to),
+      (block, renamed) => (renamed ? todoView(block, from, to) : todoView(block)),
+    );
+    counts.failed += todoResult.failed;
+    if (todoResult.changed)
+      writes.push({ path: this.todosPath, lines: todoLines, changed: todoResult.changed, kind: "todos" });
+
+    renameSync(join(this.goalsDir, `${from}.md`), join(this.goalsDir, `${to}.md`));
+    for (const { path, lines, changed, kind } of writes) {
+      try {
+        writeLines(path, lines);
+        counts[kind] += changed;
+      } catch (error) {
+        console.error(error);
+        counts.failed += changed;
+      }
+    }
+    return { slug: to, ...counts };
+  }
+
+  /**
+   * Swaps a goal with its live neighbour in the same cycle and kind, then
+   * numbers them 1..n, dropped ones after. False at either end, or if dropped.
+   */
+  moveGoal(slug: string, direction: "up" | "down"): boolean {
+    const goal = this.getGoal(slug);
+    if (!goal || goal.status === "dropped") return false;
+    const peers = this.getGoals().filter((other) => other.cycle === goal.cycle && other.kind === goal.kind);
+    const live = peers.filter((other) => other.status !== "dropped");
+    const index = live.findIndex((other) => other.slug === slug);
+    const target = direction === "up" ? index - 1 : index + 1;
+    if (target < 0 || target >= live.length) return false;
+    [live[index], live[target]] = [live[target], live[index]];
+
+    const ordered = [...live, ...peers.filter((other) => other.status === "dropped")];
+    ordered.forEach((other, position) => {
+      if (other.order === position + 1) return;
+      writeAtomic(join(this.goalsDir, `${other.slug}.md`), formatGoal({ ...other, order: position + 1 }));
+    });
+    return true;
+  }
+}
+
+/**
+ * Renames links block by block, in place. `view(block, true)` is how the old
+ * block should read once renamed; a block whose new text doesn't read exactly
+ * like that is left as it was and counted as failed. Blocks that don't link
+ * to the goal are skipped.
+ */
+export function renameInBlocks(
+  lines: string[],
+  blocks: { start: number; end: number }[],
+  rename: (block: string[]) => string[],
+  view: (block: string[], renamed: boolean) => string,
+): { changed: number; failed: number } {
+  const result = { changed: 0, failed: 0 };
+  for (const { start, end } of blocks) {
+    const before = lines.slice(start, end);
+    const expected = view(before, true);
+    if (expected === view(before, false)) continue;
+    const after = rename(before);
+    if (after.length !== before.length || view(after, false) !== expected) {
+      result.failed++;
+      continue;
+    }
+    lines.splice(start, end - start, ...after);
+    result.changed++;
+  }
+  return result;
+}
+
+/** Goal names are one line, so they stay valid frontmatter. */
+function oneLine(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+/** Form posts send CRLF line endings; files use LF. */
+function cleanText(text = ""): string {
+  return text.replace(/\r\n?/g, "\n").trim();
 }

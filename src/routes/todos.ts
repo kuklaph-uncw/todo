@@ -1,6 +1,6 @@
 import { isValidDateString } from "../lib/date";
 import { isValidPriority, isValidStatus, safeReturnPath, type Priority, type Status } from "../lib/validation";
-import type { MoveTarget } from "../vault/vault";
+import { DUE_DATE_ERROR, type MoveTarget } from "../vault/vault";
 import { contentRevision } from "../vault/revision";
 import { allSubtasks } from "../vault/format";
 import { escapeHtml } from "../lib/html";
@@ -35,10 +35,12 @@ export function handleTodos(req: Request, ctx: AppContext): Response {
   const todos = ctx.vault.getTodos();
   const main = renderTodos({
     todos,
+    today: today(ctx),
     filters,
     allTags: [...new Set(todos.flatMap((t) => t.tags))].sort(),
     goals: ctx.vault.getGoals(),
     tagCounts: ctx.vault.getTagCounts(),
+    currentCycle: today(ctx).slice(0, 4),
     editId: url.searchParams.get("edit"),
     error,
     returnTo,
@@ -64,6 +66,12 @@ function readPriority(raw: string): Priority | null | undefined {
   return isValidPriority(raw) ? raw : undefined;
 }
 
+/** A blank due field means no due date. */
+function readDue(raw: string): string | null | undefined {
+  if (raw === "") return null;
+  return isValidDateString(raw) ? raw : undefined;
+}
+
 function staleForm(ctx: AppContext, form: Awaited<ReturnType<typeof readForm>>, back: string): Response {
   const typed = [form.text("task"), form.text("notes"), form.text("text")].filter(Boolean).join("\n\n");
   return page(
@@ -85,9 +93,11 @@ export async function createTodo(req: Request, ctx: AppContext): Promise<Respons
   if (priority === undefined) return redirectWithError(back, "Pick High, Medium, Low or no priority.");
   const status = form.text("status") || "Open";
   if (!isValidStatus(status)) return redirectWithError(back, "That status isn't one the app knows.");
+  const dueOn = readDue(form.text("due"));
+  if (dueOn === undefined) return redirectWithError(back, DUE_DATE_ERROR);
 
   const todo = ctx.vault.addTodo(
-    { task, priority, status, tags: [], goals: [], notes: form.text("notes") },
+    { task, priority, status, tags: [], goals: [], notes: form.text("notes"), dueOn },
     today(ctx),
   );
   // Lets the Todos page explain when its filters hide the new todo.
@@ -163,12 +173,15 @@ export async function changeTodo(
         ["task", form.text("task")],
         ["priority", form.text("priority")],
         ["notes", form.text("notes")],
+        ["due", form.text("due")],
       ];
       if (!task) return redirectWithError(retryAt, "A todo needs a task.", keep);
       const priority = readPriority(form.text("priority"));
       if (priority === undefined) return redirectWithError(retryAt, "Pick High, Medium, Low or no priority.", keep);
+      const dueOn = readDue(form.text("due"));
+      if (dueOn === undefined) return redirectWithError(retryAt, DUE_DATE_ERROR, keep);
       // Open or done is changed by the check button, not the editor.
-      ctx.vault.updateTodo(id, { task, priority, notes: form.text("notes") }, now);
+      ctx.vault.updateTodo(id, { task, priority, notes: form.text("notes"), dueOn }, now);
       return redirect(back);
     }
 

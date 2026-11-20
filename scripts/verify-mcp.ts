@@ -87,7 +87,7 @@ try {
     const entry = await client.callTool({
       name: "add_entry",
       arguments: {
-        text: "Ledger entry while hidden #mcp [[delivery]]",
+        text: "Ledger entry while hidden #mcp [[delivery]]. [Reference](https://example.com/reference?a=1&b=2)",
         minutes: 45,
         isHighlight: true,
         requestId: "background-ledger-create",
@@ -132,6 +132,20 @@ try {
   secondInstance = null;
   await page.locator('nav[aria-label="Main"] a[href="/"]').click();
   await page.locator(".entry-text").filter({ hasText: "Ledger entry while hidden" }).waitFor();
+  // Stub the OS launcher in this disposable app so no external browser is actually opened.
+  await desktop!.evaluate(({ shell }) => {
+    const state = globalThis as typeof globalThis & { openedLinks: string[] };
+    state.openedLinks = [];
+    shell.openExternal = async (url) => {
+      state.openedLinks.push(url);
+    };
+  });
+  await page.getByRole("link", { name: "Reference", exact: true }).click();
+  const opened = await desktop!.evaluate(
+    () => (globalThis as typeof globalThis & { openedLinks: string[] }).openedLinks,
+  );
+  assert.deepEqual(opened, ["https://example.com/reference?a=1&b=2"]);
+  assert(page.url().startsWith("app://local/"), "Opening a web link must not navigate the app window");
   await page.getByRole("link", { name: /^Settings/ }).click();
   await page.getByLabel("Keep MCP running when the window is closed").uncheck();
   await page.getByRole("button", { name: "Save settings", exact: true }).click();
@@ -154,7 +168,7 @@ try {
   desktop = null;
   await assert.rejects(fetch(url, { signal: AbortSignal.timeout(2000) }));
   console.log(
-    "Verified Electron: settings persist; todo and ledger MCP writes while hidden; ledger metadata and goal lookup; second launch restores the written entry; close without background and explicit quit stop MCP.",
+    "Verified Electron: settings persist; todo and ledger MCP writes while hidden; ledger metadata and goal lookup; second launch restores the entry; web links call the OS launcher without navigating the app; close and explicit quit stop MCP.",
   );
 } finally {
   secondInstance?.kill();

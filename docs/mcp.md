@@ -18,7 +18,7 @@ Treat the token like a password. Replacing it immediately stops new requests usi
 | `add_entry` | Creates one entry from multiline Markdown `text`, optional `tags` and `goals`, `minutes`, `isHighlight`, `date`, and `time`. |
 | `update_entry` | Patches those fields except the date. Requires `date`, `id`, and the current `expectedRevision`. Omitted fields stay unchanged. |
 | `delete_entry` | Deletes an entry using its date, ID, and revision, retaining a copy in `.trash/deleted.md`. |
-| `list_goals` | Lists existing goal slugs, titles, cycles and statuses for linking. Does not create or change goals. |
+| `list_goals` | Lists existing goal slugs, titles, cycles, statuses (`draft`, `agreed` or `dropped`) and kinds (`goal`, or `activity` for the talent development plan) for linking. Does not create or change goals. |
 | `list_tags` | Lists existing tags and their use counts across entries and todos. |
 
 An entry's `text` accepts the same `#tags`, `[[goal-slug]]` links and Markdown as the app. Tags or links inside code do not count as metadata. Use `list_goals` to find the actual slug; typing `/` is an editor shortcut, not MCP syntax. Unknown goal links are kept, just as in the app.
@@ -38,7 +38,7 @@ For example, after looking up the goal slug, call `add_entry` with:
 }
 ```
 
-Existing todo/subtask tools keep their names and behavior. Reconnect the client after running the updated app so it refreshes the tool list. These tools require the updated desktop build; changing source alone does not update an installed copy.
+Existing todo/subtask tools keep their names and behavior. `add_todo` and `update_todo` also accept an optional `dueOn` due date as local `YYYY-MM-DD`; on update, `null` clears it. Reconnect the client after running the updated app so it refreshes the tool list. These tools require the updated desktop build; changing source alone does not update an installed copy.
 
 ## Background mode
 
@@ -66,4 +66,4 @@ Read tools leave the files unchanged. If a task was hand-written without an ID, 
 
 ## Development verification
 
-Run `bun test` for protocol, storage, authentication, settings, and browser checks. `bun run verify:mcp` builds the main process and tests the real Electron lifecycle with disposable app data and notes: settings persistence, todo and ledger writes while hidden, goal lookup, metadata preservation, second-launch restore, ordinary close, and explicit quit. It does not modify your installed app or agent configuration. Packaging remains a separate `bun run build` check.
+Run `bun test` for protocol, storage, authentication, settings, and browser checks. `bun run verify:mcp` builds the main process and tests the real Electron lifecycle with disposable app data and notes: settings persistence, todo and ledger writes while hidden, goal lookup, metadata preservation, second-launch restore, web-link clicks routed to a stubbed OS launcher, ordinary close, and explicit quit. It does not modify your installed app or agent configuration or open an external browser. Packaging remains a separate `bun run build` check.

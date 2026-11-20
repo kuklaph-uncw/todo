@@ -81,9 +81,9 @@ it("notices MCP ledger edits without replacing a draft and rejects a stale entry
 }, 20000);
 
 it("confirms refresh when only a goal's status selection has changed", async () => {
-  const goal = ctx.vault.createGoal({ title: "Refresh protection", cycle: "2026", body: "" });
+  const goal = ctx.vault.createGoal({ title: "Refresh protection", cycle: "2026" });
   await page.goto(`${server.url}goals/${goal.slug}?edit=1`);
-  await page.locator('.goal-edit select[name="status"]').selectOption("achieved");
+  await page.locator('.goal-edit input[name="status"][value="agreed"]').check();
   ctx.vault.addTodo({ task: "Trigger goal notice", priority: null, status: "Open", tags: [], goals: [], notes: "" });
   await page.locator("#change-notice").waitFor({ state: "visible" });
   let prompted = false;
@@ -95,7 +95,7 @@ it("confirms refresh when only a goal's status selection has changed", async () 
   try {
     await page.getByRole("button", { name: "Refresh when ready", exact: true }).click();
     expect(prompted).toBe(true);
-    expect(await page.locator('.goal-edit select[name="status"]').inputValue()).toBe("achieved");
+    expect(await page.locator('.goal-edit input[name="status"][value="agreed"]').isChecked()).toBe(true);
   } finally {
     page.off("dialog", dismiss);
   }

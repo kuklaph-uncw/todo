@@ -10,6 +10,8 @@ export interface AppContext {
   vault: Vault;
   /** Shown in Settings so the user can find and back up their notes. */
   vaultPath: string;
+  /** App preferences file (like the Goals view), outside the vault. Without one, nothing is remembered. */
+  preferencesPath?: string;
   /** Injectable clock so tests can pin "today". */
   clock: () => Date;
   agentAccess?: AgentAccess;
@@ -69,6 +71,8 @@ export async function readForm(req: Request) {
   };
   return {
     text,
+    /** Every value of a repeated field, like checked boxes that share a name. */
+    all: (name: string): string[] => form.getAll(name).filter((value) => typeof value === "string"),
     returnTo: (fallback: string) => safeReturnPath(text("return_to"), fallback),
   };
 }

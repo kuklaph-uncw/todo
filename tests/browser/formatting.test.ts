@@ -239,14 +239,14 @@ it("toggles a code block from the strip and copies code as typed", async () => {
 
 it("opens saved code blocks in visual mode and round-trips them unchanged", async () => {
   const body = "Plan\n\n```ts\nconst x = `y`; // **literal** [[ link ]]\n```";
-  const goal = ctx.vault.createGoal({ title: "Code goal", cycle: "2026", body });
+  const goal = ctx.vault.createGoal({ title: "Code goal", cycle: "2026", notes: body });
   await page.goto(`${server.url}goals/${goal.slug}?edit=1`);
-  const editor = page.getByRole("textbox", { name: "Success criteria, progress notes, self-assessment", exact: true });
+  const editor = page.getByRole("textbox", { name: "Notes", exact: true });
   expect(await editor.locator("pre").count()).toBe(1);
   expect(await editor.evaluate((el) => el.classList.contains("is-rich"))).toBe(true);
   await page.getByRole("button", { name: "Save goal", exact: true }).click();
   await page.getByRole("button", { name: "Save goal", exact: true }).waitFor({ state: "hidden" });
-  expect(ctx.vault.getGoal(goal.slug)?.body).toBe(body);
+  expect(ctx.vault.getGoal(goal.slug)?.notes).toBe(body);
 }, 30000);
 
 it("applies typed Markdown in todo notes and keeps source mode literal", async () => {

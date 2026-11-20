@@ -1,10 +1,12 @@
 export const PRIORITIES = ["High", "Medium", "Low"] as const;
 export const STATUSES = ["Open", "Done"] as const;
-export const GOAL_STATUSES = ["active", "achieved", "dropped"] as const;
+export const GOAL_STATUSES = ["draft", "agreed", "dropped"] as const;
+export const GOAL_KINDS = ["goal", "activity"] as const;
 
 export type Priority = (typeof PRIORITIES)[number];
 export type Status = (typeof STATUSES)[number];
 export type GoalStatus = (typeof GOAL_STATUSES)[number];
+export type GoalKind = (typeof GOAL_KINDS)[number];
 
 /** Rejects empty and whitespace-only strings. */
 export function isNonEmptyText(value: string): boolean {
@@ -23,6 +25,10 @@ export function isValidStatus(value: string): value is Status {
 
 export function isValidGoalStatus(value: string): value is GoalStatus {
   return (GOAL_STATUSES as readonly string[]).includes(value);
+}
+
+export function isValidGoalKind(value: string): value is GoalKind {
+  return (GOAL_KINDS as readonly string[]).includes(value);
 }
 
 /**
@@ -44,6 +50,11 @@ export function parseMinutes(raw: string): number | null | undefined {
   return Math.round(Number(match[1]) * 60) + Number(match[2] ?? 0);
 }
 
+/** A goal link the app can open: letters and numbers joined by single hyphens. */
+export function isGoalSlug(value: string): boolean {
+  return /^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u.test(value);
+}
+
 /** "Improve platform reliability!" -> "improve-platform-reliability" */
 export function slugify(title: string): string {
   return title
@@ -58,6 +69,7 @@ export function slugify(title: string): string {
 
 /** Only same-origin absolute paths, so a form can't redirect off-site. */
 export function safeReturnPath(raw: string | null | undefined, fallback: string): string {
-  if (!raw?.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) return fallback;
+  // Browsers drop tabs and line breaks from URLs, so "/\t/evil" would become "//evil".
+  if (!raw?.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\") || /[\t\r\n]/.test(raw)) return fallback;
   return raw;
 }

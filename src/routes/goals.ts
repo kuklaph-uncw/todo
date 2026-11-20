@@ -1,6 +1,8 @@
-import { isValidGoalStatus } from "../lib/validation";
+import { isValidGoalKind, isValidGoalStatus, slugify } from "../lib/validation";
 import { collectItems } from "../review";
-import { goalStats, renderGoal, renderGoals, type GoalStats } from "../views/goals";
+import type { Goal } from "../vault/format";
+import { readGoalsView, saveGoalsView, type GoalsView } from "../preferences";
+import { goalStats, goalsUrl, renderGoal, renderGoals, type GoalStats, type LinkChange } from "../views/goals";
 import { notFound, page, readForm, redirect, redirectWithError, today, type AppContext } from "./shared";
 
 const ALL_TIME = { from: "0000-01-01", to: "9999-12-31" };
@@ -9,25 +11,72 @@ function byDate<T extends { date: string }>(items: T[]): T[] {
   return [...items].sort((a, b) => a.date.localeCompare(b.date));
 }
 
-/** GET /goals?cycle= */
+/** A view named in the URL is remembered, so /goals opens the same way next time. */
+function goalsView(ctx: AppContext, requested: string | null): GoalsView {
+  const remembered = readGoalsView(ctx.preferencesPath);
+  if (requested !== "reader" && requested !== "timeline") return remembered;
+  try {
+    if (requested !== remembered) saveGoalsView(ctx.preferencesPath, requested);
+  } catch (error) {
+    // Remembering is a convenience; a locked file must not stop the page.
+    console.error(error);
+  }
+  return requested;
+}
+
+/** The year after a year-like cycle, if that cycle has no goals yet and this one has some. */
+function nextCycle(cycle: string, goals: Goal[]): string | null {
+  if (!/^\d{4}$/.test(cycle)) return null;
+  const next = String(Number(cycle) + 1);
+  const ready = goals.some((goal) => goal.cycle === cycle && goal.status !== "dropped");
+  return ready && !goals.some((goal) => goal.cycle === next) ? next : null;
+}
+
+/** "3,1" after a link change (entries and todos rewritten), or "3,1,2,old" when 2 were left on `old`. */
+function renamedCounts(raw: string | null): LinkChange | null {
+  const match = /^(\d+),(\d+)(?:,(\d+),(.+))?$/.exec(raw ?? "");
+  if (!match) return null;
+  const failed = { left: Number(match[3] ?? 0), old: match[4] ?? "" };
+  return { entries: Number(match[1]), todos: Number(match[2]), ...failed };
+}
+
+/** GET /goals?view=&cycle=&edit=&open=&add=&from=&renamed= */
 export function handleGoals(req: Request, ctx: AppContext): Response {
   const params = new URL(req.url).searchParams;
+  const view = goalsView(ctx, params.get("view"));
   const currentYear = today(ctx).slice(0, 4);
-  const goals = ctx.vault.getGoals();
-  const cycles = [...new Set([currentYear, ...goals.map((g) => g.cycle).filter(Boolean)])].sort().reverse();
-  const cycle = params.get("cycle") || currentYear;
+  const all = ctx.vault.getGoals();
+  // Goals written by hand without a cycle get their own "No cycle" entry, so they can still be edited.
+  const cycles = [...new Set([currentYear, ...all.map((g) => g.cycle)])].sort().reverse();
+  const cycle = params.get("cycle") ?? currentYear;
+  const goals = all.filter((goal) => goal.cycle === cycle);
+
+  const from = params.get("from");
+  const carryGoals = all.filter((goal) => goal.cycle === from && goal.status !== "dropped");
+  const carry = from && goals.length === 0 && carryGoals.length > 0 ? { from, goals: carryGoals } : null;
 
   const items = collectItems(ctx.vault, ALL_TIME.from, ALL_TIME.to);
-  const stats = new Map<string, GoalStats>(goals.map((goal) => [goal.slug, goalStats(items, goal.slug)]));
+  const stats = new Map<string, GoalStats>(
+    [...goals, ...carryGoals].map((goal) => [goal.slug, goalStats(items, goal.slug)]),
+  );
+  const add = params.get("add") ?? "";
 
-  const error = params.get("error");
   const main = renderGoals({
+    view,
     cycle,
     cycles: cycles.includes(cycle) ? cycles : [cycle, ...cycles],
     goals,
     stats,
-    error,
-    retryBody: error ? (params.get("body") ?? "") : "",
+    items,
+    today: today(ctx),
+    edit: params.get("edit"),
+    open: params.get("open"),
+    add: isValidGoalKind(add) ? add : null,
+    nextCycle: carry ? null : nextCycle(cycle, all),
+    carry,
+    error: params.get("error"),
+    renamed: renamedCounts(params.get("renamed")),
+    retry: params.has("error") ? params : new URLSearchParams(),
   });
   return page(ctx, "Goals", "goals", main);
 }
@@ -37,6 +86,8 @@ export function handleGoal(req: Request, ctx: AppContext, slug: string): Respons
   const params = new URL(req.url).searchParams;
   const goal = ctx.vault.getGoal(slug);
   if (!goal) return notFound(ctx, "That goal");
+  // Goals are edited in place on the sheet now; keep old edit links working.
+  if (params.get("edit") === "1") return redirect(goalsUrl("reader", goal.cycle, { edit: slug }, `goal-${slug}`));
 
   const items = byDate(collectItems(ctx.vault, ALL_TIME.from, ALL_TIME.to).filter((item) => item.goals.includes(slug)));
   const openTodos = ctx.vault.getTodos().filter((todo) => todo.goals.includes(slug) && todo.status === "Open").length;
@@ -45,10 +96,14 @@ export function handleGoal(req: Request, ctx: AppContext, slug: string): Respons
     goals: ctx.vault.getGoals(),
     items,
     openTodos,
-    editing: params.get("edit") === "1",
+    today: today(ctx),
     error: params.get("error"),
   });
   return page(ctx, goal.title, "goals", main);
+}
+
+function viewField(value: string): GoalsView {
+  return value === "timeline" ? "timeline" : "reader";
 }
 
 /** POST /goals */
@@ -56,13 +111,30 @@ export async function createGoal(req: Request, ctx: AppContext): Promise<Respons
   const form = await readForm(req);
   const title = form.text("title").trim();
   const cycle = form.text("cycle").trim() || today(ctx).slice(0, 4);
-  // Send the description back too, so a long one isn't lost.
+  const rawKind = form.text("kind");
+  const kind = isValidGoalKind(rawKind) ? rawKind : "goal";
+  const view = viewField(form.text("view"));
+  const text = {
+    description: form.text("description"),
+    meeting: kind === "goal" ? form.text("meeting") : "",
+    exceeding: kind === "goal" ? form.text("exceeding") : "",
+    notes: form.text("notes"),
+  };
+  // Send the text back too, so a long description isn't lost.
   if (!title)
-    return redirectWithError(`/goals?cycle=${encodeURIComponent(cycle)}`, "A goal needs a name.", [
-      ["body", form.text("body")],
-    ]);
-  const goal = ctx.vault.createGoal({ title, cycle, body: form.text("body") });
-  return redirect(`/goals/${goal.slug}`);
+    return redirectWithError(
+      goalsUrl(view, cycle, { add: kind }, "add-goal"),
+      kind === "goal" ? "A goal needs a name." : "An activity needs a name.",
+      Object.entries(text),
+    );
+  const goal = ctx.vault.createGoal({
+    title,
+    cycle,
+    kind,
+    status: form.text("status") === "agreed" ? "agreed" : "draft",
+    ...text,
+  });
+  return redirect(goalsUrl(view, cycle, {}, `goal-${goal.slug}`));
 }
 
 /** POST /goals/:slug */
@@ -70,17 +142,114 @@ export async function saveGoal(req: Request, ctx: AppContext, slug: string): Pro
   const form = await readForm(req);
   const existing = ctx.vault.getGoal(slug);
   if (!existing) return notFound(ctx, "That goal");
+  const back = form.returnTo(`/goals?cycle=${encodeURIComponent(existing.cycle)}#goal-${slug}`);
   const status = form.text("status");
-  if (!isValidGoalStatus(status))
-    return redirectWithError(`/goals/${slug}?edit=1`, "Pick Active, Achieved or Dropped.");
+  if (!isValidGoalStatus(status)) return redirectWithError(back, "Pick Draft, Agreed or Dropped.");
 
-  // A blank name or cycle keeps the current one rather than bouncing the
-  // form back and risking a long self-assessment.
-  ctx.vault.saveGoal(slug, {
-    title: form.text("title").trim() || existing.title,
-    cycle: form.text("cycle").trim() || existing.cycle,
-    status,
-    body: form.text("body"),
-  });
-  return redirect(`/goals/${slug}`);
+  // A blank link keeps the current one, like a blank name. Any other change
+  // is checked before saving anything, so a refused link loses no typing.
+  const view = viewField(form.text("view"));
+  // The field shows the slug as it is, which slugify might respell (long, uppercase or
+  // accented hand-written slugs), so an unchanged value is never slugified.
+  const typed = form.text("link").trim();
+  const link = !typed || typed === slug ? slug : slugify(typed);
+  const backToForm = (message: string) =>
+    redirectWithError(
+      goalsUrl(view, existing.cycle, { edit: slug }, `goal-${slug}`),
+      message,
+      ["title", "status", "description", "meeting", "exceeding", "notes", "link"].map((name) => [
+        name,
+        form.text(name),
+      ]),
+    );
+  const problem = ctx.vault.goalLinkProblem(slug, link);
+  if (problem) return backToForm(problem);
+
+  // A blank name keeps the current one rather than bouncing the form back
+  // and risking long text. Activities have no expectation fields to send.
+  const activity = existing.kind === "activity";
+  ctx.vault.saveGoal(
+    slug,
+    {
+      title: form.text("title").trim() || existing.title,
+      status,
+      description: form.text("description"),
+      meeting: activity ? existing.meeting : form.text("meeting"),
+      exceeding: activity ? existing.exceeding : form.text("exceeding"),
+      notes: form.text("notes"),
+    },
+    today(ctx),
+  );
+  if (link === slug) return redirect(back);
+
+  let renamed: ReturnType<typeof ctx.vault.renameGoal>;
+  try {
+    renamed = ctx.vault.renameGoal(slug, link);
+  } catch (error) {
+    // Usually the goal's file is open in another app. The text above is saved.
+    console.error(error);
+    return backToForm(
+      `Your changes were saved under [[${slug}]], but the link couldn't be changed. Another app may have the goal's file open. Close it and try again.`,
+    );
+  }
+  if (!renamed) return notFound(ctx, "That goal");
+
+  // The old anchor is gone, so return to the goal under its new link.
+  const extra: Record<string, string> = view === "timeline" ? { open: link } : {};
+  const failed = renamed.failed ? `,${renamed.failed},${slug}` : "";
+  extra.renamed = `${renamed.entries},${renamed.todos}${failed}`;
+  return redirect(goalsUrl(view, existing.cycle, extra, `goal-${link}`));
+}
+
+/** POST /goals/:slug/status, e.g. "Mark agreed" on a draft. */
+export async function setGoalStatus(req: Request, ctx: AppContext, slug: string): Promise<Response> {
+  const form = await readForm(req);
+  const existing = ctx.vault.getGoal(slug);
+  if (!existing) return notFound(ctx, "That goal");
+  const back = form.returnTo(`/goals?cycle=${encodeURIComponent(existing.cycle)}#goal-${slug}`);
+  const status = form.text("status");
+  if (!isValidGoalStatus(status)) return redirectWithError(back, "Pick Draft, Agreed or Dropped.");
+  ctx.vault.saveGoal(slug, { ...existing, status }, today(ctx));
+  return redirect(back);
+}
+
+/** POST /goals/:slug/move: one place up or down. At an end it just returns. */
+export async function moveGoal(req: Request, ctx: AppContext, slug: string): Promise<Response> {
+  const form = await readForm(req);
+  const existing = ctx.vault.getGoal(slug);
+  if (!existing) return notFound(ctx, "That goal");
+  const back = form.returnTo(`/goals?cycle=${encodeURIComponent(existing.cycle)}#goal-${slug}`);
+  const direction = form.text("direction");
+  if (direction !== "up" && direction !== "down") return redirectWithError(back, "Move a goal up or down.");
+  ctx.vault.moveGoal(slug, direction);
+  return redirect(back);
+}
+
+/**
+ * POST /goals/carry: copies the picked goals of one cycle into the next as
+ * drafts, in the same order. Copies get their own links, so earlier evidence
+ * stays with the original goal.
+ */
+export async function carryGoals(req: Request, ctx: AppContext): Promise<Response> {
+  const form = await readForm(req);
+  const from = form.text("from");
+  const cycle = form.text("cycle").trim();
+  const view = viewField(form.text("view"));
+  const picked = new Set(form.all("goal"));
+  const all = ctx.vault.getGoals();
+  // Posting twice (or going back and posting again) must not copy twice.
+  if (cycle && !all.some((goal) => goal.cycle === cycle)) {
+    for (const goal of all.filter((g) => g.cycle === from && g.status !== "dropped" && picked.has(g.slug))) {
+      ctx.vault.createGoal({
+        title: goal.title,
+        cycle,
+        kind: goal.kind,
+        description: goal.description,
+        meeting: goal.meeting,
+        exceeding: goal.exceeding,
+        notes: form.text("notes") ? goal.notes : "",
+      });
+    }
+  }
+  return redirect(goalsUrl(view, cycle || from));
 }

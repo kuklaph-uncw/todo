@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { findTags, findLinks } from "../../src/vault/format";
 import { renderEntryMarkdown } from "../../src/lib/markdown";
 import { entryHtml, goalIndex } from "../../src/views/components";
 
@@ -51,7 +52,21 @@ describe("entry Markdown", () => {
   });
 
   it("decorates an underscored tag and goal label as whole tokens", () => {
-    const goals = goalIndex([{ slug: "slug", title: "Goal", cycle: "2026", status: "active", body: "" }]);
+    const goals = goalIndex([
+      {
+        slug: "slug",
+        title: "Goal",
+        cycle: "2026",
+        status: "agreed",
+        kind: "goal",
+        order: 1,
+        droppedOn: null,
+        description: "",
+        meeting: "",
+        exceeding: "",
+        notes: "",
+      },
+    ]);
     expect(entryHtml("#on_call_rota [[slug|some_label_here]]", goals)).toBe(
       '<p><span class="tag">#on_call_rota</span> <a class="goal-link" href="/goals/slug">some_label_here</a></p>',
     );
@@ -71,10 +86,38 @@ describe("entry Markdown", () => {
     expect(runs.join("")).not.toContain("&lt;b&gt;");
   });
 
-  it("keeps unsupported links, images and checkboxes literal", () => {
-    expect(entryHtml("[link](https://example.com) ![image](x)\n- [ ] task\n*\n_\n`", new Map())).toBe(
-      "<p>[link](https://example.com) ![image](x)<br>- [ ] task<br>*<br>_<br>`</p>",
+  it("keeps unsupported images and checkboxes literal", () => {
+    expect(entryHtml("![image](x)\n- [ ] task\n*\n_\n`", new Map())).toBe(
+      "<p>![image](x)<br>- [ ] task<br>*<br>_<br>`</p>",
     );
+  });
+
+  it("renders safe web links without formatting or collecting metadata from their URLs", () => {
+    const url = "https://uncw.cascadecms.com/entity/open.act?id=example&type=page";
+    expect(entryHtml(`[Staging index](${url})`, new Map())).toBe(
+      '<p><a href="https://uncw.cascadecms.com/entity/open.act?id=example&amp;type=page" target="_blank" rel="noopener noreferrer">Staging index</a></p>',
+    );
+    expect(renderEntryMarkdown("[**Plan**](https://example.com/a_(b)?x=_y_&q=%22test%22)")).toContain(
+      '<a href="https://example.com/a_(b)?x=_y_&amp;q=%22test%22" target="_blank" rel="noopener noreferrer"><strong>Plan</strong></a>',
+    );
+    expect(renderEntryMarkdown("`[code](https://example.com)`")).toBe(
+      "<p><code>[code](https://example.com)</code></p>",
+    );
+    expect(findTags("[Link](https://example.com/#ops) #real")).toEqual(["real"]);
+    expect(findLinks("[Link](https://example.com/[[not-a-goal]]) [[real]]")).toEqual(["real"]);
+  });
+
+  it("keeps unsafe and local link targets inactive", () => {
+    for (const url of [
+      "javascript:alert(1)",
+      "data:text/html,bad",
+      "file:///C:/secret",
+      "app://local/settings",
+      "//example.com",
+      "https://user:pass@example.com",
+    ]) {
+      expect(renderEntryMarkdown(`[Unsafe](${url})`)).not.toContain("<a ");
+    }
   });
 
   it("renders fenced code as an undecorated, escaped code block", () => {

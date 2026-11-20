@@ -57,4 +57,25 @@ describe("MCP task operations", () => {
     });
     expect(ctx.vault.getTodo(todo.id)?.completedOn).toBe("2026-09-28");
   });
+
+  it("adds, keeps, and clears an optional due date", () => {
+    const service = new TodoService(ctx.vault, ctx.clock);
+    const added = service.execute("add_todo", { task: "Renew badge", dueOn: "2026-10-01", requestId: "due-1" });
+    expect(added).toMatchObject({ dueOn: "2026-10-01" });
+    expect(() => service.execute("add_todo", { task: "Bad", dueOn: "2026-02-30", requestId: "due-2" })).toThrow(
+      "Due date",
+    );
+
+    const { id } = added as { id: string };
+    service.execute("update_todo", {
+      id,
+      expectedRevision: service.get(id).revision,
+      task: "Renew badge soon",
+      requestId: "due-3",
+    });
+    expect(ctx.vault.getTodo(id)?.dueOn).toBe("2026-10-01");
+
+    service.execute("update_todo", { id, expectedRevision: service.get(id).revision, dueOn: null, requestId: "due-4" });
+    expect(ctx.vault.getTodo(id)?.dueOn).toBeNull();
+  });
 });

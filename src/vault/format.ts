@@ -14,17 +14,20 @@
  *   removes the smallest indent (up to four columns) and keeps blank lines only before continuations.
  *
  *   Todo (todos.md), using Obsidian Tasks plugin emoji where they exist:
- *     - [x] Fix flaky auth test #bug ⏫ ⭐ ➕ 2026-09-20 ✅ 2026-09-28 ^t8k2m1
+ *     - [x] Fix flaky auth test #bug ⏫ ⭐ ➕ 2026-09-20 📅 2026-09-30 ✅ 2026-09-28 ^t8k2m1
  *         Optional notes, indented under the task.
  *         - [x] Subtasks are indented task lines, nested by indent ^q7d3hn
  *
- *   Goal (goals/<slug>.md): frontmatter (title, cycle, status) + Markdown body.
+ *   Goal (goals/<slug>.md): frontmatter (title, cycle, status, kind, order,
+ *   dropped) + `## Description`, `## Meeting expectations`,
+ *   `## Exceeding expectations` and `## Notes` sections, empty ones left out.
  *
  * The trailing `^id` is an Obsidian block ID; the app uses it to find a line again.
  */
-import type { GoalStatus, Priority, Status } from "../lib/validation";
+import type { GoalKind, GoalStatus, Priority, Status } from "../lib/validation";
 import { continuationEnd, mapOutsideFences } from "../lib/lines";
-import { isValidGoalStatus } from "../lib/validation";
+import { isValidGoalKind, isValidGoalStatus } from "../lib/validation";
+import { isValidDateString } from "../lib/date";
 import { renderEntryMarkdown } from "../lib/markdown";
 
 export interface Entry {
@@ -49,6 +52,8 @@ export interface Todo {
   minutes: number | null;
   isHighlight: boolean;
   createdOn: string | null;
+  /** Optional due date. Shown on the todo; it never sends a reminder. */
+  dueOn: string | null;
   completedOn: string | null;
   notes: string;
   subtasks: Subtask[];
@@ -67,7 +72,25 @@ export interface Goal {
   title: string;
   cycle: string;
   status: GoalStatus;
-  body: string;
+  /** An individual goal, or an activity in the talent development plan. */
+  kind: GoalKind;
+  /** Position within its cycle and kind. Infinity when the file has none. */
+  order: number;
+  /** Local date it was set to dropped. */
+  droppedOn: string | null;
+  /** The parts Full Cycle Performance asks for. Activities use only the description. */
+  description: string;
+  meeting: string;
+  exceeding: string;
+  /** The user's own talking points, never copied to FCP. */
+  notes: string;
+}
+
+/** Sheet order within a cycle: goals before activities, then by order, then title. */
+export function compareGoals(a: Goal, b: Goal): number {
+  if (a.kind !== b.kind) return a.kind === "goal" ? -1 : 1;
+  if (a.order !== b.order) return a.order < b.order ? -1 : 1;
+  return a.title.localeCompare(b.title);
 }
 
 // Todos are open or done. Obsidian Tasks' in-progress, blocked and cancelled marks read as open.
@@ -110,6 +133,92 @@ export function findTags(text: string): string[] {
 
 export function findLinks(text: string): string[] {
   return [...new Set([...metadataText(text).matchAll(LINK_RE)].map((m) => m[1].trim()))];
+}
+
+/*
+ * Changing a goal's link. Which `[[from]]` in the text are links is decided by
+ * the same parser and renderer that count links everywhere else (findLinks),
+ * not by a second set of rules: each written `[[from]]` gets a numbered
+ * marker, the block is parsed, and only the markers that come back as links
+ * are renamed. Ones in code, a fence's info string, and so on stay as written.
+ * The markers sit inside the brackets, so they can't change how a block parses.
+ */
+const MARK_RE = /(\d+)/g;
+
+function markLinks(lines: string[], from: string): string[] {
+  let count = 0;
+  return lines.map((line) =>
+    line.replace(LINK_RE, (link, target: string) =>
+      target.trim() === from ? link.replace(from, `${from}${count++}`) : link,
+    ),
+  );
+}
+
+/** Renames the marked links listed in `names` (as parsed), and unmarks the rest. */
+function applyMarks(marked: string[], names: string[], from: string, to: string): string[] {
+  const linked = new Set(names.flatMap((name) => [...name.matchAll(MARK_RE)].map((match) => match[1])));
+  return marked.map((line) =>
+    line.replace(new RegExp(`${from}\\uE000(\\d+)\\uE001`, "g"), (_m, id: string) => (linked.has(id) ? to : from)),
+  );
+}
+
+/** One journal entry block with its links to `from` pointed at `to`. */
+export function renameEntryLinks(lines: string[], date: string, from: string, to: string): string[] {
+  const marked = markLinks(lines, from);
+  const entry = parseEntryBlocks(marked, date)[0]?.entry;
+  return applyMarks(marked, entry?.goals ?? [], from, to);
+}
+
+/** One todo block (task, notes and subtasks) with its links to `from` pointed at `to`. */
+export function renameTodoLinks(lines: string[], from: string, to: string): string[] {
+  const marked = markLinks(lines, from);
+  const todo = parseTodoBlocks(marked)[0]?.todo;
+  const names = todo
+    ? [...todo.goals, ...findLinks(todo.notes), ...allSubtasks(todo.subtasks).flatMap((s) => findLinks(s.text))]
+    : [];
+  return applyMarks(marked, names, from, to);
+}
+
+/** Text as the app renders it, with the links the renderer finds renamed `from` → `to`. */
+export function renderWithRenamedLinks(text: string, from: string, to: string): string {
+  return renderEntryMarkdown(text, (escaped) =>
+    escaped.replace(LINK_RE, (link, target: string) => (target.trim() === from ? link.replace(from, to) : link)),
+  );
+}
+
+const renameGoalSlug = (goals: string[], from: string, to: string) =>
+  [...new Set(goals.map((goal) => (goal === from ? to : goal)))].sort();
+
+/**
+ * What an entry block means to a reader: rendered text, metadata and goals.
+ * With `from` and `to`, as it should read after the rename. A rename is safe
+ * when the new block's view equals the old block's renamed view.
+ */
+export function entryView(lines: string[], date: string, from = "", to = ""): string {
+  const entry = parseEntryBlocks(lines, date)[0]?.entry;
+  if (!entry) return "";
+  return JSON.stringify({
+    ...entry,
+    text: renderWithRenamedLinks(entry.text, from, to),
+    goals: renameGoalSlug(entry.goals, from, to),
+  });
+}
+
+/** The same for a todo block: task, notes and every subtask. */
+export function todoView(lines: string[], from = "", to = ""): string {
+  const todo = parseTodoBlocks(lines)[0]?.todo;
+  if (!todo) return "";
+  return JSON.stringify({
+    ...todo,
+    task: renderWithRenamedLinks(todo.task, from, to),
+    goals: renameGoalSlug(todo.goals, from, to),
+    notes: renderWithRenamedLinks(todo.notes, from, to),
+    subtasks: allSubtasks(todo.subtasks).map((s) => ({
+      ...s,
+      children: [],
+      text: renderWithRenamedLinks(s.text, from, to),
+    })),
+  });
 }
 
 // Match the displayed Markdown text, excluding literal code. Formatting a tag
@@ -343,6 +452,13 @@ export function parseTodoBlocks(lines: string[]): TodoBlock[] {
       createdOn = date;
       return " ";
     });
+    // The last valid one is the field the app wrote; an earlier or impossible one stays task text.
+    let dueOn: string | null = null;
+    const due = [...body.matchAll(/📅\s*(\d{4}-\d{2}-\d{2})/gu)].filter((m) => isValidDateString(m[1])).at(-1);
+    if (due) {
+      dueOn = due[1];
+      body = `${body.slice(0, due.index)} ${body.slice(due.index + due[0].length)}`;
+    }
     let completedOn: string | null = null;
     body = body.replace(/✅\s*(\d{4}-\d{2}-\d{2})/, (_m, date) => {
       completedOn = date;
@@ -399,6 +515,7 @@ export function parseTodoBlocks(lines: string[]): TodoBlock[] {
         minutes: parsed.minutes,
         isHighlight: parsed.isHighlight,
         createdOn,
+        dueOn,
         completedOn,
         notes: noteLines.join("\n"),
         subtasks,
@@ -419,6 +536,7 @@ export function formatTodo(todo: Todo): string[] {
   if (todo.priority) parts.push(EMOJI_BY_PRIORITY[todo.priority]);
   if (todo.isHighlight) parts.push("⭐");
   if (todo.createdOn) parts.push(`➕ ${todo.createdOn}`);
+  if (todo.dueOn) parts.push(`📅 ${todo.dueOn}`);
   if (todo.completedOn) parts.push(`✅ ${todo.completedOn}`);
   if (todo.id) parts.push(`^${todo.id}`);
 
@@ -480,7 +598,8 @@ export function splitFrontmatter(source: string): { data: Record<string, string>
 }
 
 function frontmatterValue(value: string): string {
-  return /^[\s"'#&*!|>%@`[{]|:\s|\s$/.test(value) ? JSON.stringify(value) : value;
+  // A raw line break would end the value and let the rest pose as other fields.
+  return /^[\s"'#&*!|>%@`[{]|:\s|\s$|[\r\n]/.test(value) ? JSON.stringify(value) : value;
 }
 
 export function formatFrontmatter(data: Record<string, string>): string {
@@ -488,19 +607,73 @@ export function formatFrontmatter(data: Record<string, string>): string {
   return `---\n${lines.join("\n")}\n---\n`;
 }
 
+/** The parts of a goal written as `## ` sections in its file, in file order. */
+const GOAL_SECTIONS = [
+  ["description", "Description"],
+  ["meeting", "Meeting expectations"],
+  ["exceeding", "Exceeding expectations"],
+  ["notes", "Notes"],
+] as const;
+
+type GoalSection = (typeof GOAL_SECTIONS)[number][0];
+
+/** A line that would read as one of the section headings, with any backslashes added to keep it text. */
+const SECTION_LINE_RE = /^(\\*)## (Description|Meeting expectations|Exceeding expectations|Notes)\s*$/i;
+
+function sectionOf(line: string): GoalSection | null {
+  const match = SECTION_LINE_RE.exec(line);
+  if (!match || match[1]) return null;
+  return GOAL_SECTIONS.find(([, heading]) => heading.toLowerCase() === match[2].toLowerCase())![0];
+}
+
+const LEGACY_STATUS: Record<string, GoalStatus> = { active: "agreed", achieved: "agreed" };
+
 export function parseGoal(slug: string, source: string): Goal {
   const { data, body } = splitFrontmatter(source);
-  const status = data.status && isValidGoalStatus(data.status) ? data.status : "active";
+  const rawStatus = data.status ?? "";
+  const status = isValidGoalStatus(rawStatus) ? rawStatus : (LEGACY_STATUS[rawStatus] ?? "draft");
+  const kind = data.kind ?? "";
+  const order = Number(data.order);
+
+  // Text above the first section (a goal written before sections existed, or by
+  // hand) goes to notes so nothing is dropped. A heading-like line written with
+  // a leading backslash is text: one backslash is removed when reading.
+  const lines: Record<GoalSection, string[]> = { description: [], meeting: [], exceeding: [], notes: [] };
+  const preamble: string[] = [];
+  let current: string[] = preamble;
+  for (const line of body.split("\n")) {
+    const section = sectionOf(line);
+    if (section) current = lines[section];
+    else current.push(SECTION_LINE_RE.test(line) ? line.slice(1) : line);
+  }
+  const text = (part: string[]) => part.join("\n").trim();
   return {
     slug,
     title: data.title || slug,
     cycle: data.cycle || "",
     status,
-    body: body.trim(),
+    kind: isValidGoalKind(kind) ? kind : "goal",
+    // Goals without an order (written by hand or before ordering) sort after the rest.
+    order: data.order && Number.isFinite(order) ? order : Number.POSITIVE_INFINITY,
+    droppedOn: status === "dropped" && isValidDateString(data.dropped ?? "") ? data.dropped : null,
+    description: text(lines.description),
+    meeting: text(lines.meeting),
+    exceeding: text(lines.exceeding),
+    notes: [text(preamble), text(lines.notes)].filter(Boolean).join("\n\n"),
   };
 }
 
 export function formatGoal(goal: Goal): string {
-  const head = formatFrontmatter({ title: goal.title, cycle: goal.cycle, status: goal.status });
-  return goal.body.trim() ? `${head}\n${goal.body.trim()}\n` : head;
+  const data: Record<string, string> = { title: goal.title, cycle: goal.cycle, status: goal.status, kind: goal.kind };
+  if (Number.isFinite(goal.order)) data.order = String(goal.order);
+  if (goal.droppedOn) data.dropped = goal.droppedOn;
+  const sections = GOAL_SECTIONS.filter(([key]) => goal[key].trim()).map(([key, heading]) => {
+    const text = goal[key]
+      .trim()
+      .split("\n")
+      .map((line) => (SECTION_LINE_RE.test(line) ? `\\${line}` : line))
+      .join("\n");
+    return `## ${heading}\n\n${text}\n`;
+  });
+  return [formatFrontmatter(data), ...sections].join("\n");
 }

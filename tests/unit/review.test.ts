@@ -29,7 +29,19 @@ function item(overrides: Partial<ReviewItem>): ReviewItem {
 }
 
 const goals: Goal[] = [
-  { slug: "reliability", title: "Improve reliability", cycle: "2026", status: "active", body: "" },
+  {
+    slug: "reliability",
+    title: "Improve reliability",
+    cycle: "2026",
+    status: "agreed",
+    kind: "goal",
+    order: 1,
+    droppedOn: null,
+    description: "",
+    meeting: "",
+    exceeding: "",
+    notes: "",
+  },
 ];
 
 const filters: ReviewFilters = {

@@ -898,12 +898,6 @@ a.goal-link:hover {
   color: var(--ink-2);
 }
 
-.side-panel {
-  display: grid;
-  align-content: start;
-  gap: 1rem;
-}
-
 .settings-page {
   max-width: 46rem;
   margin-inline: 0;
@@ -1909,6 +1903,11 @@ body:has(.capture.is-focus-mode) {
   flex: 1 1 20rem;
 }
 
+.todo-add.wide > input[type="date"] {
+  width: auto;
+  flex: none;
+}
+
 .todo-section {
   margin-bottom: 2rem;
 }
@@ -2001,6 +2000,16 @@ body:has(.capture.is-focus-mode) {
 
 .done-date {
   color: var(--sage);
+}
+
+.due-date {
+  font: 0.72rem / 1.6 var(--mono);
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.due-date.is-overdue {
+  color: var(--rose);
 }
 
 .todo-row:not(:hover):not(:focus-within) .row-actions .icon-btn:not(.is-on) {
@@ -2227,76 +2236,494 @@ li.is-dragging {
 
 /* ---- Goals ------------------------------------------------------------- */
 
-.goals-layout,
-.goal-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 22rem;
-  gap: 3rem;
-  align-items: start;
+/*
+ * The goal sheet is one document. A margin column carries the record
+ * (status, evidence, dates), like dates in the ledger margin. Pencil and
+ * ink: the margin rule is dashed beside a draft goal and solid once agreed.
+ */
+.goals-sheet {
+  --sheet-m: 9.5rem;
 }
 
-.goal-list {
-  display: grid;
+.head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
 }
 
-.goal-item {
+/* The Reader/Timeline switch stays on screen, so switching from anywhere keeps your place. */
+.view-bar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  justify-content: flex-end;
+  margin: -1rem 0 0.75rem;
+  padding: 0.4rem 0;
+  background: var(--bg);
+}
+
+/* Goals land just below the switch, not under it. */
+.goals-sheet [data-goal] {
+  scroll-margin-top: 3.75rem;
+}
+
+.status-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  color: var(--ink-3);
+}
+
+.status-key div {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.agreement {
+  max-width: 78rem;
+}
+
+/* Section heading row: the cycle sits in the margin, the title over the text. */
+.band {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.25rem 1rem;
-  padding: 1.1rem 0;
+  grid-template-columns: var(--sheet-m) minmax(0, 1fr) auto;
+  column-gap: var(--gap);
+  align-items: baseline;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.band-m {
+  justify-self: end;
+  font: 500 1rem var(--mono);
+  color: var(--ink-2);
+}
+
+.band h2 {
+  font: 600 1.15rem var(--serif);
+  color: var(--ink);
+}
+
+.band-note {
+  font-size: 0.85rem;
+  color: var(--ink-3);
+}
+
+.band.is-plan {
+  margin-top: 3.5rem;
+}
+
+/* One section of the sheet: a goal or an activity. */
+.clause {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--sheet-m) minmax(0, 1fr) auto;
+  column-gap: var(--gap);
+  padding: 1.75rem 0 2rem;
   border-bottom: 1px solid var(--line);
+  scroll-margin-top: 1.5rem;
 }
 
-.goal-item:first-child {
-  border-top: 1px solid var(--line);
+/* The margin rule. Agreed is ink: solid. */
+.clause::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--sheet-m) + var(--gap) / 2);
+  width: 1px;
+  background: var(--line-strong);
 }
 
-.goal-title {
-  font: 500 1.3rem / 1.3 var(--serif);
+/* Draft is pencil: dashed, a little brighter, because it's unsettled. */
+.clause.is-draft::before {
+  background: repeating-linear-gradient(to bottom, var(--ink-3) 0 5px, transparent 5px 10px);
+}
+
+/* The section you're editing gets a firm rule so you can see which one is live. */
+.clause.is-editing::before {
+  left: calc(var(--sheet-m) + var(--gap) / 2 - 1px);
+  width: 3px;
+  border-radius: 2px;
+  background: var(--ink-2);
+}
+
+.record {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
+  padding-top: 0.4rem;
+  font: 0.78rem / 1.4 var(--mono);
+  color: var(--ink-3);
+  text-align: right;
+}
+
+.record .no {
+  color: var(--ink-2);
+}
+
+.record a {
+  color: var(--ink-2);
   text-decoration: none;
 }
 
-.goal-title:hover {
+.record a:hover {
+  color: var(--ink);
   text-decoration: underline;
-  text-decoration-thickness: 1px;
   text-underline-offset: 0.2em;
 }
 
-.goal-status {
-  font: 500 0.72rem var(--mono);
-  color: var(--ink-3);
-  align-self: center;
+.record .starred {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--brass);
 }
 
-.goal-item > .goal-status {
-  justify-self: end;
+.record .starred .icon {
+  width: 12px;
+  height: 12px;
 }
 
-.goal-status.st-achieved,
-.st-achieved > .goal-status {
-  color: var(--sage);
+.record .stamp {
+  margin-bottom: 0.35rem;
 }
 
-.st-dropped > .goal-title {
-  color: var(--ink-3);
+.record form {
+  margin-top: 0.4rem;
 }
 
-.goal-summary {
-  grid-column: 1 / -1;
+.stamp {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.45rem;
+  border: 1px solid var(--ink-3);
+  border-radius: 3px;
+  font: 500 0.75rem / 1.6 var(--mono);
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.stamp.draft {
+  border-style: dashed;
   color: var(--ink-2);
-  max-width: 44rem;
 }
 
-.goal-evidence {
+.stamp.dropped {
+  border-color: var(--line-strong);
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+
+.clause-body {
+  min-width: 0;
+}
+
+.clause-name {
+  max-width: 44rem;
+  font: 500 1.5rem / 1.25 var(--serif);
+  letter-spacing: -0.005em;
+  text-wrap: balance;
+}
+
+h1.clause-name {
+  font-size: 2rem;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.clause.is-dropped .clause-name {
+  color: var(--ink-3);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.clause.is-dropped .terms dd {
+  color: var(--ink-3);
+}
+
+.clause-link {
+  margin-top: 0.4rem;
+  font: 0.75rem / 1.4 var(--mono);
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+
+/* Field labels hang to the left of the text, like a form you'd sign. */
+.terms {
+  display: grid;
+  grid-template-columns: 10rem minmax(0, 42rem);
+  gap: 1rem 1.5rem;
+  margin-top: 1.4rem;
+}
+
+.terms dt,
+.terms .term-label {
+  padding-top: 0.2rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+/* FCP text is pasted as typed, so its line breaks show. */
+.terms dd {
+  font: 1rem / 1.6 var(--serif);
+  color: var(--ink-2);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.terms dd.lead {
+  font-size: 1.06rem;
+  color: var(--ink);
+}
+
+.term-sub {
+  display: block;
+  margin-top: 0.15rem;
+  font-weight: 400;
+  font-size: 0.75rem;
+}
+
+/* Notes are yours, not part of the agreement: dashed off, italic. */
+.terms.notes {
+  margin-top: 1.4rem;
+  padding-top: 1.1rem;
+  border-top: 1px dashed var(--line-strong);
+}
+
+.terms.notes dd {
+  font-style: italic;
+  white-space: normal;
+}
+
+.terms.notes .link-button {
+  margin-top: 0;
+  font-style: normal;
+}
+
+.clause-actions {
+  display: grid;
+  justify-items: end;
+  align-content: start;
+  gap: 0.25rem;
+}
+
+.move-goal {
+  display: flex;
+  gap: 0.1rem;
+}
+
+.move-goal .icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Kept in the page (a live region must exist before it speaks), but takes no room until it does. */
+.clause-actions .copy-status:empty,
+.meta-actions .copy-status:empty {
+  min-height: 0;
+}
+
+/* ---- Editing in place ---- */
+
+.terms .term-field {
+  min-width: 0;
+}
+
+/* Fields grow with the text where the browser can; elsewhere they resize by hand. */
+.terms textarea {
+  min-height: 2.4rem;
+  padding: 0.5rem 0.7rem;
+  background: var(--surface);
+  font: 1rem / 1.6 var(--serif);
+  resize: vertical;
+}
+
+@supports (field-sizing: content) {
+  .terms textarea {
+    field-sizing: content;
+    max-block-size: 30lh;
+    resize: none;
+  }
+}
+
+.terms textarea.name {
+  font: 500 1.35rem / 1.3 var(--serif);
+}
+
+.terms input.slug {
+  background: var(--surface);
+  font: 0.85rem var(--mono);
+  color: var(--ink-2);
+}
+
+.terms .composer {
+  background: var(--surface);
+  font: 1rem / 1.6 var(--serif);
+}
+
+.status-pick {
+  display: grid;
+  justify-items: end;
+  gap: 0.1rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.status-pick legend {
+  display: block;
+  width: 100%;
+  margin-bottom: 0.25rem;
+  padding: 0;
+  font: 600 0.78rem var(--sans);
+  color: var(--ink-2);
+  text-align: right;
+}
+
+.status-pick label {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 1.6rem;
+  font: 0.8rem var(--mono);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.status-pick input[type="radio"] {
+  width: 1rem;
+  height: 1rem;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--ink);
+}
+
+.editing-mark {
+  color: var(--ink);
+}
+
+.clause-bar {
+  grid-column: 2 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: calc(10rem + 1.5rem + 42rem);
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+/* ---- Add row and first run ---- */
+
+.clause.is-slot {
+  padding: 1.25rem 0 1.4rem;
+}
+
+.clause.is-slot::before {
+  background: repeating-linear-gradient(to bottom, var(--line-strong) 0 5px, transparent 5px 10px);
+}
+
+.slot-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
+.ghost-terms dd {
+  font-style: italic;
+  color: var(--ink-3);
+}
+
+.first-run .empty-hint {
+  max-width: 42rem;
+}
+
+.first-run .btn.primary {
+  margin-top: 1.25rem;
+}
+
+.sheet-foot {
+  max-width: 44rem;
+  margin: 1.5rem 0 0 calc(var(--sheet-m) + var(--gap));
+  font-size: 0.85rem;
+  color: var(--ink-3);
+}
+
+/* Dropped goals stay readable, folded away at the end. */
+.dropped-goals {
+  margin-top: 2.5rem;
+}
+
+.dropped-goals > summary {
+  margin-left: calc(var(--sheet-m) + var(--gap));
+  padding: 0.4rem 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.dropped-goals .clause {
+  opacity: 0.75;
+}
+
+/* ---- Goal page: the same section, zoomed in ---- */
+
+.zoom-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.5rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.zoom-head .kicker {
+  margin: 0;
+}
+
+.zoom-head .btn {
+  margin-left: auto;
+}
+
+.zoom-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
   font: 0.78rem var(--mono);
   color: var(--ink-3);
 }
 
-.goal-slug {
-  justify-self: end;
-  font-size: 0.72rem;
-  background: none;
-  color: var(--ink-3);
+.icon-btn[aria-disabled="true"] {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.zoom-timeline {
+  margin: 2rem 0 2.5rem;
+}
+
+.zoom-timeline .m {
+  min-height: 5.25rem;
+}
+
+/* Evidence uses the sheet's margin, so dates sit on the same rule as the goal above. */
+.goal-page .goal-evidence-feed {
+  --margin-w: var(--sheet-m);
 }
 
 .goal-evidence-feed .section-title {
@@ -2342,12 +2769,6 @@ li.is-dragging {
   color: var(--ink-2);
 }
 
-.goal-statement {
-  display: grid;
-  gap: 1rem;
-  justify-items: start;
-}
-
 .prose {
   display: grid;
   gap: 0.75rem;
@@ -2356,8 +2777,731 @@ li.is-dragging {
   white-space: normal;
 }
 
-.goal-edit textarea {
-  font: 0.95rem / 1.55 var(--serif);
+/* ---- New cycle: carry goals over ---- */
+
+.carry {
+  display: grid;
+}
+
+.carry-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--sheet-m) minmax(0, 1fr) auto;
+  column-gap: var(--gap);
+  align-items: start;
+  padding: 0.9rem 0;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+}
+
+.carry-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--sheet-m) + var(--gap) / 2);
+  width: 1px;
+  background: var(--line-strong);
+}
+
+.carry-row:hover {
+  background: var(--surface);
+}
+
+.carry-m {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.6rem;
+  padding-top: 0.25rem;
+  font: 0.78rem var(--mono);
+  color: var(--ink-3);
+}
+
+.carry-m input {
+  width: auto;
+  min-height: 0;
+}
+
+.carry-name {
+  display: block;
+  font: 500 1.1rem / 1.35 var(--serif);
+}
+
+.carry-desc {
+  display: -webkit-box;
+  max-width: 44rem;
+  margin-top: 0.2rem;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font: 0.92rem / 1.5 var(--serif);
+  color: var(--ink-3);
+}
+
+.carry-meta {
+  padding-top: 0.25rem;
+  font: 0.75rem var(--mono);
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+
+.carry-sub {
+  padding: 1.25rem 0 0.4rem calc(var(--sheet-m) + var(--gap));
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.carry-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin: 1.5rem 0 0 calc(var(--sheet-m) + var(--gap));
+}
+
+.lead-copy {
+  margin: 1.5rem 0 0.5rem calc(var(--sheet-m) + var(--gap));
+}
+
+/* ---- Timeline: one line per goal across the year ---- */
+
+/* If the map ever outgrows a narrow window, it scrolls on its own, never the page. */
+.map-scroll {
+  overflow-x: auto;
+}
+
+/* Label column | 12 months | tally. Every row shares this template, so months line up. */
+.map-head,
+.row-head,
+.map-band {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(14rem, 21rem) minmax(0, 1fr) 7.5rem;
+}
+
+.map-head {
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.head-label {
+  align-self: end;
+  padding: 0 1.25rem 0.5rem 0;
+}
+
+.head-tally {
+  align-self: end;
+  padding: 0 0 0.5rem 1rem;
+  font: 0.72rem var(--mono);
+  color: var(--ink-3);
+  text-align: right;
+}
+
+.strip {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+.mh {
+  position: relative;
+  height: 2.6rem;
+  padding: 0.3rem 0 0 0.35rem;
+  border-left: 1px solid var(--line);
+  font: 500 0.72rem var(--mono);
+  color: var(--ink-2);
+}
+
+.mh.is-future {
+  color: var(--ink-3);
+}
+
+/* A month in a goal's row: ticks stand on the baseline. */
+.m {
+  position: relative;
+  min-height: 3.4rem;
+  border-left: 1px solid var(--line);
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.m.is-future {
+  border-bottom-style: dotted;
+}
+
+.m.is-off {
+  border-bottom-color: transparent;
+}
+
+/* Ticks, today and the drop mark are SVG, positioned by attributes (no inline styles). */
+.tick-marks {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.tick {
+  stroke: var(--ink-2);
+  stroke-width: 2px;
+}
+
+/* Starred: brass and taller, so it reads without color too. */
+.tick.s {
+  stroke: var(--brass);
+  stroke-width: 3px;
+}
+
+/* Draft: dashed baseline, dotted ticks. Not agreed yet. */
+.is-draft .m:not(.is-future):not(.is-off),
+.key.k-draft {
+  border-bottom-style: dashed;
+}
+
+.is-draft .tick {
+  stroke-dasharray: 2 2;
+}
+
+.is-dropped .tick {
+  stroke: var(--ink-3);
+}
+
+.now {
+  stroke: var(--ink-2);
+  stroke-width: 1px;
+}
+
+.now-flag {
+  fill: var(--ink);
+  font: 600 0.65rem var(--mono);
+}
+
+.drop-mark {
+  fill: var(--ink-3);
+  font: 600 0.8rem var(--mono);
+}
+
+/* A long empty stretch is named on the row, not left for you to notice. */
+.gap-note {
+  position: absolute;
+  z-index: 1;
+  bottom: 0.55rem;
+  left: 0.4rem;
+  width: calc(var(--span) * 100% - 0.8rem);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font: italic 0.85rem / 1.2 var(--serif);
+  color: var(--ink-3);
+  text-align: center;
+  pointer-events: none;
+}
+
+.gap-note::before,
+.gap-note::after {
+  content: "";
+  flex: 1 1 0.75rem;
+  border-top: 1px dashed var(--line-strong);
+}
+
+.gap-note[data-span="3"] {
+  --span: 3;
+}
+.gap-note[data-span="4"] {
+  --span: 4;
+}
+.gap-note[data-span="5"] {
+  --span: 5;
+}
+.gap-note[data-span="6"] {
+  --span: 6;
+}
+.gap-note[data-span="7"] {
+  --span: 7;
+}
+.gap-note[data-span="8"] {
+  --span: 8;
+}
+.gap-note[data-span="9"] {
+  --span: 9;
+}
+.gap-note[data-span="10"] {
+  --span: 10;
+}
+.gap-note[data-span="11"] {
+  --span: 11;
+}
+.gap-note[data-span="12"] {
+  --span: 12;
+}
+
+.map-row {
+  scroll-margin-top: 1.5rem;
+}
+
+.row-head:hover,
+.row-head:has([aria-expanded="true"]) {
+  background: var(--surface);
+}
+
+.row-label {
+  display: grid;
+  align-content: start;
+  gap: 0.3rem;
+  padding: 0.8rem 1.25rem 0.8rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.row-name {
+  display: grid;
+  grid-template-columns: 1rem minmax(0, 1fr);
+  align-items: baseline;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: 500 1.05rem / 1.35 var(--serif);
+  text-align: left;
+  cursor: pointer;
+}
+
+/* The whole row is the target; the name carries the semantics. */
+.row-name::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+}
+
+.chev {
+  font: 0.7rem var(--sans);
+  color: var(--ink-3);
+  transition: transform 0.15s ease;
+}
+
+.row-name[aria-expanded="true"] .chev {
+  transform: rotate(90deg);
+}
+
+.row-status {
+  padding-left: 1rem;
+  font: 500 0.72rem var(--mono);
+  color: var(--ink-3);
+}
+
+.row-status .st {
+  color: var(--ink-2);
+}
+
+.row-status .st-draft {
+  padding: 0 0.35rem;
+  border: 1px dashed var(--ink-3);
+  border-radius: 3px;
+}
+
+.is-dropped .row-name {
+  color: var(--ink-3);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.row-tally {
+  display: grid;
+  align-content: start;
+  justify-items: end;
+  gap: 0.15rem;
+  padding: 0.85rem 0 0.8rem 1rem;
+  border-bottom: 1px solid var(--line);
+  font: 0.72rem / 1.4 var(--mono);
+  color: var(--ink-3);
+}
+
+.row-tally .t-total {
+  color: var(--ink-2);
+}
+
+.t-star {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.t-star .icon {
+  width: 0.75rem;
+  height: 0.75rem;
+  color: var(--brass);
+}
+
+/* Bands: section heads and "add" rows. */
+.map-band .row-label {
+  border-bottom: 0;
+}
+
+.band-section .row-label {
+  padding-top: 2.25rem;
+}
+
+.band-add .row-label {
+  justify-items: start;
+  padding-top: 0.6rem;
+  padding-bottom: 1rem;
+}
+
+.map-add-form {
+  margin: 0.5rem 0 1.5rem;
+}
+
+/* An unfolded row: the goal's text at reading width, then what to do with it. */
+.row-detail {
+  padding: 1.5rem 0 2.25rem;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 16rem;
+  gap: 2.5rem;
+  align-items: start;
+}
+
+.folio {
+  --fl: 9.5rem;
+  display: grid;
+  background: linear-gradient(var(--line-strong), var(--line-strong)) no-repeat;
+  background-size: 1px 100%;
+  background-position: calc(var(--fl) + var(--gap) / 2) 0;
+}
+
+.folio > div {
+  display: grid;
+  grid-template-columns: var(--fl) minmax(0, 46rem);
+  column-gap: var(--gap);
+  padding: 0.55rem 0;
+}
+
+.folio dt {
+  padding-top: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-3);
+  text-align: right;
+}
+
+.folio dt small {
+  display: block;
+  font-weight: 400;
+}
+
+.folio dd {
+  font: 1rem / 1.6 var(--serif);
+  color: var(--ink-2);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.folio .f-desc dd {
+  font-size: 1.12rem;
+  color: var(--ink);
+}
+
+/* Notes never go to FCP: set off by a dashed rule. */
+.folio .f-notes {
+  margin-top: 0.6rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--line-strong);
+}
+
+.folio .f-notes dd {
+  font-style: italic;
+  white-space: normal;
+}
+
+.detail-meta {
+  display: grid;
+  gap: 1.25rem;
+  align-content: start;
+}
+
+.meta {
+  display: grid;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.meta dt {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.meta dd {
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.meta .rec {
+  font: 0.78rem / 1.5 var(--mono);
+}
+
+.meta-actions {
+  display: grid;
+  justify-items: start;
+  gap: 0.5rem;
+}
+
+.meta-actions .quiet-link {
+  min-height: 1.6rem;
+}
+
+.map-foot {
+  margin-top: 1.75rem;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.5rem;
+  max-width: 52rem;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8rem;
+  color: var(--ink-3);
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.key {
+  position: relative;
+  display: inline-block;
+  width: 1.75rem;
+  height: 1.4rem;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.key.k-future {
+  border-bottom-style: dotted;
+}
+
+.key.k-now {
+  border-bottom: 0;
+}
+
+.key.k-now::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--ink-2);
+}
+
+.key.k-dropped {
+  width: auto;
+  height: auto;
+  border: 0;
+  font: 0.85rem var(--serif);
+  color: var(--ink-3);
+  text-decoration: line-through;
+}
+
+/* ---- Goals on narrower windows ---- */
+
+@media (max-width: 1280px) {
+  .terms {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.2rem;
+  }
+
+  .terms dd,
+  .terms .term-field {
+    margin-bottom: 0.9rem;
+  }
+
+  .terms dd:last-child,
+  .terms .term-field:last-child {
+    margin-bottom: 0;
+  }
+
+  .clause-bar {
+    max-width: none;
+  }
+}
+
+@media (max-width: 1180px) {
+  .map-head,
+  .row-head,
+  .map-band {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .map-head .strip,
+  .row-head .strip {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .head-label {
+    padding-bottom: 0.4rem;
+  }
+
+  .head-tally {
+    align-self: start;
+  }
+
+  .row-label,
+  .row-tally {
+    border-bottom: 0;
+    padding-bottom: 0.4rem;
+  }
+
+  .band-section .row-label {
+    padding-top: 1.75rem;
+    border-bottom: 1px solid var(--line-strong);
+  }
+
+  .detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+  }
+
+  .detail-meta {
+    order: -1;
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--line);
+  }
+}
+
+@media (max-width: 1100px) {
+  .clause,
+  .band,
+  .carry-row {
+    grid-template-columns: var(--sheet-m) minmax(0, 1fr);
+  }
+
+  .clause-actions {
+    grid-column: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
+  }
+
+  .band-note,
+  .carry-meta {
+    grid-column: 2;
+  }
+}
+
+@media (max-width: 860px) {
+  .goals-sheet {
+    --sheet-m: 7.5rem;
+  }
+}
+
+@media (max-width: 700px) {
+  .folio {
+    background: none;
+  }
+
+  .folio > div {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 0.3rem;
+  }
+
+  .folio dt {
+    text-align: left;
+  }
+
+  .mh {
+    padding-left: 0.2rem;
+    font-size: 0.62rem;
+  }
+
+  .gap-note {
+    font-size: 0.72rem;
+  }
+}
+
+/* Small: the margin record goes above the text as one line. */
+@media (max-width: 640px) {
+  .goals-sheet {
+    --sheet-m: 4rem;
+  }
+
+  .clause,
+  .band,
+  .carry-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .clause {
+    padding-left: 0.9rem;
+  }
+
+  .clause::before,
+  .carry-row::before {
+    left: 0;
+  }
+
+  .clause.is-editing::before {
+    left: -1px;
+  }
+
+  .record {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.75rem;
+    margin-bottom: 0.75rem;
+    text-align: left;
+  }
+
+  .record .stamp,
+  .record form {
+    margin: 0;
+  }
+
+  .status-pick {
+    justify-items: start;
+  }
+
+  .status-pick legend {
+    text-align: left;
+  }
+
+  .clause-actions,
+  .clause-bar,
+  .band-note,
+  .carry-meta {
+    grid-column: 1;
+  }
+
+  .band-m,
+  .carry-m {
+    justify-self: start;
+  }
+
+  .carry-row {
+    padding-left: 0.9rem;
+  }
+
+  .sheet-foot,
+  .lead-copy,
+  .carry-actions,
+  .carry-sub,
+  .dropped-goals > summary {
+    margin-left: 0;
+    padding-left: 0;
+  }
 }
 
 /* ---- Review ------------------------------------------------------------ */
@@ -2696,9 +3840,7 @@ li.is-dragging {
     border-top: 1px solid var(--line);
   }
 
-  .review-layout,
-  .goals-layout,
-  .goal-layout {
+  .review-layout {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -2706,8 +3848,7 @@ li.is-dragging {
     position: static;
   }
 
-  /* Narrow: show the goal's description/edit and the export actions before long feeds. */
-  .goal-layout > .side-panel,
+  /* Narrow: show the export actions before long feeds. */
   .review-layout > .review-side {
     order: -1;
   }

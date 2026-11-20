@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { applyTodoPatch, type Vault } from "../../src/vault/vault";
-import type { Todo } from "../../src/vault/format";
+import { applyTodoPatch, renameInBlocks, type Vault } from "../../src/vault/vault";
+import { slugify } from "../../src/lib/validation";
+import { entryView, parseEntryBlocks, type Todo } from "../../src/vault/format";
 import { createTestVault } from "../helpers/test-vault";
 
 let vault: Vault;
@@ -356,6 +357,7 @@ describe("applyTodoPatch", () => {
     minutes: null,
     isHighlight: false,
     createdOn: null,
+    dueOn: null,
     completedOn: null,
     notes: "",
     subtasks: [],
@@ -369,37 +371,273 @@ describe("applyTodoPatch", () => {
 });
 
 describe("goals", () => {
+  const fields = { description: "", meeting: "", exceeding: "", notes: "" };
+
   it("creates goal files with unique slugs and keeps the slug when renamed", () => {
-    const first = vault.createGoal({ title: "Improve reliability", cycle: "2026", body: "Fewer pages." });
-    const second = vault.createGoal({ title: "Improve reliability", cycle: "2026", body: "" });
+    const first = vault.createGoal({ title: "Improve reliability", cycle: "2026", description: "Fewer pages." });
+    const second = vault.createGoal({ title: "Improve reliability", cycle: "2026" });
     expect([first.slug, second.slug]).toEqual(["improve-reliability", "improve-reliability-2"]);
 
     vault.saveGoal(first.slug, {
+      ...fields,
       title: "Improve platform reliability",
-      cycle: "2026",
-      status: "achieved",
-      body: "Done.",
+      status: "agreed",
+      description: "Fewer pages.",
+      meeting: "Runbooks.",
     });
     expect(vault.getGoal("improve-reliability")).toMatchObject({
       title: "Improve platform reliability",
-      status: "achieved",
-      body: "Done.",
+      cycle: "2026",
+      status: "agreed",
+      description: "Fewer pages.",
+      meeting: "Runbooks.",
     });
+    expect(read("goals", "improve-reliability.md")).toContain("## Meeting expectations\n\nRunbooks.\n");
+  });
+
+  it("starts new goals as drafts, numbered after the others of their cycle and kind", () => {
+    const a = vault.createGoal({ title: "A", cycle: "2026" });
+    const b = vault.createGoal({ title: "B", cycle: "2026" });
+    const plan = vault.createGoal({ title: "Learn", cycle: "2026", kind: "activity", description: "Courses." });
+    const next = vault.createGoal({ title: "Next year", cycle: "2027" });
+    expect([a.order, b.order, plan.order, next.order]).toEqual([1, 2, 1, 1]);
+    expect(a).toMatchObject({ status: "draft", kind: "goal", droppedOn: null });
+    expect(vault.getGoal(plan.slug)).toMatchObject({ kind: "activity", description: "Courses." });
+  });
+
+  it("lists goals newest cycle first, goals before activities, then by order and title", () => {
+    vault.createGoal({ title: "Old", cycle: "2025" });
+    vault.createGoal({ title: "Zed", cycle: "2026" });
+    vault.createGoal({ title: "Plan", cycle: "2026", kind: "activity" });
+    vault.createGoal({ title: "Alpha", cycle: "2026" });
+    mkdirSync(join(root, "goals"), { recursive: true });
+    writeFileSync(join(root, "goals", "hand.md"), "---\ntitle: Hand written\ncycle: 2026\n---\n");
+    expect(vault.getGoals().map((goal) => goal.title)).toEqual(["Zed", "Alpha", "Hand written", "Plan", "Old"]);
+  });
+
+  describe("changing a goal's link", () => {
+    const day = (date: string, body: string) => {
+      mkdirSync(join(root, "journal", date.slice(0, 4)), { recursive: true });
+      writeFileSync(join(root, "journal", date.slice(0, 4), `${date}.md`), body);
+    };
+
+    it("renames the file and rewrites links in entries, todos, notes and subtasks only", () => {
+      vault.createGoal({ title: "Old", cycle: "2026", description: "Kept." });
+      vault.createGoal({ title: "Old 2", cycle: "2026" });
+      day(
+        "2026-09-01",
+        [
+          "---",
+          "date: 2026-09-01",
+          "---",
+          "A loose line [[old]] outside any entry.",
+          "",
+          "- 09:00 Shipped it [[old]] ^aaaaaa",
+          "    Body with [[old|the old goal]] and [[ old ]], `code [[old]]`, ``[[old]]`` and [[old-2]] [[older]].",
+          "    ```",
+          "    [[old]] in a fence",
+          "    ```",
+          "    After the fence [[old]]",
+          "- 10:00 Unrelated [[old-2]] ^bbbbbb",
+          "",
+        ].join("\n"),
+      );
+      day("2026-09-02", "- Nothing here ^cccccc\n");
+      writeFileSync(
+        join(root, "todos.md"),
+        [
+          "- [ ] Follow up [[old]] ^dddddd",
+          "    A note about [[old]] and `[[old]]`",
+          "    - [ ] Subtask [[old|label]] ^eeeeee",
+          "        - [x] Nested [[old]] ^ffffff",
+          "- [ ] Other [[older]] ^gggggg",
+          "",
+        ].join("\n"),
+      );
+      const untouched = read("journal", "2026", "2026-09-02.md");
+
+      expect(vault.renameGoal("old", "shipping")).toEqual({ slug: "shipping", entries: 1, todos: 1, failed: 0 });
+      expect(vault.getGoal("old")).toBeNull();
+      expect(vault.getGoal("shipping")).toMatchObject({ title: "Old", description: "Kept.", order: 1 });
+      expect(read("journal", "2026", "2026-09-01.md")).toBe(
+        [
+          "---",
+          "date: 2026-09-01",
+          "---",
+          "A loose line [[old]] outside any entry.",
+          "",
+          "- 09:00 Shipped it [[shipping]] ^aaaaaa",
+          "    Body with [[shipping|the old goal]] and [[ shipping ]], `code [[old]]`, ``[[old]]`` and [[old-2]] [[older]].",
+          "    ```",
+          "    [[old]] in a fence",
+          "    ```",
+          "    After the fence [[shipping]]",
+          "- 10:00 Unrelated [[old-2]] ^bbbbbb",
+          "",
+        ].join("\n"),
+      );
+      expect(read("todos.md")).toBe(
+        [
+          "- [ ] Follow up [[shipping]] ^dddddd",
+          "    A note about [[shipping]] and `[[old]]`",
+          "    - [ ] Subtask [[shipping|label]] ^eeeeee",
+          "        - [x] Nested [[shipping]] ^ffffff",
+          "- [ ] Other [[older]] ^gggggg",
+          "",
+        ].join("\n"),
+      );
+      expect(read("journal", "2026", "2026-09-02.md")).toBe(untouched);
+      expect(vault.getEntries("2026-09-01")[0].goals).toEqual(["shipping", "old-2", "older"]);
+      expect(vault.getTodos()[0].goals).toEqual(["shipping"]);
+    });
+
+    it("finishes the other files and counts the ones it couldn't write", () => {
+      vault.createGoal({ title: "Old", cycle: "2026" });
+      day("2026-09-01", "- One [[old]] ^aaaaaa\n");
+      day("2026-09-02", "- Two [[old]] ^bbbbbb\n");
+      // A folder where the atomic write puts its temp file makes that one write fail.
+      mkdirSync(join(root, "journal", "2026", "2026-09-01.md.tmp"));
+      expect(vault.renameGoal("old", "new")).toEqual({ slug: "new", entries: 1, todos: 0, failed: 1 });
+      expect(read("journal", "2026", "2026-09-01.md")).toBe("- One [[old]] ^aaaaaa\n");
+      expect(read("journal", "2026", "2026-09-02.md")).toBe("- Two [[new]] ^bbbbbb\n");
+      expect(vault.getGoal("new")).not.toBeNull();
+    });
+
+    it("keeps a block exactly as it was, and counts it, when a rewrite wouldn't read the same", () => {
+      const date = "2026-09-01";
+      const view = (block: string[], renamed: boolean) =>
+        renamed ? entryView(block, date, "old", "new") : entryView(block, date);
+      const original = ["- Real [[old]] and `[[old]]` ^aaaaaa", "- Other [[old]] ^bbbbbb", "- Unrelated ^cccccc"];
+
+      // Rewrites code too: the first entry would read differently, so it's kept; the second is fine.
+      const careless = [...original];
+      const replaceAll = (block: string[]) => block.map((line) => line.replaceAll("[[old]]", "[[new]]"));
+      expect(renameInBlocks(careless, parseEntryBlocks(careless, date), replaceAll, view)).toEqual({
+        changed: 1,
+        failed: 1,
+      });
+      expect(careless).toEqual([original[0], "- Other [[new]] ^bbbbbb", original[2]]);
+
+      // Misses real links: both linked entries are counted, nothing changes.
+      const lazy = [...original];
+      expect(renameInBlocks(lazy, parseEntryBlocks(lazy, date), (block) => block, view)).toEqual({
+        changed: 0,
+        failed: 2,
+      });
+      expect(lazy).toEqual(original);
+    });
+
+    it("passes the checked slug through as is", () => {
+      vault.createGoal({ title: "Old", cycle: "2026" });
+      expect(vault.renameGoal("old", "Hello")?.slug).toBe("Hello");
+      expect(vault.getGoal("Hello")).not.toBeNull();
+    });
+
+    it("refuses an empty, reserved or taken link, and changes nothing", () => {
+      vault.createGoal({ title: "Old", cycle: "2026" });
+      vault.createGoal({ title: "Taken", cycle: "2026" });
+      expect(vault.goalLinkProblem("old", slugify("!!!"))).toBe("A link needs at least one letter or number.");
+      expect(vault.goalLinkProblem("old", "carry")).toBe("That link is reserved. Pick another.");
+      expect(vault.goalLinkProblem("old", "taken")).toBe("Another goal already uses [[taken]].");
+      expect(vault.goalLinkProblem("old", "fresh")).toBeNull();
+      // Cutting at 48 characters can split a rare character, leaving a link no goal page could open.
+      const split = slugify(`${"a".repeat(47)}\u{20000}b`);
+      expect(vault.goalLinkProblem("old", split)).toBe("Use letters and numbers, joined by single hyphens.");
+      expect(() => vault.renameGoal("old", "taken")).toThrow("Another goal already uses [[taken]].");
+      expect(vault.getGoal("old")).not.toBeNull();
+      expect(vault.renameGoal("missing", "fresh")).toBeNull();
+    });
+  });
+
+  it("moves a goal up or down among the live goals of its cycle and kind", () => {
+    const a = vault.createGoal({ title: "A", cycle: "2026" });
+    const gone = vault.createGoal({ title: "Gone", cycle: "2026" });
+    const b = vault.createGoal({ title: "B", cycle: "2026" });
+    const c = vault.createGoal({ title: "C", cycle: "2026" });
+    vault.createGoal({ title: "Plan", cycle: "2026", kind: "activity" });
+    vault.createGoal({ title: "Other year", cycle: "2025" });
+    vault.saveGoal(gone.slug, { ...gone, status: "dropped" });
+    const order = () =>
+      vault
+        .getGoals()
+        .filter((goal) => goal.cycle === "2026" && goal.kind === "goal")
+        .map((goal) => `${goal.title}:${goal.order}`);
+
+    expect(vault.moveGoal(c.slug, "up")).toBe(true);
+    // Live goals renumber 1..n in the new order; dropped ones follow.
+    expect(order()).toEqual(["A:1", "C:2", "B:3", "Gone:4"]);
+    expect(vault.moveGoal(a.slug, "up")).toBe(false);
+    expect(vault.moveGoal(b.slug, "down")).toBe(false);
+    expect(vault.moveGoal(gone.slug, "up")).toBe(false);
+    expect(vault.moveGoal(a.slug, "down")).toBe(true);
+    expect(order()).toEqual(["C:1", "A:2", "B:3", "Gone:4"]);
+    expect(vault.getGoal("plan")?.order).toBe(1);
+    expect(vault.moveGoal("missing", "up")).toBe(false);
+  });
+
+  it("stamps the drop date when dropped and clears it when restored", () => {
+    const goal = vault.createGoal({ title: "Retire the server", cycle: "2026" });
+    const change = { ...fields, title: goal.title };
+    expect(vault.saveGoal(goal.slug, { ...change, status: "dropped" }, "2026-05-12")?.droppedOn).toBe("2026-05-12");
+    expect(read("goals", `${goal.slug}.md`)).toContain("dropped: 2026-05-12\n");
+    // Saving again while dropped keeps the first date.
+    expect(vault.saveGoal(goal.slug, { ...change, status: "dropped" }, "2026-06-01")?.droppedOn).toBe("2026-05-12");
+    expect(vault.saveGoal(goal.slug, { ...change, status: "agreed" }, "2026-06-02")?.droppedOn).toBeNull();
+    expect(read("goals", `${goal.slug}.md`)).not.toContain("dropped:");
+  });
+
+  it("doesn't invent a drop date for a goal dropped before dates were kept", () => {
+    mkdirSync(join(root, "goals"), { recursive: true });
+    writeFileSync(join(root, "goals", "old.md"), "---\ntitle: Old\ncycle: 2025\nstatus: dropped\n---\n");
+    const old = vault.getGoal("old")!;
+    expect(vault.saveGoal("old", { ...old, notes: "Typo fixed." }, "2026-09-28")?.droppedOn).toBeNull();
+  });
+
+  it("ignores a drop date that isn't a date, or on a goal that isn't dropped", () => {
+    mkdirSync(join(root, "goals"), { recursive: true });
+    writeFileSync(join(root, "goals", "a.md"), "---\ntitle: A\nstatus: dropped\ndropped: yes\n---\n");
+    writeFileSync(join(root, "goals", "b.md"), "---\ntitle: B\nstatus: agreed\ndropped: 2026-05-12\n---\n");
+    expect(vault.getGoal("a")?.droppedOn).toBeNull();
+    expect(vault.getGoal("b")?.droppedOn).toBeNull();
+  });
+
+  it("adds a new goal after goals written before ordering, numbering those first", () => {
+    mkdirSync(join(root, "goals"), { recursive: true });
+    writeFileSync(join(root, "goals", "zed.md"), "---\ntitle: Zed\ncycle: 2026\nstatus: active\n---\nOld body.\n");
+    writeFileSync(join(root, "goals", "alpha.md"), "---\ntitle: Alpha\ncycle: 2026\nstatus: active\n---\n");
+    vault.createGoal({ title: "Brand new", cycle: "2026" });
+    expect(vault.getGoals().map((goal) => [goal.title, goal.order])).toEqual([
+      ["Alpha", 1],
+      ["Zed", 2],
+      ["Brand new", 3],
+    ]);
+    expect(vault.getGoal("zed")?.notes).toBe("Old body.");
   });
 
   it("finds a long duplicate-titled goal by its suffixed slug", () => {
     const title = "A very long goal title that runs well past the slug length limit";
-    vault.createGoal({ title, cycle: "2026", body: "" });
-    const second = vault.createGoal({ title, cycle: "2026", body: "" });
+    vault.createGoal({ title, cycle: "2026" });
+    const second = vault.createGoal({ title, cycle: "2026" });
     expect(second.slug.length).toBeGreaterThan(48);
     expect(vault.getGoal(second.slug)?.title).toBe(title);
   });
 
   it("names a goal reused in a new cycle after that cycle", () => {
-    vault.createGoal({ title: "Improve reliability", cycle: "2026", body: "" });
-    expect(vault.createGoal({ title: "Improve reliability", cycle: "2027", body: "" }).slug).toBe(
-      "improve-reliability-2027",
-    );
+    vault.createGoal({ title: "Improve reliability", cycle: "2026" });
+    expect(vault.createGoal({ title: "Improve reliability", cycle: "2027" }).slug).toBe("improve-reliability-2027");
+  });
+
+  it("keeps the cycle in the link of a long FCP-style name reused in a new cycle", () => {
+    const title = "Improve Client Communication, Service Delivery, and Stakeholder Engagement Across Campus Units";
+    vault.createGoal({ title, cycle: "2026" });
+    const next = vault.createGoal({ title, cycle: "2027" }).slug;
+    expect(next).toStartWith("improve-client-communication-service-");
+    expect(next).toEndWith("-2027");
+    expect(next.length).toBeLessThanOrEqual(48);
+  });
+
+  it("never names a goal after the carry-over route", () => {
+    expect(vault.createGoal({ title: "Carry", cycle: "2026" }).slug).toBe("carry-2");
   });
 
   it("refuses slugs that aren't plain slugs", () => {
