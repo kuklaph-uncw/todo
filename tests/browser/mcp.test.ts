@@ -5,10 +5,15 @@ import { devFetch } from "../../src/dev-server";
 import { AgentAccess } from "../../src/mcp/access";
 import { createTestContext } from "../helpers/test-vault";
 import { LedgerService } from "../../src/mcp/ledger";
+import { VaultChanges } from "../../src/vault/changes";
 
 const base = createTestContext();
-const ctx = { ...base, agentAccess: new AgentAccess(join(base.root, "mcp.json"), base.vault, base.clock) };
-const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: devFetch(ctx) });
+const ctx = {
+  ...base,
+  agentAccess: new AgentAccess(join(base.root, "mcp.json"), base.vault, base.clock),
+  changes: new VaultChanges(base.vault, base.root),
+};
+const server = Bun.serve({ hostname: "127.0.0.1", port: 0, idleTimeout: 30, fetch: devFetch(ctx) });
 let browser: Browser;
 let page: Page;
 beforeAll(async () => {
@@ -35,7 +40,7 @@ it("supports settings with normal form controls and only shows the token once", 
   await page.setViewportSize({ width: 1280, height: 900 });
 });
 
-it("announces changed tasks without replacing typed text, and rejects a stale editor save", async () => {
+it("updates the page around an unsaved todo edit, then rejects the stale save", async () => {
   const todo = ctx.vault.addTodo({
     task: "Original task",
     priority: null,
@@ -45,26 +50,27 @@ it("announces changed tasks without replacing typed text, and rejects a stale ed
     notes: "",
   });
   await page.goto(`${server.url}todos?edit=${todo.id}`);
-  await page.getByRole("textbox", { name: "Task", exact: true }).fill("My unfinished edit");
+  const task = page.getByRole("textbox", { name: "Task", exact: true });
+  await task.fill("My unfinished edit");
   ctx.vault.updateTodo(todo.id, { task: "Agent update" });
-  await page.locator("#change-notice").waitFor({ state: "visible" });
-  expect(await page.getByRole("textbox", { name: "Task", exact: true }).textContent()).toBe("My unfinished edit");
-  page.once("dialog", (dialog) => dialog.dismiss());
-  await page.getByRole("button", { name: "Refresh when ready", exact: true }).click();
-  expect(await page.getByRole("textbox", { name: "Task", exact: true }).textContent()).toBe("My unfinished edit");
+  await page.locator("#live-status").getByText("1 item updated.", { exact: true }).waitFor({ state: "attached" });
+  expect(await task.textContent()).toBe("My unfinished edit");
+  expect(await task.evaluate((el) => el === document.activeElement)).toBe(true);
+  expect(await page.locator("#change-notice").isHidden()).toBe(true);
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.getByRole("heading", { name: "Todo changed", exact: true }).waitFor();
   expect(await page.getByLabel("Your submitted text").inputValue()).toBe("My unfinished edit");
   expect(ctx.vault.getTodo(todo.id)?.task).toBe("Agent update");
 }, 20000);
 
-it("notices MCP ledger edits without replacing a draft and rejects a stale entry save", async () => {
+it("updates the page around an unsaved ledger edit, then rejects the stale save", async () => {
   const ledger = new LedgerService(ctx.vault, ctx.clock);
   ledger.execute("add_entry", { text: "Original ledger text", requestId: "entry-create" });
   const entry = ledger.list({}).entries[0];
   await page.goto(`${server.url}?edit=${entry.id}`);
   const editor = page.getByRole("textbox", { name: "Entry text", exact: true });
   await editor.fill("My unfinished ledger edit");
+  ledger.execute("add_entry", { text: "Agent's new entry", requestId: "entry-add" });
   ledger.execute("update_entry", {
     date: entry.date,
     id: entry.id,
@@ -72,7 +78,7 @@ it("notices MCP ledger edits without replacing a draft and rejects a stale entry
     text: "Agent ledger update",
     requestId: "entry-update",
   });
-  await page.locator("#change-notice").waitFor({ state: "visible" });
+  await page.getByText("Agent's new entry", { exact: true }).waitFor();
   expect(await editor.textContent()).toBe("My unfinished ledger edit");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.getByRole("heading", { name: "Entry changed", exact: true }).waitFor();
@@ -80,38 +86,19 @@ it("notices MCP ledger edits without replacing a draft and rejects a stale entry
   expect(ledger.get(entry).text).toBe("Agent ledger update");
 }, 20000);
 
-it("confirms refresh when only a goal's status selection has changed", async () => {
+it("keeps a goal's changed status choice through a live update", async () => {
   const goal = ctx.vault.createGoal({ title: "Refresh protection", cycle: "2026" });
   await page.goto(`${server.url}goals/${goal.slug}?edit=1`);
-  await page.locator('.goal-edit input[name="status"][value="agreed"]').check();
-  ctx.vault.addTodo({ task: "Trigger goal notice", priority: null, status: "Open", tags: [], goals: [], notes: "" });
-  await page.locator("#change-notice").waitFor({ state: "visible" });
-  let prompted = false;
-  const dismiss = (dialog: import("playwright").Dialog) => {
-    prompted = true;
-    void dialog.dismiss();
-  };
-  page.on("dialog", dismiss);
-  try {
-    await page.getByRole("button", { name: "Refresh when ready", exact: true }).click();
-    expect(prompted).toBe(true);
-    expect(await page.locator('.goal-edit input[name="status"][value="agreed"]').isChecked()).toBe(true);
-  } finally {
-    page.off("dialog", dismiss);
-  }
+  const agreed = page.locator('.goal-edit input[name="status"][value="agreed"]');
+  await agreed.check();
+  const version = await page.locator("main").getAttribute("data-todo-version");
+  ctx.vault.addTodo({ task: "Trigger goal update", priority: null, status: "Open", tags: [], goals: [], notes: "" });
+  await page.waitForFunction((before) => document.querySelector("main")?.dataset.todoVersion !== before, version);
+  expect(await agreed.isChecked()).toBe(true);
 }, 20000);
 
-it("keeps text entered while a refresh response is loading", async () => {
+it("keeps text typed while a live update is loading", async () => {
   await page.goto(`${server.url}todos`);
-  ctx.vault.addTodo({
-    task: "Trigger delayed refresh",
-    priority: null,
-    status: "Open",
-    tags: [],
-    goals: [],
-    notes: "",
-  });
-  await page.locator("#change-notice").waitFor({ state: "visible" });
   let release!: () => void;
   let started!: () => void;
   const ready = new Promise<void>((resolve) => {
@@ -128,14 +115,14 @@ it("keeps text entered while a refresh response is loading", async () => {
     await route.fulfill({ response });
   });
   try {
-    await page.getByRole("button", { name: "Refresh when ready", exact: true }).click();
+    ctx.vault.addTodo({ task: "Arrives while typing", priority: null, status: "Open", tags: [], goals: [], notes: "" });
     await ready;
-    await page.getByRole("textbox", { name: "New todo", exact: true }).fill("Typed while refreshing");
+    const input = page.getByRole("textbox", { name: "New todo", exact: true });
+    await input.fill("Typed while updating");
     release();
-    await page.getByText("New edits were made while refreshing. Your page has been kept.", { exact: true }).waitFor();
-    expect(await page.getByRole("textbox", { name: "New todo", exact: true }).textContent()).toBe(
-      "Typed while refreshing",
-    );
+    await page.getByText("Arrives while typing", { exact: true }).waitFor();
+    expect(await input.textContent()).toBe("Typed while updating");
+    expect(await input.evaluate((el) => el === document.activeElement)).toBe(true);
   } finally {
     release();
     await page.unroute(url);
@@ -146,5 +133,6 @@ afterAll(async () => {
   await browser?.close();
   server.stop(true);
   await ctx.agentAccess.close();
+  ctx.changes.close();
   ctx.cleanup();
 }, 30000);

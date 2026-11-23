@@ -30,6 +30,17 @@ function serveAsset(pathname: string): Response | null {
   return new Response(asset.body, { headers: { "content-type": asset.type, "cache-control": "no-cache" } });
 }
 
+/** How long an open window's request waits for a change before asking again. */
+const CHANGE_WAIT_MS = 25_000;
+
+/** With ?after=<revision>, waits until the vault no longer matches it, so the window hears of changes at once. */
+async function todoVersion(req: Request, ctx: AppContext): Promise<Response> {
+  const after = new URL(req.url).searchParams.get("after");
+  const revision =
+    after && ctx.changes ? await ctx.changes.next(after, CHANGE_WAIT_MS, req.signal) : vaultRevision(ctx.vault);
+  return Response.json({ revision }, { headers: { "cache-control": "no-store" } });
+}
+
 async function route(req: Request, ctx: AppContext): Promise<Response> {
   const { pathname } = new URL(req.url);
   let parts: string[];
@@ -43,8 +54,7 @@ async function route(req: Request, ctx: AppContext): Promise<Response> {
   if (req.method === "GET" || req.method === "HEAD") {
     if (pathname === "/settings") return handleSettings(req, ctx);
     if (pathname === "/updates") return updateStatus(ctx);
-    if (pathname === "/todo-version")
-      return Response.json({ revision: vaultRevision(ctx.vault) }, { headers: { "cache-control": "no-store" } });
+    if (pathname === "/todo-version") return todoVersion(req, ctx);
     if (pathname === "/") return handleToday(req, ctx);
     if (pathname === "/todos") return handleTodos(req, ctx);
     if (pathname === "/goals") return handleGoals(req, ctx);

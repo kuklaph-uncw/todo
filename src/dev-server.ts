@@ -9,6 +9,7 @@ import { CSP } from "./electron/protocol";
 import { resolveVaultPath } from "./launch";
 import type { AppContext } from "./routes/shared";
 import { handleRequest } from "./server";
+import { VaultChanges } from "./vault/changes";
 import { Vault } from "./vault/vault";
 
 const LOCAL_HOST = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
@@ -92,13 +93,21 @@ if (import.meta.main) {
     home: homedir(),
     cwd: process.cwd(),
   });
+  const vault = new Vault(vaultPath);
   const ctx: AppContext = {
-    vault: new Vault(vaultPath),
+    vault,
     vaultPath,
     // Outside the vault, in the git-ignored tmp/ folder, like the desktop app's userData.
     preferencesPath: resolve(process.cwd(), "tmp", "dev-preferences.json"),
     clock: () => new Date(),
+    changes: new VaultChanges(vault, vaultPath),
   };
-  const server = Bun.serve({ hostname: "127.0.0.1", port: Number(process.env.PORT ?? 41820), fetch: devFetch(ctx) });
+  const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: Number(process.env.PORT ?? 41820),
+    // Longer than /todo-version's 25-second wait, which Bun's 10-second default would cut short.
+    idleTimeout: 30,
+    fetch: devFetch(ctx),
+  });
   console.log(`ToDo (development) is running at ${server.url}\nNotes: ${vaultPath}`);
 }

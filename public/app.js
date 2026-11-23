@@ -9,9 +9,14 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
 
   // ---- Per-page setup (runs on load and after every in-place swap) --------
 
+  // Elements a live update kept on the page already have their listeners.
+  const setUp = { drafts: new WeakSet(), lists: new WeakSet(), composers: new WeakSet() };
+  const firstTime = (set, el) => !set.has(el) && set.add(el);
+
   function initPage(root) {
     // Drafts: unsent capture text survives a reload, per day.
     root.querySelectorAll("textarea[data-draft]").forEach((textarea) => {
+      if (!firstTime(setUp.drafts, textarea)) return;
       const key = textarea.dataset.draft;
       const saved = localStorage.getItem(key);
       if (saved && !textarea.value) textarea.value = saved;
@@ -35,12 +40,13 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
     // Subtask lists stay open or closed as the user left them, across updates and pages, for this window.
     const openLists = () => new Set(JSON.parse(sessionStorage.getItem("open-subtasks") || "[]"));
     root.querySelectorAll("details[data-keep-open]").forEach((details) => {
-      const button = document.querySelector(`button[data-subtasks="${details.id}"]`);
-      if (button) button.hidden = false;
+      const button = () => document.querySelector(`button[data-subtasks="${details.id}"]`);
+      if (button()) button().hidden = false;
       if (openLists().has(details.id)) details.open = true;
-      button?.setAttribute("aria-expanded", String(details.open));
+      button()?.setAttribute("aria-expanded", String(details.open));
+      if (!firstTime(setUp.lists, details)) return;
       details.addEventListener("toggle", () => {
-        button?.setAttribute("aria-expanded", String(details.open));
+        button()?.setAttribute("aria-expanded", String(details.open));
         const open = openLists();
         if (details.open) open.add(details.id);
         else open.delete(details.id);
@@ -308,6 +314,8 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
   }
 
   function enhanceComposer(field) {
+    // Already set up: a form kept through a live update (mergePage).
+    if (!firstTime(setUp.composers, field)) return;
     const single = field instanceof HTMLInputElement;
     const tokens = field.hasAttribute("data-composer");
     let sourceMode = false;
@@ -351,7 +359,7 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
       field.removeAttribute(name);
     }
     if (!editor.id) editor.id = `writer-${++editorCount}`;
-    const hadFocus = document.activeElement === field || field.autofocus;
+    const hadFocus = document.activeElement === field || (field.autofocus && !merging);
     field.hidden = true;
     field.required = false; // a hidden field can't show the browser's "fill this in" bubble
     field.after(editor);
@@ -951,15 +959,48 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
 
   /** Visible, so focusing it makes sense (not inside a collapsed section). */
   const canFocus = (el) => {
-    if (!el?.isConnected) return false;
+    if (!el?.isConnected || el.disabled) return false;
     const closed = el.closest("details:not([open])");
     return !closed || closed.querySelector(":scope > summary")?.contains(el);
   };
   // Prefer the row's buttons over links inside its text.
   const firstControl = (row) =>
-    row?.querySelector("button") ?? row?.querySelector('a[href], input:not([type="hidden"]), select, textarea');
+    row?.querySelector("button:enabled") ?? row?.querySelector('a[href], input:not([type="hidden"]), select, textarea');
 
-  function swapPage(html, url, { focusCapture, draftKey }) {
+  /** Pairs elements with a key that finds the same one on the next version of the page. */
+  const keyed = (root, selector, name) => {
+    const counts = new Map();
+    return [...root.querySelectorAll(selector)].map((el) => {
+      const n = counts.get(name(el)) ?? 0;
+      counts.set(name(el), n + 1);
+      return [`${name(el)} ${n}`, el];
+    });
+  };
+  const keyedForms = (root) =>
+    keyed(root, "form", (form) => `${form.getAttribute("method") || "get"} ${form.getAttribute("action") || ""}`);
+  const keyedDetails = (root) => keyed(root, "details", (el) => el.id || el.className);
+
+  /** The sidebar and title come with each page too. */
+  function showChrome(doc) {
+    for (const selector of [".nav", ".agent-settings-link"]) {
+      const next = doc.querySelector(selector);
+      const current = document.querySelector(selector);
+      if (!next || !current || next.outerHTML === current.outerHTML) continue;
+      // A focused sidebar link (the todo count changed, say) keeps focus.
+      const focused = current.contains(document.activeElement) && document.activeElement.getAttribute("href");
+      current.replaceWith(next);
+      if (focused) [next, ...next.querySelectorAll("a[href]")].find((a) => a.getAttribute("href") === focused)?.focus();
+    }
+    document.getElementById("change-notice").hidden = true;
+    document.title = doc.title;
+  }
+
+  /**
+   * Shows a page from the server in place of the current one. After a form post,
+   * focus stays on the same control or row. After opening a page (`navigate`),
+   * focus goes to the page and it scrolls to `scrollY`, the link's #anchor or the top.
+   */
+  function swapPage(html, url, { focusCapture, draftKey, form, submitter, navigate, push = true, restoreY }) {
     cancelTodoSearch();
     const doc = new DOMParser().parseFromString(html, "text/html");
     const nextMain = doc.querySelector("main");
@@ -969,31 +1010,48 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
     }
 
     const seen = new Set([...document.querySelectorAll(".entry[id]")].map((el) => el.id));
+    const goalsBefore = new Set([...document.querySelectorAll("[data-goal][id]")].map((el) => el.id));
     // Remember where focus was, and the rows around it, in case that element goes away.
     const active = document.activeElement;
     const row = active?.closest("li[id]");
     const focusIds = [active?.id, row?.id, row?.nextElementSibling?.id, row?.previousElementSibling?.id].filter(
       Boolean,
     );
+    const goalId = form?.closest("[data-goal][id]")?.id;
+    const formKey = form && keyedForms(document).find(([, f]) => f === form)?.[0];
+    const control = form && submitter ? [...form.elements].indexOf(submitter) : -1;
     const trayScroll = document.querySelector(".tray")?.scrollTop ?? 0;
 
+    shownItems = itemHtml(nextMain);
     document.querySelector("main").replaceWith(nextMain);
-    const nextNav = doc.querySelector(".nav");
-    if (nextNav) document.querySelector(".nav")?.replaceWith(nextNav);
-    const settingsLink = doc.querySelector(".agent-settings-link");
-    if (settingsLink) document.querySelector(".agent-settings-link")?.replaceWith(settingsLink);
-    document.getElementById("change-notice").hidden = true;
-    document.title = doc.title;
+    showChrome(doc);
 
     const target = new URL(url);
     target.searchParams.delete("error");
     target.searchParams.delete("saved");
-    if (target.pathname + target.search !== location.pathname + location.search) {
-      history.pushState(null, "", target.pathname + target.search);
+    // An opened page keeps its #anchor in the address, so Back and view switches can return to it.
+    const address = target.pathname + target.search + (navigate ? target.hash : "");
+    if (push && address !== location.pathname + location.search + (navigate ? location.hash : "")) {
+      history.pushState(null, "", address);
     }
+    shownAddress = target.pathname + target.search;
 
     if (draftKey && !new URL(url).searchParams.has("error")) localStorage.removeItem(draftKey);
     initPage(nextMain);
+
+    if (navigate) {
+      // A short fade (styles.css), which unlike a view transition never swallows a quick click.
+      nextMain.classList.add("is-arriving");
+      if (!nextMain.contains(document.activeElement)) {
+        const autofocus = nextMain.querySelector("[autofocus]");
+        (canFocus(autofocus) ? autofocus : nextMain).focus({ preventScroll: true });
+      }
+      const anchor = target.hash && document.getElementById(decodeURIComponent(target.hash.slice(1)));
+      if (typeof restoreY === "number") scrollTo(0, restoreY);
+      else if (anchor) anchor.scrollIntoView();
+      else scrollTo(0, 0);
+      return;
+    }
 
     const tray = nextMain.querySelector(".tray");
     if (tray) tray.scrollTop = trayScroll;
@@ -1004,16 +1062,32 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
       });
     }
 
+    // After a goal is added or its link renamed, follow it; otherwise stay with the goal that was posted.
+    const goalPost = Boolean(goalId) || Boolean(form?.matches(".goal-edit, .agreement"));
+    const newGoal = goalPost
+      ? [...nextMain.querySelectorAll("[data-goal][id]")].find((el) => !goalsBefore.has(el.id))
+      : null;
+    const goal = newGoal ?? (goalId ? document.getElementById(goalId) : null);
+    const sameForm = formKey && keyedForms(nextMain).find(([key]) => key === formKey)?.[1];
+
     // Keep keyboard users in place: same control, else the same or a nearby row, else the page.
     const candidates = [
       focusCapture && nextMain.querySelector("#capture"),
+      newGoal && firstControl(newGoal),
       ...focusIds.map((id, i) => {
         const el = document.getElementById(id);
         return i === 0 ? el : firstControl(el);
       }),
+      sameForm?.elements[control],
+      goal && firstControl(goal),
     ];
     const refocus = candidates.find(canFocus) || nextMain;
     refocus.focus({ preventScroll: true });
+    if (goal) {
+      goal.scrollIntoView();
+      // As the server's redirect had it, so Back and the view switch return to this goal.
+      history.replaceState(history.state, "", `${location.pathname}${location.search}#${goal.id}`);
+    }
   }
 
   document.addEventListener("submit", async (event) => {
@@ -1024,14 +1098,28 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
       updateTodoSearch(form);
       return;
     }
-    // data-full-page posts normally, so the browser follows the redirect to its #anchor.
-    if (form.method.toLowerCase() !== "post" || form.hasAttribute("data-full-page")) return;
+    if (form.method === "dialog") return;
     event.preventDefault();
+    if (form.method === "get") {
+      // Filters and jumps open their page in place. The action's #anchor stays.
+      const url = new URL(form.action);
+      url.search = new URLSearchParams(new FormData(form, event.submitter)).toString();
+      openPage(url.href);
+      return;
+    }
 
+    // An agent changed this item a moment ago; the user may not have seen what they're agreeing to.
+    // (A form with unsaved edits kept its old revision, so a save is checked on the server instead.)
+    if (Date.now() - lastMerge < 1000 && form.closest(".is-updated") && changedFields(form).length === 0) {
+      announce(document.getElementById("live-status"), "That just changed. Check it, then try again.");
+      return;
+    }
     if (form.dataset.confirm && !confirm(form.dataset.confirm)) return;
     if (form.dataset.busy) return;
     cancelTodoSearch();
     form.dataset.busy = "1";
+    // A page still opening gives way to this post's result, and the result to a page opened after it.
+    const ticket = ++navigation;
 
     const draftKey = form.querySelector("textarea[data-draft]")?.dataset.draft;
     try {
@@ -1041,7 +1129,17 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
         document.body.textContent = await response.text();
         return;
       }
-      swapPage(await response.text(), response.url, { focusCapture: form.hasAttribute("data-capture"), draftKey });
+      const html = await response.text();
+      if (ticket !== navigation) {
+        if (draftKey && !new URL(response.url).searchParams.has("error")) localStorage.removeItem(draftKey);
+        return;
+      }
+      swapPage(html, response.url, {
+        focusCapture: form.hasAttribute("data-capture"),
+        draftKey,
+        form,
+        submitter: event.submitter,
+      });
     } catch {
       // Network hiccup: fall back to a normal form post.
       form.submit();
@@ -1089,6 +1187,7 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
       if (request.controller.signal.aborted || !form.isConnected) return;
 
       const doc = new DOMParser().parseFromString(html, "text/html");
+      shownItems = itemHtml(doc.querySelector("main"));
       for (const selector of [".page-sub", ".filter-actions", "#todo-results"]) {
         const next = doc.querySelector(selector);
         document.querySelector(selector).replaceWith(next);
@@ -1101,6 +1200,7 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
         if (request.replaceHistory) history.replaceState(null, "", target.pathname + target.search);
         else history.pushState(null, "", target.pathname + target.search);
       }
+      shownAddress = target.pathname + target.search;
     } catch {
       if (!request.controller.signal.aborted && form.isConnected) form.submit();
     } finally {
@@ -1151,7 +1251,7 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
         field.type !== "hidden" &&
         (field instanceof HTMLSelectElement
           ? field.value !== (field.querySelector("option[selected]") ?? field.options[0])?.value
-          : field.type === "checkbox"
+          : field.type === "checkbox" || field.type === "radio"
             ? field.checked !== field.defaultChecked
             : field.value !== field.defaultValue),
     );
@@ -1467,7 +1567,7 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
 
     if (pendingG && Date.now() - pendingG < 1200 && GO[event.key]) {
       pendingG = 0;
-      location.assign(GO[event.key]);
+      openPage(new URL(GO[event.key], location.href).href);
       return;
     }
     pendingG = event.key === "g" ? Date.now() : 0;
@@ -1741,31 +1841,328 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
     setUpdate(update);
   }
 
-  let checkingChanges = false;
-  async function checkTaskChanges() {
-    if (document.hidden || checkingChanges) return;
-    const main = document.querySelector("main");
-    if (!main?.dataset.todoVersion) return;
-    checkingChanges = true;
+  // ---- Open pages in place, and show changes made elsewhere as they happen --
+
+  /** Entries, todos, subtasks and goals by id, as the server drew them, to tell what an update changed. */
+  const ITEMS = ".entry[id], li[id], [data-goal][id]";
+  const itemHtml = (root) => new Map([...root.querySelectorAll(ITEMS)].map((el) => [el.id, el.outerHTML]));
+  let shownItems = itemHtml(document);
+  // The vault's latest revision this window knows of. The page is behind when its own differs.
+  let knownRevision = document.querySelector("main")?.dataset.todoVersion || "";
+  let navigation = 0; // the latest page opened; slower earlier ones give way
+  let merging = false; // a live update is setting up the page
+  let lastMerge = 0; // when a live update last changed the page
+  let shownAddress = location.pathname + location.search; // the page on screen, without its #anchor
+
+  let scrollTimer = 0;
+  const rememberScroll = () => {
+    clearTimeout(scrollTimer);
+    history.replaceState({ ...history.state, scrollY }, "");
+  };
+
+  /** Opens an app page without reloading the window. Anything else, such as a download, loads normally. */
+  async function openPage(url, { push = true, restoreY } = {}) {
+    const ticket = ++navigation;
     try {
-      const response = await fetch("/todo-version");
-      if (!response.ok) return;
-      const { revision } = await response.json();
-      const notice = document.getElementById("change-notice");
-      if (main === document.querySelector("main") && revision !== main.dataset.todoVersion && notice.hidden) {
-        notice.hidden = false;
-        announce(
-          document.getElementById("change-text"),
-          "Ledger, todos or goals changed outside this page. Refresh when ready.",
-        );
-      }
+      const response = await fetch(url);
+      if (!(response.headers.get("content-type") || "").includes("text/html")) throw new Error("Not a page");
+      const html = await response.text();
+      if (ticket !== navigation) return;
+      const target = new URL(response.url);
+      target.hash = new URL(url).hash;
+      if (push) rememberScroll();
+      swapPage(html, target.href, { navigate: true, push, restoreY });
     } catch {
-      // The app may be shutting down. Leave the current page and every draft alone.
-    } finally {
-      checkingChanges = false;
+      if (ticket === navigation) location.assign(url);
     }
   }
-  setInterval(checkTaskChanges, 5000);
-  window.addEventListener("focus", checkTaskChanges);
+
+  document.addEventListener("click", (event) => {
+    const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
+    if (!link || event.defaultPrevented || event.button !== 0) return;
+    // New windows, downloads and other targets are left to the browser.
+    const modified = event.ctrlKey || event.metaKey || event.shiftKey || event.altKey;
+    if (modified || link.target || link.hasAttribute("download")) return;
+    const url = new URL(link.href);
+    if (url.protocol !== location.protocol || url.host !== location.host) return;
+    // A link to a spot on this page only scrolls there.
+    if (url.hash && url.pathname + url.search === location.pathname + location.search) return;
+    event.preventDefault();
+    openPage(url.href);
+  });
+
+  // Back and Forward return each page to where it was scrolled.
+  history.scrollRestoration = "manual";
+  addEventListener(
+    "scroll",
+    () => {
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(rememberScroll, 150);
+    },
+    { passive: true },
+  );
+  addEventListener("popstate", () => {
+    const restoreY = history.state?.scrollY;
+    // Only the #anchor changed: the page stays as it is, unsaved edits and all.
+    if (location.pathname + location.search === shownAddress) {
+      const anchor = location.hash && document.getElementById(decodeURIComponent(location.hash.slice(1)));
+      if (typeof restoreY === "number") scrollTo(0, restoreY);
+      else anchor?.scrollIntoView();
+      return;
+    }
+    openPage(location.href, { push: false, restoreY });
+  });
+
+  // Redrawing the page mid-click, mid-drag or mid-word would get in the way, so changes wait for a pause.
+  let pointerDown = 0; // when the pointer went down, until it comes up
+  let composing = false;
+  addEventListener("pointerdown", () => (pointerDown = Date.now()), true);
+  addEventListener("pointerup", () => (pointerDown = 0), true);
+  addEventListener("pointercancel", () => (pointerDown = 0), true);
+  addEventListener("compositionstart", () => (composing = true), true);
+  addEventListener("compositionend", () => (composing = false), true);
+  const busy = () => {
+    const selection = getSelection();
+    return (
+      // A native select's popup can swallow pointerup, so a press counts for a few seconds at most.
+      Date.now() - pointerDown < 3000 ||
+      composing ||
+      todoSearchRequest ||
+      !suggestBox.hidden ||
+      document.querySelector("form[data-busy], form[data-move-form], .is-dragging, .is-focus-mode, dialog[open]") ||
+      // Text selected to copy stays selected.
+      (selection.rangeCount > 0 && !selection.isCollapsed && !isTyping(document.activeElement))
+    );
+  };
+
+  /** Forms with unsaved changes, or with the cursor in a text field. */
+  const formsInUse = (main) =>
+    keyedForms(main).filter(
+      ([, form]) =>
+        changedFields(form).length > 0 || (form.contains(document.activeElement) && isTyping(document.activeElement)),
+    );
+
+  /**
+   * Makes `el` match `next`, which has <template data-keep="i"> where kept[i] goes.
+   * Kept forms and the elements around them never leave the page, so a field being
+   * typed in keeps its focus, cursor and undo history. Everything else is replaced.
+   */
+  const KEEP = "template[data-keep]";
+
+  /** moveBefore keeps a moved element's focus and state; the browser refuses some moves, which insert instead. */
+  function moveOrInsert(parent, node, before) {
+    if (node.isConnected && parent.moveBefore) {
+      try {
+        parent.moveBefore(node, before);
+        return;
+      } catch {
+        // Not a move it can keep state through.
+      }
+    }
+    parent.insertBefore(node, before);
+  }
+  function replaceAround(el, next, kept) {
+    for (const { name } of [...el.attributes]) if (!next.hasAttribute(name)) el.removeAttribute(name);
+    for (const { name, value } of [...next.attributes]) el.setAttribute(name, value);
+    const wanted = [...next.childNodes].map((child) => {
+      if (!(child instanceof Element)) return child;
+      const holder = child.matches(KEEP) ? child : child.querySelector(KEEP);
+      if (!holder) return child;
+      const form = kept[holder.dataset.keep];
+      const current = [...el.childNodes].find((node) => node.contains(form));
+      // Anything else (the form moved elsewhere on the page) is placed later, at its holder.
+      if (!current) return child;
+      if (child === holder) return current === form ? form : child;
+      if (current.nodeName !== child.nodeName || current.id !== child.id) return child;
+      replaceAround(current, child, kept);
+      return current;
+    });
+    for (const node of [...el.childNodes]) if (!wanted.includes(node)) node.remove();
+    let at = el.firstChild;
+    for (const node of wanted) {
+      if (node === at) at = at.nextSibling;
+      else moveOrInsert(el, node, at);
+    }
+  }
+
+  /**
+   * Brings in the page's latest version around whatever the user is in the middle of:
+   * forms in use stay exactly as they are (text, cursor and all), and so do scroll
+   * position, open sections and focus. Returns false when a form in use isn't on
+   * the new page, for example because its item was deleted.
+   */
+  function mergePage(html) {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const nextMain = doc.querySelector("main");
+    const main = document.querySelector("main");
+    if (!nextMain) return false;
+    // Already up to date (the page was redrawn after the change).
+    if (nextMain.dataset.todoVersion === main.dataset.todoVersion) return true;
+    const items = itemHtml(nextMain);
+
+    const nextForms = new Map(keyedForms(nextMain));
+    // An unsaved edit whose item is gone can't be placed; a form only focused or pointed at can go.
+    const gone = ([key]) => !nextForms.has(key);
+    if (formsInUse(main).some((entry) => gone(entry) && changedFields(entry[1]).length > 0)) return false;
+    const inUse = formsInUse(main).filter((entry) => !gone(entry));
+    // Mark where each form in use goes on the new page.
+    inUse.forEach(([key], i) => {
+      const holder = document.createElement("template");
+      holder.dataset.keep = String(i);
+      nextForms.get(key).replaceWith(holder);
+    });
+    const kept = inUse.map(([, form]) => form);
+
+    // Where the user is: focus, cursor, and the item at the top of the window (or the form they're typing in).
+    const active = document.activeElement;
+    const keptActive = inUse.some(([, form]) => form.contains(active));
+    const range = getSelection().rangeCount ? getSelection().getRangeAt(0) : null;
+    const caret = range && [range.startContainer, range.startOffset, range.endContainer, range.endOffset];
+    const fieldRange =
+      keptActive && typeof active.selectionStart === "number"
+        ? [active.selectionStart, active.selectionEnd, active.selectionDirection]
+        : null;
+    const activeInMain = main.contains(active);
+    const activeForm = !keptActive && activeInMain ? active.closest("form") : null;
+    const activeKey = activeForm && keyedForms(main).find(([, form]) => form === activeForm)?.[0];
+    const activeIndex = activeForm ? [...activeForm.elements].indexOf(active) : -1;
+    const activeRow = !keptActive && activeInMain ? active.closest(ITEMS) : null;
+    const anchor =
+      inUse.find(([, form]) => form.contains(active))?.[1] ??
+      [...main.querySelectorAll(ITEMS)].find((el) => el.getBoundingClientRect().bottom > 0);
+    const anchorTop = anchor?.getBoundingClientRect().top ?? 0;
+    const openDetails = new Map(keyedDetails(main).map(([key, el]) => [key, el.open]));
+    const unfolded = [...main.querySelectorAll("[data-unfold]")].map((el) => [
+      el.getAttribute("aria-controls"),
+      el.getAttribute("aria-expanded"),
+    ]);
+    const trayScroll = document.querySelector(".tray")?.scrollTop ?? 0;
+    const before = shownItems;
+
+    shownItems = items;
+    replaceAround(main, nextMain, kept);
+    // A form whose place moved to another part of the page goes there as it is.
+    for (const holder of main.querySelectorAll(KEEP)) holder.replaceWith(kept[holder.dataset.keep]);
+    showChrome(doc);
+    merging = true;
+    try {
+      initPage(main);
+    } finally {
+      merging = false;
+    }
+    lastMerge = Date.now();
+
+    for (const [key, el] of keyedDetails(main)) if (openDetails.has(key)) el.open = openDetails.get(key);
+    for (const [id, expanded] of unfolded) {
+      const button = main.querySelector(`[data-unfold][aria-controls="${CSS.escape(id)}"]`);
+      const detail = document.getElementById(id);
+      if (!button || !detail) continue;
+      button.setAttribute("aria-expanded", expanded);
+      detail.hidden = expanded !== "true";
+    }
+    const tray = main.querySelector(".tray");
+    if (tray) tray.scrollTop = trayScroll;
+
+    if (keptActive) {
+      active.focus({ preventScroll: true });
+      if (fieldRange) active.setSelectionRange(...fieldRange);
+      else if (caret) getSelection().setBaseAndExtent(...caret);
+    } else if (activeInMain && !active.isConnected) {
+      const sameForm = activeKey && keyedForms(main).find(([key]) => key === activeKey)?.[1];
+      const candidates = [
+        active.id && document.getElementById(active.id),
+        sameForm?.elements[activeIndex],
+        activeRow && firstControl(document.getElementById(activeRow.id)),
+      ];
+      (candidates.find(canFocus) || main).focus({ preventScroll: true });
+    }
+
+    // Keep the same thing at the same height in the window, even when items arrive above it.
+    const again = anchor?.isConnected ? anchor : anchor?.id && document.getElementById(anchor.id);
+    if (again) scrollBy(0, again.getBoundingClientRect().top - anchorTop);
+
+    // The innermost changes glow briefly; the list or card around them doesn't as well.
+    const changed = [...main.querySelectorAll(ITEMS)].filter((el) => before.get(el.id) !== items.get(el.id));
+    const glow = changed.filter((el) => !changed.some((other) => other !== el && el.contains(other)));
+    for (const el of glow) el.classList.add("is-updated");
+    if (glow.length) {
+      const text = `${glow.length} ${glow.length === 1 ? "item" : "items"} updated.`;
+      announce(document.getElementById("live-status"), text);
+    }
+    return true;
+  }
+
+  let liveTimer = 0;
+  let liveFetching = false;
+  /** Shows the latest version of this page once nothing is in the way. */
+  async function showLiveChanges() {
+    clearTimeout(liveTimer);
+    const main = document.querySelector("main");
+    if (!main?.dataset.todoVersion || main.dataset.todoVersion === knownRevision || document.hidden) return;
+    const shown = main.dataset.todoVersion;
+    if (busy() || liveFetching) {
+      liveTimer = setTimeout(showLiveChanges, 500);
+      return;
+    }
+    const url = location.href;
+    const ticket = navigation;
+    let html;
+    liveFetching = true;
+    try {
+      html = await (await fetch(url)).text();
+    } catch {
+      liveTimer = setTimeout(showLiveChanges, 3000);
+      return;
+    } finally {
+      liveFetching = false;
+    }
+    const moved = main !== document.querySelector("main") || main.dataset.todoVersion !== shown;
+    if (moved || url !== location.href || ticket !== navigation || busy()) {
+      // The page changed meanwhile; check again against whatever it shows now.
+      liveTimer = setTimeout(showLiveChanges, 500);
+      return;
+    }
+    if (mergePage(html)) {
+      // Another change may have landed while this one was on its way.
+      if (main.dataset.todoVersion !== shown) liveTimer = setTimeout(showLiveChanges, 0);
+      return;
+    }
+    // What the user is editing isn't on the new version of the page. Keep it, and wait for them.
+    const notice = document.getElementById("change-notice");
+    if (notice.hidden) {
+      notice.hidden = false;
+      announce(
+        document.getElementById("change-text"),
+        "This page changed elsewhere. Your edit is kept here; the rest updates after you save or cancel it.",
+      );
+    }
+    liveTimer = setTimeout(showLiveChanges, 2000);
+  }
+  document.addEventListener("visibilitychange", showLiveChanges);
+
+  /** Waits on the app for each change to the vault: the app's own, an agent's or another program's. */
+  async function followChanges() {
+    let seen = knownRevision;
+    for (;;) {
+      const asked = Date.now();
+      try {
+        const response = await fetch(`/todo-version?after=${encodeURIComponent(seen)}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const { revision } = await response.json();
+        if (revision !== seen) {
+          seen = knownRevision = revision;
+          showLiveChanges();
+        } else if (Date.now() - asked < 1000) {
+          // This server answers without waiting, so ask now and then instead.
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+        }
+      } catch {
+        // The app may be shutting down or restarting. Leave the page and every draft alone, and ask again soon.
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      }
+    }
+  }
+
   initPage(document);
+  followChanges();
 })();

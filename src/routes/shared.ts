@@ -3,6 +3,7 @@ import { safeReturnPath } from "../lib/validation";
 import type { Vault } from "../vault/vault";
 import type { AgentAccess } from "../mcp/access";
 import type { Updates } from "../electron/updates";
+import type { VaultChanges } from "../vault/changes";
 import { vaultRevision } from "../vault/revision";
 import { renderLayout, type NavKey } from "../views/layout";
 
@@ -17,6 +18,8 @@ export interface AppContext {
   agentAccess?: AgentAccess;
   /** Only the installed desktop app can update itself. */
   updates?: Pick<Updates, "snapshot" | "check" | "restart">;
+  /** Wakes an open window when the vault changes. Without it, /todo-version answers at once. */
+  changes?: VaultChanges;
 }
 
 export function today(ctx: AppContext): string {

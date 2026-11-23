@@ -1058,7 +1058,9 @@ a.link-button {
   background: var(--brass);
 }
 
-.entry.is-new {
+/* Just saved, or just changed elsewhere (app.js): a wash that fades to the item's own background. */
+.entry.is-new,
+.is-updated {
   animation: settle 1.6s ease-out;
 }
 
@@ -1066,8 +1068,18 @@ a.link-button {
   from {
     background-color: var(--brass-wash);
   }
-  to {
-    background-color: transparent;
+}
+
+/* A page opened in place (app.js) fades in. */
+@media (prefers-reduced-motion: no-preference) {
+  main.is-arriving {
+    animation: arrive 140ms ease-out;
+  }
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0.4;
   }
 }
 

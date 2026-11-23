@@ -10,6 +10,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { logErrorsTo, resolveVaultPath } from "../launch";
 import type { AppContext } from "../routes/shared";
+import { VaultChanges } from "../vault/changes";
 import { Vault } from "../vault/vault";
 import { AgentAccess } from "../mcp/access";
 import { WindowLifecycle } from "./lifecycle";
@@ -48,11 +49,13 @@ async function start(): Promise<void> {
     cwd: process.cwd(),
   });
   if (app.isPackaged) logErrorsTo(join(vaultPath, ".workledger", "error.log"));
+  const vault = new Vault(vaultPath);
   const ctx: AppContext = {
-    vault: new Vault(vaultPath),
+    vault,
     vaultPath,
     preferencesPath: join(profilePath, "preferences.json"),
     clock: () => new Date(),
+    changes: new VaultChanges(vault, vaultPath),
   };
 
   await app.whenReady();
@@ -116,6 +119,7 @@ async function start(): Promise<void> {
       .close()
       .catch((error) => console.error("MCP shutdown failed", error))
       .finally(() => {
+        ctx.changes?.close();
         tray?.destroy();
         tray = null;
         shutdownComplete = true;

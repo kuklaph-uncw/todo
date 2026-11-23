@@ -182,6 +182,29 @@ try {
   );
   assert.deepEqual(opened, ["https://example.com/reference?a=1&b=2"]);
   assert(page.url().startsWith("app://local/"), "Opening a web link must not navigate the app window");
+
+  // Pages open in place, and an agent's change shows up in the open window without a refresh.
+  await page.locator('nav[aria-label="Main"] a[href="/todos"]').click();
+  await page.waitForURL(/\/todos$/);
+  await page.evaluate(() => Object.assign(window, { sameDocument: true }));
+  const live = new Client({ name: "desktop-live", version: "1" });
+  try {
+    await live.connect(
+      new StreamableHTTPClientTransport(new URL(url), {
+        requestInit: { headers: { authorization: `Bearer ${token}` } },
+      }),
+    );
+    const shown = await live.callTool({
+      name: "add_todo",
+      arguments: { task: "Shown without a refresh", requestId: "live-create" },
+    });
+    assert(!shown.isError);
+  } finally {
+    await live.close();
+  }
+  await page.getByText("Shown without a refresh", { exact: true }).waitFor({ timeout: 2000 });
+  assert(await page.evaluate(() => "sameDocument" in window), "Opening pages and agent changes must not reload");
+
   await page.getByRole("link", { name: /^Settings/ }).click();
   await page.getByLabel("Keep MCP running when the window is closed").uncheck();
   await page.getByRole("button", { name: "Save settings", exact: true }).click();
@@ -204,7 +227,7 @@ try {
   desktop = null;
   await assert.rejects(fetch(url, { signal: AbortSignal.timeout(2000) }));
   console.log(
-    "Verified Electron: settings persist; todo, ledger and goal MCP writes while hidden; ledger metadata, goal lookup, goal read, update and cycle listing; second launch restores the entry; web links call the OS launcher without navigating the app; close and explicit quit stop MCP.",
+    "Verified Electron: settings persist; todo, ledger and goal MCP writes while hidden; ledger metadata, goal lookup, goal read, update and cycle listing; second launch restores the entry; web links call the OS launcher without navigating the app; pages open in place and an agent change shows without a refresh; close and explicit quit stop MCP.",
   );
 } finally {
   secondInstance?.kill();

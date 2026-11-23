@@ -902,7 +902,7 @@ Every page and form goes through `handleRequest` in `src/server.ts`. `HEAD` is t
 | `/review/export.json`         | JSON download.                                             |
 | `/review/export.jsonl`        | JSONL download.                                            |
 | `/settings`                   | Desktop agent access settings, status, and connection examples. |
-| `/todo-version`               | Read-only ledger, todo and goal revision for a draft-safe change notice. |
+| `/todo-version`               | Read-only ledger, todo and goal revision. With `?after=<revision>` it waits (up to 25 seconds, or until the request is dropped) until the revision differs, for live updates. |
 | `/styles.css`, `/app.js`, `/rich-text.js`, `/icon.svg` | Bundled assets (exact paths only).                 |
 
 Anything else, including a path with a malformed `%` escape, returns the "Not found" page (404).
@@ -946,20 +946,25 @@ There is no HTMX and no client framework. The server renders full HTML pages, an
 
 | Behavior               | Detail                                                                                                   |
 | ---------------------- | -------------------------------------------------------------------------------------------------------- |
-| In-place form posts    | POST forms are sent with `fetch`. The redirected page's `<main>` and nav replace the current ones, and the URL updates. Focus stays on the same control, or the same or a nearby row. New entries are briefly marked. On a network error it falls back to a normal submit. |
+| In-place form posts    | POST forms are sent with `fetch`. The redirected page's `<main>` and nav replace the current ones, and the URL updates. Focus stays on the same control, or the same or a nearby row. New entries are briefly marked. After a goal form, the page stays with that goal (or a goal it added or renamed) and the address ends in its `#goal-<slug>`. On a network error it falls back to a normal submit. |
+| In-place pages         | Links to app pages, GET forms (filters, the date jump) and the `g` shortcuts fetch the page and swap `<main>` and nav without reloading the window. The new page fades in (off with reduced motion), focus moves to it (or its `autofocus` field), and it scrolls to the link's `#anchor` or the top. Back and Forward swap the same way and return to the remembered scroll position. Downloads, other windows and modified clicks are left to the browser; anything that isn't a page loads normally. |
+| Live updates           | The page waits on `/todo-version?after=<revision>`, which answers as soon as the vault changes (16.1). The page is then fetched again and merged around the user. Forms with unsaved changes, or with the cursor in a text field, never leave the page, so their text, caret, focus and undo history stay; everything else around them is replaced. A click on a form inside an item that changed less than a second ago does nothing and says so, so the user never agrees to text they haven't seen. So do scroll position (the item at the top of the window stays put), open sections and unfolded timeline rows. New or changed items glow briefly and a status message says how many changed; nothing is announced when nothing on the page changed. A focused sidebar link keeps focus when the todo count changes. Back or Forward to an entry that differs only by `#anchor` just scrolls, keeping unsaved edits. A post's result gives way to a page opened after it. Updates wait while a click, drag, text selection, composition, suggestion list, dialog, focus mode or post is in progress, and while the window is hidden. If a form in use isn't on the new page (its item was deleted), the page keeps it and shows a notice until it is saved or cancelled; Refresh when ready is still there. A stale form is caught on save by its revision. |
 | Live TODO filters      | The `data-live-search` form waits 250ms after the last committed keystroke, then fetches its GET URL. Only `.page-sub`, `.filter-actions` and `#todo-results` are replaced and initialized, leaving unsent add-TODO text and the search field intact. Typing pauses live search while a `.todo-edit` is open; Enter or a select change still submits. Composing input is ignored; composition end schedules the committed text. Unchanged filters skip the fetch; new input aborts pending requests so stale responses cannot swap. Debounced typing uses `replaceState`; explicit submits use `pushState`. Apply is hidden. Network errors fall back to a normal submit. |
 | Confirmations          | Forms with `data-confirm` ask before posting (delete, clear completion).                     |
 | Drafts                 | Capture text saved in `localStorage` per day. Cleared after a successful save.                            |
 | Rich-text editor       | All editable multiline fields use the same toolbar and Markdown serializer. Source mode protects existing syntax that cannot round-trip. Dirty multiline edits survive Escape; unchanged edits can still be cancelled with it. |
 | Auto-submit            | Filter selects and checkboxes submit on change. The date picker waits 900ms for typing to stop.           |
 | Copy                   | Writes HTML + Markdown to the clipboard, with fallbacks (14.3). Copy for FCP writes plain text. Status is announced to screen readers. |
-| Goal forms             | Goal forms (`data-full-page`) post normally instead, so the browser follows the redirect to the goal's `#goal-<slug>` anchor. |
 | Goals timeline         | Clicking a goal's name unfolds its row in place. The Reader/Timeline switch carries the goal at the top of the window as its `#anchor`. |
 | Print                  | Sets the page title to the suggested PDF name, prints, restores the title.                                |
 | Reordering             | Drag a TODO or subtask by its grip handle, or use the hotkeys in 20.2. Needs the script.                  |
 | Keyboard shortcuts     | See 20.2.                                                                                                 |
 
 Without the script, the date picker shows a "Go" button and TODO filters keep their Apply button. Destructive actions then post without a confirmation prompt (see 28.3).
+
+### 16.1 Change signal
+
+The desktop app and the development server watch the vault folder, subfolders included. A file event for `todos.md`, `journal/` or `goals/` (or one without a file name) wakes waiting `/todo-version?after=` requests, which recompute the revision after 50ms and answer when it differs. That covers the app's own saves, MCP writes and other programs editing the Markdown, while an editor's settings or a git folder inside the vault wake nothing. Nothing reads the vault on a timer. If the folder can't be watched (it doesn't exist yet, or a drive dropped out), each wait tries again, and until then requests answer after their 25-second wait. The development server's idle timeout is 30 seconds so the wait isn't cut short. A server without the watcher (as in some tests) answers at once, and the page then asks every 5 seconds.
 
 ---
 
@@ -1139,7 +1144,7 @@ Messages show at the top of the page (`role="alert"`). Capture and edit forms ge
 | A-3 | Focus states are visible. A skip link jumps to the main content.                                 |
 | A-4 | Destructive actions ask for confirmation (with the script).                                      |
 | A-5 | Layout adapts to narrow windows (breakpoints at 1180px, 860px, 560px).                           |
-| A-6 | Every page and form works without client-side JS. (The shortcuts dialog, tag and goal suggestions, focus mode, opening subtasks, reordering, unfolding a timeline row in place, and keeping your place when switching goal views need it.) |
+| A-6 | Every page and form works without client-side JS. (The shortcuts dialog, tag and goal suggestions, focus mode, opening subtasks, reordering, unfolding a timeline row in place, keeping your place when switching goal views, opening pages without a reload, and live updates need it.) |
 | A-7 | After an in-place update, focus stays where the user was.                                        |
 | A-8 | Copy results are announced. Animations stop under `prefers-reduced-motion`.                      |
 
@@ -1217,7 +1222,7 @@ Tools preserve completion dates, Markdown notes and entry text, subtasks, and tr
 
 Read tools do not assign IDs or change files. Hand-written todos and entries with no block ID can be listed, but must be opened in ToDo before editing through MCP. Task and ledger forms include revisions too; stale forms return a conflict with submitted text retained for recovery. The goal edit form carries its revision as well: a stale save returns to the form with the typed text and a notice instead of overwriting the other change. Older callers omitting the form revision retain their previous behavior. External editor writes are not coordinated by a cross-process lock.
 
-Visible pages check the combined ledger/todo/goal revision every five seconds and on focus. Changes show a notice without replacing page content or moving focus. Refresh is explicit and warns before discarding typed edits. Ledger capture drafts keep their existing localStorage protection. MCP access is local to this computer; remote agents need a separately designed connection.
+Open pages hear about every vault change at once (16.1) and update in place around unsaved edits (section 16, Live updates). Ledger capture drafts keep their existing localStorage protection. MCP access is local to this computer; remote agents need a separately designed connection.
 
 ### 21.4 Development server request guards
 
@@ -1292,6 +1297,8 @@ Copy-Item -Recurse "$HOME\Work Ledger" "$HOME\Backups\Work Ledger $(Get-Date -Fo
 `rich-text.test.ts` exercises journal capture, goal notes, TODO notes, formatting round trips, pasted HTML filtering, undo, draft restoration, source fallback, formatted tag metadata, keyboard toolbar navigation, and narrow layouts. It uses a disposable vault through the real development request handler.
 
 `goals.test.ts` covers the sticky view switch and landing on the same goal from Reader to Timeline and back, the remembered view, unfolding a timeline row by keyboard, Copy for FCP on the real clipboard, editing in place and returning to the goal, and the 390px layout.
+
+`live.test.ts` covers opening pages and filters in place, Back returning to the scroll position, an agent's todo appearing without moving the page and glowing alone, an edit kept with a notice when its todo is deleted (and Refresh when ready asking first), Mark agreed staying with its goal, a status choice kept after focus leaves, sidebar focus kept, hash-only Back keeping unsaved text, highlights after widening a search, a slow save not pulling the window back, undo history surviving a live update, an unsaved edit following its todo to the Done section, Back after a live filter, focus not jumping into an untouched editor, and a click on a just-changed goal being ignored. `mcp.test.ts` covers settings, live updates around unsaved todo, ledger and goal-status edits (with stale saves rejected), and text typed while an update loads.
 
 `formatting.test.ts` covers the Aa disclosure and selection, typed Markdown conversions and Backspace reversal, fenced code entry/paste/copy/save, literal character preservation, source mode, and the compact Add to ledger button. `updates.test.ts` covers check/progress/ready/error states, explicit restart with unsaved-change warnings, kept ledger drafts, panel keyboard controls, unavailable builds, and responsive layouts with reduced motion. The update client is a stand-in in these tests.
 

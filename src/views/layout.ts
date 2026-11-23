@@ -115,6 +115,7 @@ export function renderLayout(options: LayoutOptions): string {
           <div class="update-pop" id="update-pop" role="group" aria-labelledby="update-pop-title" hidden></div>
         </div>
         <p class="sr-only" id="update-live" role="status"></p>
+        <p class="sr-only" id="live-status" role="status"></p>
       </div>
     </header>
     <main id="main" tabindex="-1" data-todo-version="${escapeHtml(options.todoVersion ?? "")}">${options.main}</main>

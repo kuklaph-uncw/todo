@@ -202,12 +202,12 @@ interface ClauseOptions {
   move?: { up: boolean; down: boolean };
 }
 
-/** Move up and Move down; disabled at the ends. Posts normally so the page returns to the goal. */
+/** Move up and Move down; disabled at the ends. The page that comes back stays with the goal. */
 function moveButtons(goal: Goal, opts: ClauseOptions): string {
   if (!opts.move || !opts.returnTo) return "";
   const button = (direction: "up" | "down", enabled: boolean) =>
     `<button class="icon-btn" type="submit" name="direction" value="${direction}"${enabled ? "" : " disabled"} aria-label="${escapeHtml(`Move ${goal.title} ${direction}`)}" title="Move ${direction}">${icon(direction)}</button>`;
-  return `<form class="move-goal" method="post" action="${goalPath(goal)}/move" data-full-page>
+  return `<form class="move-goal" method="post" action="${goalPath(goal)}/move">
       ${hidden("return_to", opts.returnTo)}${hidden("expected_revision", contentRevision(goal))}${button("up", opts.move.up)}${button("down", opts.move.down)}
     </form>`;
 }
@@ -228,7 +228,7 @@ function record(goal: Goal, opts: ClauseOptions): string {
     if (stats.lastDate) parts.push(`<span>last ${shortMonthDay(stats.lastDate)}</span>`);
   }
   if (goal.status === "draft" && opts.returnTo) {
-    parts.push(`<form method="post" action="${goalPath(goal)}/status" data-full-page>
+    parts.push(`<form method="post" action="${goalPath(goal)}/status">
         ${hidden("return_to", opts.returnTo)}${hidden("expected_revision", contentRevision(goal))}${hidden("status", "agreed")}
         <button class="btn small" type="submit" aria-label="${escapeHtml(`Mark agreed: ${goal.title}`)}">${icon("check")} Mark agreed</button>
       </form>`);
@@ -324,7 +324,7 @@ function goalForm(opts: FormOptions): string {
             <p class="field-hint" id="${escapeHtml(`${prefix}-link-hint`)}">What you type to link work, like <code>[[${escapeHtml(goal.slug)}]]</code>. Changing it updates linked entries.</p></div>`
     : "";
 
-  return `<form class="clause goal-edit is-editing is-${status}"${opts.id ? ` id="${escapeHtml(opts.id)}"${goal ? " data-goal" : ""}` : ""} method="post" action="${action}" data-full-page aria-label="${goal ? `Edit ${opts.label.toLowerCase()}` : `New ${kindName.toLowerCase()}`}">
+  return `<form class="clause goal-edit is-editing is-${status}"${opts.id ? ` id="${escapeHtml(opts.id)}"${goal ? " data-goal" : ""}` : ""} method="post" action="${action}" aria-label="${goal ? `Edit ${opts.label.toLowerCase()}` : `New ${kindName.toLowerCase()}`}">
       ${hidden("return_to", returnTo)}${fields}
       <div class="record">
         <span class="no">${opts.label}</span>
@@ -596,7 +596,7 @@ function renderCarry(data: GoalsViewData, carry: { from: string; goals: Goal[] }
   };
   const { goals, activities } = sections(carry.goals);
   const from = escapeHtml(carry.from);
-  return `<form class="agreement" method="post" action="/goals/carry" data-full-page>
+  return `<form class="agreement" method="post" action="/goals/carry">
       ${hidden("from", carry.from)}${hidden("cycle", data.cycle)}${hidden("view", data.view)}
       <div class="band"><span class="band-m">${escapeHtml(data.cycle)}</span><h2>Start from ${from}</h2></div>
       <div class="lead-copy">
