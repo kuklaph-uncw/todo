@@ -46,6 +46,7 @@ import {
   type Todo,
   type TodoBlock,
 } from "./format";
+import type { Reference } from "./references";
 
 export interface NewEntryMeta {
   tags: string[];
@@ -53,6 +54,7 @@ export interface NewEntryMeta {
   minutes: number | null;
   isHighlight: boolean;
   time: string | null;
+  references?: Reference[];
 }
 
 export interface NewTodo {
@@ -304,6 +306,7 @@ export class Vault {
         goals: [...new Set([...input.goals, ...meta.goals])],
         minutes: meta.minutes,
         isHighlight: meta.isHighlight,
+        references: meta.references ?? [],
       };
       taken.add(entry.id);
       return entry;

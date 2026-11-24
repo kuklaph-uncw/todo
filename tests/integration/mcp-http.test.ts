@@ -70,7 +70,7 @@ it("serves legacy MCP clients, lists tools, and creates through the real HTTP tr
 });
 
 it("exposes ledger tools over HTTP and preserves metadata through create, patch, retry and delete", async () => {
-  ctx.vault.createGoal({ title: "Delivery", cycle: "2026", description: "Ship" });
+  ctx.vault.createGoal({ title: "Delivery", cycle: "26-27", description: "Ship" });
   const tools = (await readRpc(await rpc("tools/list"))).result.tools;
   for (const name of ["list_entries", "get_entry", "list_goals", "list_tags"]) {
     expect(tools.find((tool: { name: string }) => tool.name === name)?.annotations.readOnlyHint).toBe(true);
@@ -130,7 +130,7 @@ it("exposes goal tools over HTTP: read-only reads, writes with retries and revis
   const args = { title: "Delivery", description: "Ship.", requestId: "goal-create" };
   const added = await call("add_goal", args);
   expect(added.isError).not.toBe(true);
-  expect(added.structuredContent).toMatchObject({ slug: "delivery", cycle: "2026", status: "draft", order: 1 });
+  expect(added.structuredContent).toMatchObject({ slug: "delivery", cycle: "26-27", status: "draft", order: 1 });
   expect((await call("add_goal", args)).structuredContent).toEqual(added.structuredContent);
   expect(ctx.vault.getGoals()).toHaveLength(1);
   expect((await call("get_goal", { slug: "delivery" })).structuredContent).toEqual(added.structuredContent);
@@ -150,17 +150,17 @@ it("exposes goal tools over HTTP: read-only reads, writes with retries and revis
   expect(stale.isError).toBe(true);
   expect(stale.content[0].text).toContain("This goal changed");
   expect((await call("get_goal", { slug: "missing" })).isError).toBe(true);
-  expect((await call("list_goals", { cycle: "2026" })).structuredContent.goals).toEqual([
+  expect((await call("list_goals", { cycle: "26-27" })).structuredContent.goals).toEqual([
     {
       slug: "delivery",
       title: "Delivery",
-      cycle: "2026",
+      cycle: "26-27",
       status: "agreed",
       kind: "goal",
       revision: changed.structuredContent.revision,
     },
   ]);
-  expect((await call("list_goals", { cycle: "2025" })).structuredContent.goals).toEqual([]);
+  expect((await call("list_goals", { cycle: "25-26" })).structuredContent.goals).toEqual([]);
 });
 
 it("rejects goal calls without a valid token before touching the vault", async () => {

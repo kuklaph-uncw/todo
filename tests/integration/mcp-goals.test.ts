@@ -19,7 +19,7 @@ describe("MCP goal operations", () => {
   it("reads one goal in full with its revision, and says when it doesn't exist", () => {
     ctx.vault.createGoal({
       title: "Delivery",
-      cycle: "2026",
+      cycle: "26-27",
       status: "agreed",
       description: "Ship it.",
       meeting: "Meets.",
@@ -30,7 +30,7 @@ describe("MCP goal operations", () => {
     expect(goal).toEqual({
       slug: "delivery",
       title: "Delivery",
-      cycle: "2026",
+      cycle: "26-27",
       status: "agreed",
       kind: "goal",
       order: 1,
@@ -73,7 +73,7 @@ describe("MCP goal operations", () => {
     );
     writeFileSync(join(ctx.root, "goals", "hand2.md"), "---\ntitle: Hand 2\ncycle: 2025\ncreated: 2020-01-01\n---\n");
     // Renumbers hand.md, a file the agent never targeted.
-    service.execute("add_goal", { title: "New", cycle: "2026", requestId: "add" });
+    service.execute("add_goal", { title: "New", cycle: "26-27", requestId: "add" });
     expect(readFileSync(join(ctx.root, "goals", "hand.md"), "utf8")).toContain("tags: [work]\naliases: hand-goal\n");
     const hand2 = service.get({ slug: "hand2" });
     expect(hand2).not.toHaveProperty("otherFrontmatter");
@@ -95,7 +95,7 @@ describe("MCP goal operations", () => {
     expect(first).toMatchObject({
       slug: "ship",
       title: "Ship",
-      cycle: "2026",
+      cycle: "26-27",
       status: "draft",
       kind: "goal",
       order: 1,
@@ -109,9 +109,9 @@ describe("MCP goal operations", () => {
     expect(
       service.execute("add_goal", { title: "Learn", kind: "activity", description: "Courses.", requestId: "a1" }),
     ).toMatchObject({ kind: "activity", order: 1, description: "Courses." });
-    expect(service.execute("add_goal", { title: "Ship", cycle: "2027", requestId: "g3" })).toMatchObject({
-      slug: "ship-2027",
-      cycle: "2027",
+    expect(service.execute("add_goal", { title: "Ship", cycle: "27-28", requestId: "g3" })).toMatchObject({
+      slug: "ship-27-28",
+      cycle: "27-28",
     });
     expect(ctx.vault.getGoal("ship")).toMatchObject({ description: "Why.", status: "draft" });
   });
@@ -255,7 +255,7 @@ describe("MCP goal operations", () => {
       status: "agreed",
       requestId: "restore",
     });
-    expect(restored).toMatchObject({ status: "agreed", droppedOn: null, slug: "ship", cycle: "2026", order: 1 });
+    expect(restored).toMatchObject({ status: "agreed", droppedOn: null, slug: "ship", cycle: "26-27", order: 1 });
   });
 
   it("refuses a blank title, link, cycle, kind or order changes, and expectation fields on activities", () => {
@@ -264,11 +264,11 @@ describe("MCP goal operations", () => {
     const patch = (target: object, input: object) => () =>
       service.execute("update_goal", { expectedRevision: revision(target), requestId: "patch", ...input });
     expect(patch(goal, { slug: "ship", title: "  " })).toThrow();
-    for (const field of [{ cycle: "2027" }, { kind: "activity" }, { order: 5 }, { newSlug: "other" }])
+    for (const field of [{ cycle: "27-28" }, { kind: "activity" }, { order: 5 }, { newSlug: "other" }])
       expect(patch(goal, { slug: "ship", ...field })).toThrow();
     expect(patch(plan, { slug: "learn", meeting: "Meets." })).toThrow("Activities have only a description");
     expect(patch(plan, { slug: "learn", exceeding: "" })).toThrow("Activities have only a description");
-    expect(service.get({ slug: "ship" })).toMatchObject({ title: "Ship", cycle: "2026", kind: "goal" });
+    expect(service.get({ slug: "ship" })).toMatchObject({ title: "Ship", cycle: "26-27", kind: "goal" });
     expect(() =>
       service.execute("update_goal", {
         slug: "missing",
@@ -281,19 +281,21 @@ describe("MCP goal operations", () => {
 
   it("lists goals with revisions and the same fields as before, optionally for one cycle", () => {
     service.execute("add_goal", { title: "Ship", requestId: "one" });
-    service.execute("add_goal", { title: "Plan", cycle: "2027", requestId: "two" });
+    service.execute("add_goal", { title: "Plan", cycle: "27-28", requestId: "two" });
     const all = service.list({}).goals;
     expect(all.map(({ slug, title, cycle, status, kind }) => ({ slug, title, cycle, status, kind }))).toEqual([
-      { slug: "plan", title: "Plan", cycle: "2027", status: "draft", kind: "goal" },
-      { slug: "ship", title: "Ship", cycle: "2026", status: "draft", kind: "goal" },
+      { slug: "plan", title: "Plan", cycle: "27-28", status: "draft", kind: "goal" },
+      { slug: "ship", title: "Ship", cycle: "26-27", status: "draft", kind: "goal" },
     ]);
     expect(all[1].revision).toBe(service.get({ slug: "ship" }).revision);
+    expect(service.list({ cycle: "26-27" }).goals.map((goal) => goal.slug)).toEqual(["ship"]);
+    // An agent that still asks by year gets the cycle that started that April.
     expect(service.list({ cycle: "2026" }).goals.map((goal) => goal.slug)).toEqual(["ship"]);
   });
 
   it("shows MCP writes in the app at once, and app edits make an agent's revision stale", async () => {
     const added = service.execute("add_goal", { title: "Ship", description: "From an agent.", requestId: "add" });
-    const page = await (await handleRequest(get("/goals?view=reader&cycle=2026"), ctx)).text();
+    const page = await (await handleRequest(get("/goals?view=reader&cycle=26-27"), ctx)).text();
     expect(page).toContain('id="goal-ship" data-goal');
     expect(page).toContain("From an agent.");
 

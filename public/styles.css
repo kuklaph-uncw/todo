@@ -826,6 +826,106 @@ a.goal-link:hover {
   color: var(--ink-3);
 }
 
+/* A link this app can't open (such as an agent thread) shows its label; hover shows the address, a click copies it. */
+.local-link {
+  text-decoration: underline dotted;
+  text-decoration-color: var(--ink-3);
+  text-underline-offset: 2px;
+  cursor: copy;
+}
+
+[contenteditable] .local-link {
+  cursor: text;
+}
+
+/* References under an entry: where the work came from (src/vault/references.ts). */
+.refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15rem 1rem;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.refs li {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ref {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 0.8rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ref span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ref .icon {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  color: var(--ink-3);
+}
+
+.ref:hover {
+  color: var(--ink);
+}
+
+.ref:hover span {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* The References field in the capture and edit forms, folded until it has some. */
+.ref-field {
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
+}
+
+.ref-field summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.ref-field summary:hover,
+.ref-field[open] summary {
+  color: var(--ink-2);
+}
+
+.ref-field summary .icon {
+  width: 13px;
+  height: 13px;
+}
+
+.ref-field textarea {
+  display: block;
+  width: 100%;
+  margin-top: 0.3rem;
+  font: 0.8rem / 1.5 var(--mono);
+  resize: vertical;
+}
+
+.capture .ref-field {
+  padding: 0 0.75rem 0.5rem;
+}
+
 .priority {
   color: var(--ink-3);
 }
@@ -2877,7 +2977,7 @@ h1.clause-name {
   margin: 1.5rem 0 0.5rem calc(var(--sheet-m) + var(--gap));
 }
 
-/* ---- Timeline: one line per goal across the year ---- */
+/* ---- Timeline: one line per goal across the cycle (April to March) ---- */
 
 /* If the map ever outgrows a narrow window, it scrolls on its own, never the page. */
 .map-scroll {

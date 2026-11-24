@@ -1,11 +1,17 @@
 import { isValidDateString, localTimeString } from "../lib/date";
 import { parseMinutes } from "../lib/validation";
 import { parseEntryInput } from "../vault/vault";
+import { parseReferenceLines } from "../vault/references";
 import { contentRevision } from "../vault/revision";
 import { escapeHtml } from "../lib/html";
 import { notFound, page, readForm, redirect, redirectWithError, today, type AppContext } from "./shared";
 
 const TIME_HELP = "Time spent should look like 45m, 1h, 1h 30m or 90 minutes.";
+
+/** Each line of the References field needs an address, or the whole form comes back. */
+function referenceHelp(invalid: string[]): string {
+  return `Each reference needs an address that starts with its scheme, like https://. Check: ${invalid.join("; ")}`;
+}
 
 /** POST /journal */
 export async function createEntries(req: Request, ctx: AppContext): Promise<Response> {
@@ -19,12 +25,15 @@ export async function createEntries(req: Request, ctx: AppContext): Promise<Resp
   const keep: [string, string][] = [
     ["minutes", form.text("minutes")],
     ["star", form.text("star")],
+    ["references", form.text("references")],
   ];
   const content = form.text("content");
   if (!parseEntryInput(content).text)
     return redirectWithError(back, "Write something before adding it to the ledger.", keep);
   const minutes = parseMinutes(form.text("minutes"));
   if (minutes === undefined) return redirectWithError(back, TIME_HELP, keep);
+  const { references, invalid } = parseReferenceLines(form.text("references"));
+  if (invalid.length > 0) return redirectWithError(back, referenceHelp(invalid), keep);
 
   ctx.vault.addEntries(date, [content], {
     tags: [],
@@ -33,6 +42,7 @@ export async function createEntries(req: Request, ctx: AppContext): Promise<Resp
     isHighlight: form.text("star") === "1",
     // A clock time only means something when you're logging as it happens.
     time: date === today(ctx) ? localTimeString(ctx.clock()) : null,
+    references,
   });
   return redirect(back);
 }
@@ -60,6 +70,7 @@ export async function changeEntry(
         `<div class="page"><h1>Entry changed</h1><p class="notice" role="alert">This entry changed after the page was opened. Your action was not saved. Review the current entry before trying again.</p>
         <label class="field">Your submitted text<textarea readonly rows="8">${escapeHtml(form.text("content"))}</textarea></label>
         <p>Submitted time spent: ${escapeHtml(form.text("minutes"))}</p>
+        ${form.text("references") ? `<label class="field">Your submitted references<textarea readonly rows="3">${escapeHtml(form.text("references"))}</textarea></label>` : ""}
         <p><a class="btn" href="/?date=${date}">Review current ledger</a></p></div>`,
         409,
       );
@@ -81,11 +92,14 @@ export async function changeEntry(
   const keep: [string, string][] = [
     ["content", form.text("content")],
     ["minutes", form.text("minutes")],
+    ["references", form.text("references")],
   ];
   const input = parseEntryInput(form.text("content"));
   if (!input.text) return redirectWithError(editUrl, "An entry can't be empty. Delete it instead.", keep);
   const minutes = parseMinutes(form.text("minutes"));
   if (minutes === undefined) return redirectWithError(editUrl, TIME_HELP, keep);
+  const { references, invalid } = parseReferenceLines(form.text("references"));
+  if (invalid.length > 0) return redirectWithError(editUrl, referenceHelp(invalid), keep);
 
   const updated = ctx.vault.updateEntry(date, id, (entry) => ({
     ...entry,
@@ -93,6 +107,7 @@ export async function changeEntry(
     tags: input.tags,
     goals: input.goals,
     minutes,
+    references,
   }));
   return updated ? redirect(back) : notFound(ctx, "That entry");
 }

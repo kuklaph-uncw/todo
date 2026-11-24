@@ -16,7 +16,7 @@ it("reads ledger entries and discovers goals/tags without assigning missing IDs"
   const source = "- 09:00 Hand written #ops [[delivery]]\n    Keep **Markdown**\n";
   writeFileSync(path, source);
   writeFileSync(join(ctx.root, "todos.md"), "- [ ] Follow up #ops #support\n");
-  const goal = ctx.vault.createGoal({ title: "Delivery", cycle: "2026", description: "Ship carefully" });
+  const goal = ctx.vault.createGoal({ title: "Delivery", cycle: "26-27", description: "Ship carefully" });
   const service = new LedgerService(ctx.vault, ctx.clock);
   const listed = service.list({});
   expect(listed.today).toBe("2026-09-28");
@@ -26,7 +26,7 @@ it("reads ledger entries and discovers goals/tags without assigning missing IDs"
   expect(new GoalService(ctx.vault, ctx.clock).list({}).goals).toContainEqual({
     slug: goal.slug,
     title: "Delivery",
-    cycle: "2026",
+    cycle: "26-27",
     status: "draft",
     kind: "goal",
     revision: expect.stringMatching(/^[a-f0-9]{64}$/),
@@ -42,7 +42,7 @@ it("reads ledger entries and discovers goals/tags without assigning missing IDs"
 
 it("creates entries with inline and structured metadata and returns the persisted revision", () => {
   const service = new LedgerService(ctx.vault, ctx.clock);
-  const goal = ctx.vault.createGoal({ title: "Delivery", cycle: "2026" });
+  const goal = ctx.vault.createGoal({ title: "Delivery", cycle: "26-27" });
   const added = service.execute("add_entry", {
     text: "Shipped #ops [[delivery]]\n\n```sh\necho done  \n```",
     tags: ["Support"],
@@ -145,4 +145,48 @@ it("validates dates, text and metadata before touching files and allows correcti
   expect(service.list({}).total).toBe(1);
   expect(() => service.list({ from: "2026-09-29", to: "2026-09-28" })).toThrow();
   expect(() => service.get({ date: "../../outside", id: "abc" })).toThrow();
+});
+
+it("adds, reads, replaces and clears an entry's references, and refuses one without an address", () => {
+  const service = new LedgerService(ctx.vault, ctx.clock);
+  const thread = { label: "ToDo thread", url: "t3-thread://v2/a/b" };
+  const added = service.execute("add_entry", {
+    text: "Shipped it",
+    references: [thread, { url: "https://example.com/notes" }],
+    requestId: "refs-add",
+  }) as { id: string; date: string; revision: string; references: unknown };
+  expect(added.references).toEqual([thread, { label: "", url: "https://example.com/notes" }]);
+  expect(readFileSync(join(ctx.root, "journal", "2026", "2026-09-28.md"), "utf8")).toContain(
+    "    🔗 [ToDo thread](t3-thread://v2/a/b)\n    🔗 https://example.com/notes",
+  );
+  expect(service.list({ q: "t3-thread://v2/a/b" }).entries.map((entry) => entry.id)).toEqual([added.id]);
+
+  const replaced = service.execute("update_entry", {
+    date: added.date,
+    id: added.id,
+    expectedRevision: added.revision,
+    text: "Shipped it again",
+    requestId: "refs-text",
+  }) as { revision: string; references: unknown };
+  // Changing only the text keeps the references.
+  expect(replaced.references).toEqual(added.references);
+  const cleared = service.execute("update_entry", {
+    date: added.date,
+    id: added.id,
+    expectedRevision: replaced.revision,
+    references: [],
+    requestId: "refs-clear",
+  }) as { references: unknown };
+  expect(cleared.references).toEqual([]);
+
+  expect(() =>
+    service.execute("add_entry", { text: "Bad", references: [{ url: "example.com" }], requestId: "refs-bad" }),
+  ).toThrow();
+  expect(() =>
+    service.execute("add_entry", {
+      text: "Bad",
+      references: [{ label: "two\nlines", url: "https://x.test" }],
+      requestId: "refs-bad-label",
+    }),
+  ).toThrow();
 });

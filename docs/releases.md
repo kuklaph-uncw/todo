@@ -70,6 +70,8 @@ Version 1.3.0 adds marked blocks in `todos.md` when notes need blank lines, inde
 
 Version 1.5.0 writes goals in Full Cycle Performance's shape: `kind`, `order` and `dropped` in the frontmatter, and the description, expectations and notes as `##` sections. Statuses are now draft, agreed and dropped; older active and achieved goals read as agreed. Use 1.5.0 or newer to edit goals. Older versions show the sections as one block of text, read draft and agreed as active, and drop the new frontmatter fields when saving a goal. Todos can carry a `📅 YYYY-MM-DD` due date, which older versions show as part of the task text.
 
+Version 1.8.0 names review cycles the way Full Cycle Performance does: `26-27` runs April 1, 2026 to March 31, 2027. A goal saved with a year (`cycle: 2026`) reads as the cycle that started that April and is written with the new label the next time it is saved. Older versions treat `26-27` as an unknown label: their timeline shows the current calendar year. Ledger entries can end with `🔗` reference lines; older versions show those as part of the entry text.
+
 ## Verify an update
 
 Use disposable Windows test profiles or a VM so real notes and drafts are untouched. Install one updater-enabled version, then publish a higher version to a separate test repository configured as that build's feed. Confirm the older installed app downloads it without prompting, Not now keeps it running, and Restart to update runs the installer and reopens the newer version with notes and the ledger draft intact. Installed copies of 1.3.0 still use their own restart prompt for the update that replaces them. Test offline startup too.

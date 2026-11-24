@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { findTags, findLinks } from "../../src/vault/format";
-import { renderEntryMarkdown } from "../../src/lib/markdown";
+import { renderEntryMarkdown, renderInlineMarkdown } from "../../src/lib/markdown";
 import { entryHtml, goalIndex } from "../../src/views/components";
 
 describe("entry Markdown", () => {
@@ -56,7 +56,7 @@ describe("entry Markdown", () => {
       {
         slug: "slug",
         title: "Goal",
-        cycle: "2026",
+        cycle: "26-27",
         status: "agreed",
         kind: "goal",
         order: 1,
@@ -140,5 +140,63 @@ describe("entry Markdown", () => {
       '<pre data-fence="```" data-info=""><code>open to the end\n#ops</code></pre>',
     );
     expect(renderEntryMarkdown("``` a`b\nnext")).toBe("<p>``` a`b<br>next</p>");
+  });
+});
+
+describe("links in rendered text", () => {
+  it("shows a link this app can't open as its label, with the address on hover", () => {
+    expect(renderEntryMarkdown("See [ToDo thread](t3-thread://v2/a/b) for more")).toBe(
+      '<p>See <span class="local-link" data-href="t3-thread://v2/a/b" title="t3-thread://v2/a/b">ToDo thread</span> for more</p>',
+    );
+    // Not a link at all: no scheme.
+    expect(renderEntryMarkdown("[label](not-a-link)")).toBe("<p>[label](not-a-link)</p>");
+  });
+
+  it("links bare web addresses, leaving trailing punctuation out", () => {
+    expect(renderEntryMarkdown("Docs at https://example.com/a_b?x=1&y=2.")).toBe(
+      '<p>Docs at <a href="https://example.com/a_b?x=1&amp;y=2" target="_blank" rel="noopener noreferrer" data-bare>https://example.com/a_b?x=1&amp;y=2</a>.</p>',
+    );
+    expect(renderEntryMarkdown("(see https://en.wikipedia.org/wiki/Foo_(bar))")).toContain(
+      'href="https://en.wikipedia.org/wiki/Foo_(bar)"',
+    );
+    expect(renderEntryMarkdown("`https://example.com` stays code")).toBe(
+      "<p><code>https://example.com</code> stays code</p>",
+    );
+    expect(renderEntryMarkdown("nohttps://example.com")).not.toContain("<a");
+  });
+});
+
+describe("inline text such as todo titles", () => {
+  it("renders inline formatting and links, never blocks", () => {
+    expect(renderInlineMarkdown("**Ship** the `fix` per [spec](https://x.test) #ops", (s) => s)).toBe(
+      '<strong>Ship</strong> the <code>fix</code> per <a href="https://x.test" target="_blank" rel="noopener noreferrer">spec</a> #ops',
+    );
+    expect(renderInlineMarkdown("# not a heading", (s) => s)).toBe("# not a heading");
+  });
+});
+
+describe("bare web addresses next to other Markdown", () => {
+  const link = (url: string) => `<a href="${url}" target="_blank" rel="noopener noreferrer" data-bare>${url}</a>`;
+
+  it("leaves the emphasis that closes around it", () => {
+    expect(renderEntryMarkdown("*see https://x.test*")).toBe(`<p><em>see ${link("https://x.test")}</em></p>`);
+    expect(renderEntryMarkdown("**see https://x.test**")).toBe(`<p><strong>see ${link("https://x.test")}</strong></p>`);
+  });
+
+  it("keeps a trailing & in the address and stops at < or >", () => {
+    expect(renderEntryMarkdown("go https://x.test/?a=1&")).toBe(`<p>go ${link("https://x.test/?a=1&amp;")}</p>`);
+    expect(renderEntryMarkdown("(https://x.test/a>b)")).toBe(`<p>(${link("https://x.test/a")}&gt;b)</p>`);
+  });
+
+  it("reads Markdown escapes the editor added inside an address", () => {
+    expect(renderEntryMarkdown("https://dev.azure.com/o/p/\\_workitems/edit/1")).toBe(
+      `<p>${link("https://dev.azure.com/o/p/_workitems/edit/1")}</p>`,
+    );
+  });
+
+  it("marks only typed addresses as bare, not links whose label is the address", () => {
+    expect(renderEntryMarkdown("[https://x.test](https://x.test)")).toBe(
+      '<p><a href="https://x.test" target="_blank" rel="noopener noreferrer">https://x.test</a></p>',
+    );
   });
 });

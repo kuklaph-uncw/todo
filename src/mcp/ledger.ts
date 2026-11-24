@@ -1,5 +1,6 @@
 import * as z from "zod/v4";
 import { isValidDateString, localDateString, localTimeString } from "../lib/date";
+import { isReferenceUrl } from "../vault/references";
 import { contentRevision } from "../vault/revision";
 import { parseEntryInput, type Vault } from "../vault/vault";
 
@@ -48,6 +49,23 @@ const metadata = {
     .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
     .nullable()
     .optional(),
+  references: z
+    .array(
+      z
+        .object({
+          // One line; the app shows the address when it's empty.
+          label: z
+            .string()
+            .max(500)
+            .regex(/^[^\p{Cc}]*$/u, "A reference's label is one line of text.")
+            .transform((label) => label.trim())
+            .default(""),
+          url: z.string().refine(isReferenceUrl, "A reference needs an address with its scheme, like https://."),
+        })
+        .strict(),
+    )
+    .max(50)
+    .optional(),
 };
 export const newEntry = z.object({ text: entryText, date: entryDate.optional(), ...metadata, requestId }).strict();
 export const entryTarget = entryKey
@@ -79,7 +97,11 @@ export class LedgerService {
           (!filters.tag || entry.tags.includes(filters.tag.toLowerCase())) &&
           (!filters.goal || entry.goals.includes(filters.goal)) &&
           (filters.isHighlight === undefined || entry.isHighlight === filters.isHighlight) &&
-          (!q || [entry.text, ...entry.tags, ...entry.goals].join(" ").toLowerCase().includes(q)),
+          (!q ||
+            [entry.text, ...entry.tags, ...entry.goals, ...entry.references.flatMap((ref) => [ref.label, ref.url])]
+              .join(" ")
+              .toLowerCase()
+              .includes(q)),
       );
     return {
       today,
@@ -142,6 +164,7 @@ export class LedgerService {
         minutes: value.minutes ?? null,
         isHighlight: value.isHighlight ?? false,
         time: value.time !== undefined ? value.time : date === localDateString(now) ? localTimeString(now) : null,
+        references: value.references ?? [],
       });
       result = this.get({ date, id: created.id });
     } else {
@@ -163,6 +186,7 @@ export class LedgerService {
           minutes: value.minutes === undefined ? entry.minutes : value.minutes,
           isHighlight: value.isHighlight ?? entry.isHighlight,
           time: value.time === undefined ? entry.time : value.time,
+          references: value.references ?? entry.references,
         }));
         result = this.get(value);
       }

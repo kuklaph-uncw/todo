@@ -12,6 +12,7 @@
  *   Entry metadata lives on the first line. Continuations are indented four
  *   spaces; internal blank lines are empty. Reading accepts any indentation,
  *   removes the smallest indent (up to four columns) and keeps blank lines only before continuations.
+ *   `🔗` lines at the end of an entry are its references (see references.ts).
  *
  *   Todo (todos.md), using Obsidian Tasks plugin emoji where they exist:
  *     - [x] Fix flaky auth test #bug ⏫ ⭐ ➕ 2026-09-20 📅 2026-09-30 ✅ 2026-09-28 ^t8k2m1
@@ -27,8 +28,10 @@
 import type { GoalKind, GoalStatus, Priority, Status } from "../lib/validation";
 import { continuationEnd, mapOutsideFences } from "../lib/lines";
 import { isValidGoalKind, isValidGoalStatus } from "../lib/validation";
+import { cycleLabel } from "../lib/cycle";
 import { isValidDateString } from "../lib/date";
 import { renderEntryMarkdown } from "../lib/markdown";
+import { formatReference, parseReference, REFERENCE_MARK, type Reference } from "./references";
 
 export interface Entry {
   id: string;
@@ -39,6 +42,8 @@ export interface Entry {
   goals: string[];
   minutes: number | null;
   isHighlight: boolean;
+  /** Links kept apart from the text, written as `🔗` lines at the end of the entry. */
+  references: Reference[];
 }
 
 export interface Todo {
@@ -337,6 +342,7 @@ export function parseEntryLine(line: string, date: string): Entry | null {
     goals: parsed.goals,
     minutes: parsed.minutes,
     isHighlight: parsed.isHighlight,
+    references: [],
   };
 }
 
@@ -396,6 +402,14 @@ export function parseEntryBlocks(lines: string[], date: string): EntryBlock[] {
     const body = mapOutsideFences([entry.text, ...dedent(lines.slice(start + 1, end))], (line) =>
       line.trim() ? line : "",
     ).slice(1);
+    // `🔗` lines at the very end are references; one followed by more text stays text.
+    while (body.at(-1)?.startsWith(REFERENCE_MARK)) {
+      const reference = parseReference(body.at(-1)!.slice(REFERENCE_MARK.length).trim());
+      if (!reference) break;
+      entry.references.unshift(reference);
+      body.pop();
+    }
+    while (entry.references.length > 0 && body.at(-1) === "") body.pop();
     Object.assign(entry, entryContent(entry, body));
     blocks.push({ entry, start, end });
     start = end - 1;
@@ -411,6 +425,7 @@ export function formatEntry(entry: Entry): string[] {
       .split("\n")
       .slice(1)
       .map((line) => (line ? `    ${line}` : "")),
+    ...entry.references.map((reference) => `    ${REFERENCE_MARK}${formatReference(reference)}`),
   ];
 }
 
@@ -652,7 +667,8 @@ export function parseGoal(slug: string, source: string): Goal {
   return {
     slug,
     title: data.title || slug,
-    cycle: data.cycle || "",
+    // Versions before 1.8 wrote a year ("2026"); saving the goal writes its new label.
+    cycle: cycleLabel(data.cycle || ""),
     status,
     kind: isValidGoalKind(kind) ? kind : "goal",
     // Goals without an order (written by hand or before ordering) sort after the rest.

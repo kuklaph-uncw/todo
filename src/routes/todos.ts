@@ -1,3 +1,4 @@
+import { cycleOf } from "../lib/cycle";
 import { isValidDateString } from "../lib/date";
 import { isValidPriority, isValidStatus, safeReturnPath, type Priority, type Status } from "../lib/validation";
 import { DUE_DATE_ERROR, type MoveTarget } from "../vault/vault";
@@ -40,7 +41,7 @@ export function handleTodos(req: Request, ctx: AppContext): Response {
     allTags: [...new Set(todos.flatMap((t) => t.tags))].sort(),
     goals: ctx.vault.getGoals(),
     tagCounts: ctx.vault.getTagCounts(),
-    currentCycle: today(ctx).slice(0, 4),
+    currentCycle: cycleOf(today(ctx)),
     editId: url.searchParams.get("edit"),
     error,
     returnTo,

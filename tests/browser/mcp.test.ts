@@ -87,7 +87,7 @@ it("updates the page around an unsaved ledger edit, then rejects the stale save"
 }, 20000);
 
 it("keeps a goal's changed status choice through a live update", async () => {
-  const goal = ctx.vault.createGoal({ title: "Refresh protection", cycle: "2026" });
+  const goal = ctx.vault.createGoal({ title: "Refresh protection", cycle: "26-27" });
   await page.goto(`${server.url}goals/${goal.slug}?edit=1`);
   const agreed = page.locator('.goal-edit input[name="status"][value="agreed"]');
   await agreed.check();

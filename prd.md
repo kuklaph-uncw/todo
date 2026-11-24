@@ -195,7 +195,7 @@ The user can review the selected day, add missed accomplishments, mark TODOs don
 
 ### 7.5 Goal Tracking
 
-At the start of a review cycle, the user writes their goals with their manager in the shape Full Cycle Performance (FCP) uses: name, description, meeting expectations, and exceeding expectations. Talent development plan activities have just a name and one text field. Goals start as drafts; once the manager has pasted one into FCP (with Copy for FCP), the user marks it agreed. While logging, they type `/` to pick a goal, or type its `[[goal-link]]`. Each goal collects the linked entries and completed TODOs as evidence, shown as ticks on a year timeline and as a feed on the goal page. Private talking points go in the goal's notes, which never go to FCP. At review time, the user opens a review filtered to that goal. Next cycle, they carry the goals over as new drafts.
+At the start of a review cycle, the user writes their goals with their manager in the shape Full Cycle Performance (FCP) uses: name, description, meeting expectations, and exceeding expectations. Talent development plan activities have just a name and one text field. Goals start as drafts; once the manager has pasted one into FCP (with Copy for FCP), the user marks it agreed. While logging, they type `/` to pick a goal, or type its `[[goal-link]]`. Each goal collects the linked entries and completed TODOs as evidence, shown as ticks on a timeline of the cycle (April to March) and as a feed on the goal page. Private talking points go in the goal's notes, which never go to FCP. At review time, the user opens a review filtered to that goal. Next cycle, they carry the goals over as new drafts.
 
 ---
 
@@ -224,7 +224,7 @@ The user can open the vault in any editor or Obsidian, read it, and add or chang
 | ------------------------------------ | ----------- | ----------------------------------------------------------- |
 | `/`                                  | Today       | Day view. Main daily capture surface. `?date=` for any day. |
 | `/todos`                             | Todos       | Full task list with filters and search.                     |
-| `/goals`                             | Goals       | One review cycle's goal sheet (Reader) or year map (Timeline). |
+| `/goals`                             | Goals       | One review cycle's goal sheet (Reader) or month map (Timeline). |
 | `/goals/:slug`                       | Goal        | One goal's text, status, timeline row, and evidence feed.   |
 | `/review`                            | Review      | Date-range accomplishment document, filters, exports.       |
 | `/review/export.{md,json,jsonl}`     | Downloads   | Review export in Markdown, JSON, or JSONL.                  |
@@ -303,7 +303,9 @@ The default landing page. It answers:
 
 **Draft protection.** Unsent capture text is saved in `localStorage` (key `draft:today` on today, `draft:YYYY-MM-DD` on other days). It restores after a reload and clears after a successful save.
 
-**Display.** On Today, goal evidence and Review, entries render paragraphs (single line breaks become `<br>`), `-`, `*` or `+` bullets and `1.` numbered lists nested by indent, `#` headings shifted down two levels (at most `h6`), `**bold**`, `*italic*` or `_italic_`, backtick code spans, fenced code blocks, and inline `[label](https://example.com)` links. HTTP and HTTPS links open in the system browser from the desktop app, without navigating ToDo. Link destinations survive visual edits and supported HTML paste. Other schemes, relative URLs, and URLs containing credentials remain inactive. Fenced blocks show escaped, undecorated text in a monospace block. Underscores inside words stay literal; asterisks can emphasize part of a word. Other Markdown, including images, raw HTML and checkboxes, stays literal. All text is HTML-escaped first. Inline `#tags` and `[[links]]` are styled outside code; tokens inside code blocks or web-link destinations do not count as metadata. Tags and links not written inline, and time spent, show as chips under the entry. A `[[link]]` that matches no goal is dimmed with a hint to check the spelling. TODO text keeps its inline tags and links without Markdown formatting.
+**Display.** On Today, goal evidence and Review, entries render paragraphs (single line breaks become `<br>`), `-`, `*` or `+` bullets and `1.` numbered lists nested by indent, `#` headings shifted down two levels (at most `h6`), `**bold**`, `*italic*` or `_italic_`, backtick code spans, fenced code blocks, inline `[label](https://example.com)` links, and bare `https://` addresses. HTTP and HTTPS links open in the system browser from the desktop app, without navigating ToDo; trailing punctuation and an unmatched `)` stay outside a bare address. A link with another scheme (such as `t3-thread://`) shows only its label, with the address on hover; clicking it (or Enter when it has focus) copies the address and says "Copied", as reference chips do. Link destinations survive visual edits and supported HTML paste. Relative URLs and URLs containing credentials remain inactive. Fenced blocks show escaped, undecorated text in a monospace block. Underscores inside words stay literal; asterisks can emphasize part of a word. Other Markdown, including images, raw HTML and checkboxes, stays literal. All text is HTML-escaped first. Inline `#tags` and `[[links]]` are styled outside code; tokens inside code blocks or web-link destinations do not count as metadata. Tags and links not written inline, and time spent, show as chips under the entry. A `[[link]]` that matches no goal is dimmed with a hint to check the spelling. TODO titles and subtasks render the same inline formatting (bold, italic, code, links) on one line, never blocks; labels read aloud or shown on hover use the plain words. An entry's references (10.2) show under it as a row of links: a web address opens in the system browser, and any other (such as an agent thread) copies its address and says "Copied".
+
+**References.** Links kept apart from an entry's text, such as the agent thread or ticket the work came from. The capture and edit forms have a folded References field, one per line: an address, a label then an address, or a Markdown link. A line without an address (a scheme such as `https:`) sends the form back with everything typed kept. Review's Markdown export lists them under the entry; JSON exports include a `references` array.
 
 ---
 
@@ -374,10 +376,10 @@ Marking a TODO done from this page records today.
 
 | ID    | Requirement                                                                                                         |
 | ----- | ------------------------------------------------------------------------------------------------------------------- |
-| GL-1  | User sees one review cycle (`?cycle=`, default the current year) in one of two views: Reader (`?view=reader`) or Timeline (`?view=timeline`). |
-| GL-2  | A cycle switcher lists the current year and every cycle used by a goal, with "No cycle" for goals written without one. A segmented Reader \| Timeline switch keeps the cycle. |
+| GL-1  | User sees one review cycle (`?cycle=`, default the current cycle; an older link's year such as `2026` opens 26-27) in one of two views: Reader (`?view=reader`) or Timeline (`?view=timeline`). |
+| GL-2  | A cycle switcher lists the current cycle and every cycle used by a goal, with "No cycle" for goals written without one. A segmented Reader \| Timeline switch keeps the cycle. |
 | GL-3  | `/goals` without `view` opens the view used last. The desktop app saves the choice in `<userData>/preferences.json`, outside the vault, so it survives a restart. The development server uses the git-ignored `tmp/dev-preferences.json`. Without a preferences path nothing is remembered and Reader opens; if saving fails, the page still opens. |
-| GL-4  | Reader is the goal sheet: an "Individual goals" section ("Weight is set by your manager in FCP."), then "Talent development plan". Goals and activities are numbered "Goal 1…n" and "Activity 1…n" by their order. |
+| GL-4  | Reader is the goal sheet: an "Individual goals" section, then "Talent development plan" ("Not rated. Reviewed for progress and future planning."). Goals and activities are numbered "Goal 1…n" and "Activity 1…n" by their order. |
 | GL-5  | Each goal is a full-width section. The margin shows its number, status stamp, linked entries and todos (linking to the goal page), starred count, and last date. Drafts have a "Mark agreed" button. Mark agreed and the move buttons (GL-7) carry the goal's revision: if the goal changed after the page loaded (for example, an agent edited it), nothing changes and the sheet returns to the goal with "This goal changed after this page loaded. Check it and try again." Posts without a revision still work. |
 | GL-6  | The section shows the name, `[[slug]]`, Description, Meeting expectations, Exceeding expectations (an activity shows one Activity field), and Notes, marked "Not in FCP". FCP text shows as typed, line breaks kept, no Markdown. Notes use safe Markdown display. |
 | GL-7  | Each section has Edit, Copy for FCP, Open goal page, and Review this goal. Live goals and activities also have Move up and Move down ("Move <name> up"), disabled at the ends of their section; moving renumbers the section and returns to the goal. Timeline follows the same order. There is no drag and drop. |
@@ -386,13 +388,13 @@ Marking a TODO done from this page records today.
 | GL-10 | Add goal or Add activity (`?add=goal` or `?add=activity`) appends a blank form in the same layout, Draft by default. A missing name returns with an error and the typed text kept. After saving, the sheet opens at the new goal. |
 | GL-11 | Dropped goals and activities fold into a "Dropped (n)" section at the end, struck through. They don't count toward numbering. |
 | GL-12 | A cycle with no goals shows the shape of a goal (its parts, greyed) and "Write your first goal". |
-| GL-13 | Timeline is a grid: names, January to December of the cycle year, and a tally ("12 linked", starred, "last Oct 6"). A cycle that isn't a year shows the current year. |
+| GL-13 | Timeline is a grid: names, the cycle's months from April to March, and a tally ("12 linked", starred, "last Oct 6"). A label the app doesn't understand, such as "FY26", shows the current cycle's months. |
 | GL-14 | Each linked entry or done todo is a tick on its day; starred ticks are taller and brass. A rule marks today. Months still ahead are dotted. Drafts are dashed. A dropped goal is struck out with × on its drop date, and nothing is drawn after it. Three or more past months in a row with nothing linked are named, like "Nothing linked June to August". A legend sits under the grid. |
 | GL-15 | Clicking a goal's name unfolds its full text with Edit, Copy for FCP, Open goal page, and Review this goal. It is a button with `aria-expanded`; without the script it reloads with `?open=<slug>`. Edit (`?view=timeline&edit=<slug>`) shows the same form as Reader inside the row. |
 | GL-16 | The Reader/Timeline switch sits in a compact bar that stays at the top of the window while scrolling, so it can be used from anywhere. Both views give each goal the id `goal-<slug>`, and goals land just below the bar. With the script, the switch carries the goal at the top of the window, so the other view opens at the same goal. |
-| GL-17 | When the next cycle (year + 1) has no goals, "Start <next>" opens `?cycle=<next>&from=<cycle>`: every goal and activity not dropped, checked; "Copy notes too", unchecked; and "Start with a blank goal". |
+| GL-17 | When the next cycle (26-27 → 27-28) has no goals, "Start <next>" opens `?cycle=<next>&from=<cycle>`: every goal and activity not dropped, checked; "Copy notes too", unchecked; and "Start with a blank goal". |
 
-A review cycle is a free-text label, usually a year.
+A review cycle is named the way Full Cycle Performance names it: "26-27" runs from April 1, 2026 to March 31, 2027, as UNC System SHRA policy sets the cycle (UNCW policy 08.530). The current cycle changes over on April 1. Versions before 1.8 wrote a year: a goal whose cycle is a bare year such as `2026` reads as the cycle that started that April (26-27), and saving it writes the new label. Any other label is kept as written.
 
 ---
 
@@ -402,13 +404,13 @@ A review cycle is a free-text label, usually a year.
 | ----- | -------------------------------------------------------------------------------------------------------------- |
 | GL-18 | A header links back to the cycle's goals at this goal, steps to the previous and next goal of the same kind in the cycle ("Goal 2 of 4"), and has "Review this goal". |
 | GL-19 | The goal's section as on the sheet, read-only, with Edit (the sheet's edit in place) and Copy for FCP. `?edit=1` redirects to the sheet's edit form. |
-| GL-20 | The goal's timeline row for its cycle year.                                                                    |
+| GL-20 | The goal's timeline row for its cycle.                                                                         |
 | GL-21 | Evidence feed: every linked journal entry and done TODO, all time, newest month first. Each links to its day.  |
 | GL-22 | Shows how many linked TODOs are still open, linking to `/todos?goal=<slug>`. They aren't evidence until done.   |
 | GL-23 | Changing the Link in the sheet's edit form (GL-9) renames the goal: its file moves to the new slug and every `[[old]]` or `[[old\|label]]` in journal entries and todos (task, notes, subtasks) is rewritten, except inside code. A link with no letters or numbers, one that isn't letters and numbers joined by single hyphens, a reserved link (`carry`, or a Windows device name such as `con` or `aux`; see 12.10), or one another goal uses is refused with the typed text kept, and nothing changes. A notice says how many entries and todos were updated, and the page opens at the new anchor. If an entry or todo can't be updated safely (its file is open in another app, or the change wouldn't read exactly like the original with the link renamed), it is left as it was, the rest are updated, and the notice says how many still link to the old slug. If the goal's file itself can't be renamed, the form comes back with the typed text and says it was saved under the old link. A blank name or link, or the link left as it was, keeps the old one. Cycle and kind don't change on edit. |
 | GL-24 | "Review this goal" opens `/review` filtered to the goal, from the first to the last evidence date.             |
 
-`/` suggestions offer only goals of one cycle that aren't dropped: on Today, the year of the day being viewed (so backfilling late December in January offers that year's goals); on Todos, this year. Older and dropped goals still collect evidence, and typed `[[links]]` to them still show as goal links; they just aren't suggested.
+`/` suggestions offer only goals of one cycle that aren't dropped: on Today, the cycle of the day being viewed (so backfilling late March in April offers that cycle's goals); on Todos, the current cycle. Older and dropped goals still collect evidence, and typed `[[links]]` to them still show as goal links; they just aren't suggested.
 
 ---
 
@@ -534,9 +536,11 @@ date: 2026-09-28
       - Verify the staging checklist
     - Ask Alex about staging auth
 - Helped support with an escalation ^m7p2rd
+    🔗 [Escalation thread](t3-thread://v2/…)
+    🔗 https://tickets.example.com/31058364
 ```
 
-Metadata is parsed only on the first line. The app writes non-blank continuation lines with four spaces added to their typed indentation; internal blank lines stay empty. The reader accepts any space or tab indentation and ends an entry at the next non-blank, unindented line or end of file. Blank lines belong to the entry only when another indented line follows. It removes the smallest indent across non-blank body lines, but never more than four columns, counting a tab as four spaces. Indentation relative to the first line survives; hand-written two-space or tab-indented notes still dedent to zero. Tags and goal links anywhere in the body count alongside the first line's metadata, but remain in the body text.
+Metadata is parsed only on the first line. The app writes non-blank continuation lines with four spaces added to their typed indentation; internal blank lines stay empty. The reader accepts any space or tab indentation and ends an entry at the next non-blank, unindented line or end of file. Blank lines belong to the entry only when another indented line follows. It removes the smallest indent across non-blank body lines, but never more than four columns, counting a tab as four spaces. Indentation relative to the first line survives; hand-written two-space or tab-indented notes still dedent to zero. Tags and goal links anywhere in the body count alongside the first line's metadata, but remain in the body text. `🔗` lines at the very end of an entry are its references, one link per line (`🔗 [label](address)`, `🔗 <address>` or `🔗 address`); they aren't part of its text and their labels don't count as tags or links. A `🔗` line followed by more text, or one that isn't a link, stays text.
 
 ### 10.3 `todos.md`
 
@@ -566,7 +570,7 @@ Notes needing blank lines, indentation, or literal checkboxes use a four-space-i
 ```md
 ---
 title: Improve Workflow Efficiency and Operational Processes
-cycle: 2026
+cycle: 26-27
 status: agreed
 kind: goal
 order: 1
@@ -602,7 +606,7 @@ A missing title falls back to the slug. A missing or unknown status reads as `dr
 
 ### 10.6 Line Grammar
 
-Entry first line: `- [HH:MM] text [#tags] [[[links]]] [⏱ Nm] [⭐] ^id`. Continuations follow the block rules in 10.2.
+Entry first line: `- [HH:MM] text [#tags] [[[links]]] [⏱ Nm] [⭐] ^id`. Continuations follow the block rules in 10.2, then any `🔗` reference lines.
 
 TODO line: `- [mark] task [#tags] [[[links]]] [⏱ Nm] [priority] [⭐] [➕ created] [📅 due] [✅ completed] ^id`
 
@@ -741,7 +745,7 @@ The task line, its notes, and its subtasks are appended to `.trash/deleted.md`, 
 ### 12.10 Goals
 
 - The slug comes from the title: lowercase, accents stripped, non-alphanumerics to `-`, max 48 characters before any `-2`, `-3` suffix.
-- If the title's slug is taken by a goal in another cycle, the new goal gets `<slug>-<cycle>` (for example `improve-reliability-2027`). Otherwise duplicates get `-2`, `-3`, and so on.
+- If the title's slug is taken by a goal in another cycle, the new goal gets `<slug>-<cycle>` (for example `improve-reliability-27-28`). Otherwise duplicates get `-2`, `-3`, and so on.
 - Names and cycles are one line of plain text: line breaks and other control characters become spaces when the app saves them (MCP refuses them instead). A name's runs of spaces become one space; a cycle keeps its own spacing, so a goal added to a hand-written cycle like `FY  2027` stays in it. Name, status, link, and the text fields can change; cycle and kind never do. Changing the link renames the file and rewrites links to it in journal entries and `todos.md` (task lines, notes, subtasks), only where the app's own parser and renderer count them as links (as for evidence and filters): not inside code spans or fenced blocks, not in a fence's info string, not in text outside entries, and never a different slug that shares a prefix (`[[old-2]]`). Each entry or todo is then checked: it must render and carry metadata exactly as before with only the link renamed, or it is left as it was and counted as not updated. The new link is used exactly as checked, never re-slugified. Every file is read and changed before the goal file is renamed; each changed file is written atomically. If the goal file can't be renamed, the form comes back with the typed text, which was already saved under the old link. Goal files aren't searched, since links in goal notes aren't goal links.
 - Reserved slugs are never used: `carry` (a route) and the names Windows treats as devices even with an extension (`con`, `prn`, `aux`, `nul`, `com1`–`com9`, `lpt1`–`lpt9`, any case). A goal named "Carry" or "Con" gets `carry-2` or `con-2`; names that merely start with one, like `console` or `com10`, are fine. Slugs are cut at 48 characters counting a letter outside the BMP as one, and a goal is only written under a slug the app can open.
 - New goals start `draft`, with `order` one after the highest in their cycle and kind.
@@ -853,7 +857,7 @@ The server puts the same Markdown in the collapsed "Markdown source" textarea, a
   "filters": { "highlightsOnly": false, "sort": "asc", "tag": null, "goal": null, "q": null },
   "stats": { "journalEntries": 2, "completedTodos": 1, "highlights": 1, "activeDays": 2, "minutesLogged": 90 },
   "tagCounts": [{ "name": "review", "count": 2 }, { "name": "bug", "count": 1 }],
-  "goals": [{ "slug": "reliability", "title": "Improve reliability", "cycle": "2026", "status": "agreed", "kind": "goal" }],
+  "goals": [{ "slug": "reliability", "title": "Improve reliability", "cycle": "26-27", "status": "agreed", "kind": "goal" }],
   "items": [
     {
       "type": "journal",
@@ -1275,7 +1279,7 @@ Copy-Item -Recurse "$HOME\Work Ledger" "$HOME\Backups\Work Ledger $(Get-Date -Fo
 | `markdown.test.ts`     | Paragraph breaks, nested ordered and unordered lists, heading levels, escaping before emphasis, code-span isolation, literal unsupported syntax, intraword underscore and asterisk rules, underscored tags and goal labels. |
 | `review.test.ts`       | Grouping, ordering, stats, goal grouping, filters, newest first, exact Markdown output with multi-line entries in every list, whole-item HTML and single-paragraph spacing, empty range, JSON and JSONL shape and preserved line breaks, filter parsing and the 12-month default. |
 | `validation.test.ts`   | Tags, priority, status, time-spent parsing, slugs, `safeReturnPath`.                    |
-| `timeline.test.ts`     | Goal timeline: cycle year, ticks by day and star, today and months ahead, quiet stretches of three months or more after the first linked work, the line stopping at a drop, real month lengths including leap years. |
+| `timeline.test.ts`     | Goal timeline: April to March, ticks by day and star, today and months ahead, quiet stretches of three months or more after the first linked work, the line stopping at a drop, real month lengths including leap years. |
 | `preferences.test.ts`  | The Goals view preference file: saving, keeping other keys, unreadable files, and no path. |
 | `updates.test.ts`      | Stable update state, automatic downloads and progress, explicit restart, duplicate request guards, and check/download/install failures. |
 

@@ -5,11 +5,12 @@ import { GOAL_STATUSES, isValidGoalStatus, slugify, type GoalKind, type GoalStat
 import type { Goal } from "../vault/format";
 import type { GoalsView } from "../preferences";
 import type { ReviewItem } from "../review";
-import { cycleYear } from "../timeline";
+import { cycleMonths, cycleOf } from "../lib/cycle";
 import { contentRevision } from "../vault/revision";
 import {
   emptyState,
   entryHtml,
+  referenceList,
   goalIndex,
   hidden,
   icon,
@@ -354,15 +355,14 @@ function goalForm(opts: FormOptions): string {
 
 // ---- Reader -------------------------------------------------------------
 
-function band(cycle: string, title: string, count: number, note: string, plan = false): string {
+function band(cycle: string, title: string, count: number, note = "", plan = false): string {
   return `<div class="band${plan ? " is-plan" : ""}">
       <span class="band-m">${escapeHtml(cycle)}</span>
       <h2>${title} <span class="count">${count}</span></h2>
-      <p class="band-note">${note}</p>
+      ${note ? `<p class="band-note">${note}</p>` : ""}
     </div>`;
 }
 
-const GOALS_NOTE = "Weight is set by your manager in FCP.";
 const PLAN_NOTE = "Not rated. Reviewed for progress and future planning.";
 
 function addUrl(data: GoalsViewData, kind: GoalKind): string {
@@ -373,7 +373,7 @@ function slot(data: GoalsViewData, kind: GoalKind, count: number): string {
   const hint =
     kind === "goal"
       ? "Most people have 3 to 5. Start it as a draft and agree on it later."
-      : "You can add activities any time during the year.";
+      : "You can add activities any time during the cycle.";
   return `<div class="clause is-slot">
       <div class="record"><span class="no">${KIND_LABEL[kind]} ${count + 1}</span></div>
       <div class="clause-body slot-body">
@@ -467,7 +467,7 @@ function renderReader(data: GoalsViewData): string {
     : "";
 
   return `<div class="agreement">
-      ${band(data.cycle, "Individual goals", goals.length, GOALS_NOTE)}
+      ${band(data.cycle, "Individual goals", goals.length)}
       ${goalRows}
       ${band(data.cycle, "Talent development plan", activities.length, PLAN_NOTE, true)}
       ${activityRows}
@@ -516,7 +516,7 @@ function folio(goal: Goal, data: GoalsViewData): string {
     </div>`;
 }
 
-function timelineGoal(data: GoalsViewData, goal: Goal, year: number): string {
+function timelineGoal(data: GoalsViewData, goal: Goal, months: string[]): string {
   const editing = goal.slug === data.edit;
   const open = editing || goal.slug === data.open;
   const detailId = `detail-${goal.slug}`;
@@ -544,7 +544,7 @@ function timelineGoal(data: GoalsViewData, goal: Goal, year: number): string {
     : folio(goal, data);
   return timelineRow({
     goal,
-    year,
+    months,
     today: data.today,
     items: itemsFor(data.items, goal.slug),
     label: `${toggle}<p class="row-status">${status}</p>`,
@@ -561,13 +561,13 @@ function timelineAdd(data: GoalsViewData, kind: GoalKind, count: number): string
 }
 
 function renderTimeline(data: GoalsViewData): string {
-  const year = cycleYear(data.cycle, data.today);
+  const months = cycleMonths(data.cycle, data.today);
   const { goals, activities, dropped } = sections(data.goals);
-  const rows = (list: Goal[]) => list.map((goal) => timelineGoal(data, goal, year)).join("");
+  const rows = (list: Goal[]) => list.map((goal) => timelineGoal(data, goal, months)).join("");
   const droppedOf = (kind: GoalKind) => dropped.filter((goal) => goal.kind === kind);
   return `<div class="map-scroll">
       <section class="map" aria-label="Goals for ${escapeHtml(data.cycle)} by month">
-        ${timelineHead({ year, today: data.today, label: `<h2 class="section-title">Individual goals <span class="count">${goals.length}</span></h2>` })}
+        ${timelineHead({ months, today: data.today, label: `<h2 class="section-title">Individual goals <span class="count">${goals.length}</span></h2>` })}
         <ol class="map-rows">${rows([...goals, ...droppedOf("goal")])}</ol>
         ${timelineAdd(data, "goal", goals.length)}
         <div class="map-band band-section"><div class="row-label">
@@ -578,7 +578,7 @@ function renderTimeline(data: GoalsViewData): string {
         ${timelineAdd(data, "activity", activities.length)}
       </section>
     </div>
-    <div class="map-foot">${timelineLegend(data.today, year)}</div>`;
+    <div class="map-foot">${timelineLegend(data.today, months)}</div>`;
 }
 
 // ---- New cycle: carry goals over ------------------------------------------
@@ -676,7 +676,7 @@ function evidenceFeed(items: ReviewItem[], goals: GoalIndex, slug: string): stri
               item,
             ) => `<li class="entry${item.isHighlight ? " is-starred" : ""}${item.kind === "todo" ? " is-todo" : ""}">
               <div class="margin"><time datetime="${item.date}">${shortMonthDay(item.date)}</time>${item.kind === "todo" ? `<span class="done-mark" title="Completed todo">${icon("check")}</span>` : ""}</div>
-              <div class="entry-body">${item.kind === "entry" ? `<div class="entry-text">${entryHtml(item.text, goals)}</div>` : `<p class="entry-text">${richText(item.text, goals)}</p>`}${metaChips({ ...item, goals: item.goals.filter((g) => g !== slug) }, goals)}</div>
+              <div class="entry-body">${item.kind === "entry" ? `<div class="entry-text">${entryHtml(item.text, goals)}</div>${referenceList(item.references)}` : `<p class="entry-text">${richText(item.text, goals)}</p>`}${metaChips({ ...item, goals: item.goals.filter((g) => g !== slug) }, goals)}</div>
               <a class="icon-btn" href="/?date=${item.date}#${item.kind === "todo" ? "todo" : "entry"}-${item.id}" aria-label="Open ${item.date}" title="Open day">${icon("arrow")}</a>
             </li>`,
           )
@@ -708,7 +708,9 @@ export function renderGoal(data: GoalViewData): string {
   const openTodos = data.openTodos
     ? `<p class="goal-open-todos"><a href="/todos?goal=${encodeURIComponent(goal.slug)}">${data.openTodos} open ${data.openTodos === 1 ? "todo" : "todos"} linked</a>. They count as evidence once done.</p>`
     : "";
-  const year = cycleYear(goal.cycle, data.today);
+  const months = cycleMonths(goal.cycle, data.today);
+  // The cycle whose months are shown: the current one for a label like "FY26".
+  const shown = cycleOf(`${months[0]}-01`);
 
   return `<div class="page goals-sheet goal-page">
     <div class="agreement">
@@ -724,9 +726,9 @@ export function renderGoal(data: GoalViewData): string {
         editHref: goalsUrl("reader", goal.cycle, { edit: goal.slug }, anchor(goal)),
         zoomed: true,
       })}
-      <section class="zoom-timeline" aria-label="Linked work across ${year}">
-        ${timelineHead({ year, today: data.today, label: "" })}
-        <ol class="map-rows">${timelineRow({ goal, year, today: data.today, items: data.items, label: `<p class="row-status">Linked work in ${year}</p>` })}</ol>
+      <section class="zoom-timeline" aria-label="Linked work across ${shown}">
+        ${timelineHead({ months, today: data.today, label: "" })}
+        <ol class="map-rows">${timelineRow({ goal, months, today: data.today, items: data.items, label: `<p class="row-status">Linked work in ${shown}</p>` })}</ol>
       </section>
       <section class="goal-evidence-feed" aria-labelledby="evidence-title">
         <h2 class="section-title" id="evidence-title">Evidence <span class="count">${data.items.length}</span></h2>

@@ -1,6 +1,8 @@
+import { cycleOf } from "../lib/cycle";
 import { escapeHtml } from "../lib/html";
 import { addDays, formatMinutes, monthDay, parseLocalDate, weekdayName } from "../lib/date";
 import { editableText, type Entry, type Goal, type Todo } from "../vault/format";
+import { referenceLines } from "../vault/references";
 import { contentRevision } from "../vault/revision";
 import {
   COMPOSER_HINT,
@@ -8,6 +10,8 @@ import {
   dueDate,
   emptyState,
   entryHtml,
+  referenceList,
+  textOf,
   goalIndex,
   hidden,
   icon,
@@ -97,9 +101,22 @@ function captureForm(data: TodayViewData, returnTo: string): string {
           <button type="button" class="icon-btn" data-focus-mode aria-pressed="false" aria-label="Focus mode" title="Focus mode (Ctrl+Shift+F)" hidden>${icon("expand")}</button>
           <button class="btn primary" type="submit">Add to ledger</button>
         </div>
+        ${referenceField("capture-refs", retry?.get("references") ?? "", `draft:${isToday ? "today" : data.date}:references`)}
       </div>
       </div>
     </form>`;
+}
+
+/**
+ * Links kept apart from the entry text, one per line (see references.ts).
+ * Folded away until there are some, so the capture box stays quiet.
+ */
+function referenceField(id: string, value: string, draft = ""): string {
+  return `<details class="ref-field"${value ? " open" : ""}>
+        <summary>${icon("link")}References</summary>
+        <label class="sr-only" for="${id}">References, one per line</label>
+        <textarea id="${id}" name="references" rows="2" data-plain autocomplete="off"${draft ? ` data-draft="${draft}"` : ""} placeholder="One per line: a link, or a label then its address">${escapeHtml(value)}</textarea>
+      </details>`;
 }
 
 function entryEditForm(entry: Entry, returnTo: string, retry: URLSearchParams | null): string {
@@ -107,11 +124,13 @@ function entryEditForm(entry: Entry, returnTo: string, retry: URLSearchParams | 
   // After a validation error, show what the user typed rather than the saved version.
   const content = retry?.get("content") ?? editableText(entry.text, entry.tags, entry.goals);
   const minutes = retry?.get("minutes") ?? String(entry.minutes ?? "");
+  const references = retry?.get("references") ?? referenceLines(entry.references);
   return `<form class="edit-form" method="post" action="/journal/${entry.id}">
       ${hidden("date", entry.date)}${hidden("return_to", `${returnTo}#entry-${entry.id}`)}${hidden("expected_revision", contentRevision(entry))}
       <label class="sr-only" for="edit-${entry.id}">Entry text</label>
       <textarea id="edit-${entry.id}" name="content" rows="2" required autofocus data-composer>${escapeHtml(content)}</textarea>
       ${COMPOSER_HINT}
+      ${referenceField(`edit-refs-${entry.id}`, references)}
       <div class="edit-bar">
         <label class="field field-short"><span>Time spent</span><input name="minutes" value="${escapeHtml(minutes)}" placeholder="45m"></label>
         <span class="spacer"></span>
@@ -126,7 +145,7 @@ function entryRow(entry: Entry, data: TodayViewData, goals: GoalIndex, returnTo:
   const editing = data.editId === entry.id;
   const body = editing
     ? entryEditForm(entry, returnTo, data.retry)
-    : `<div class="entry-text">${entryHtml(entry.text, goals)}</div>${metaChips(entry, goals)}`;
+    : `<div class="entry-text">${entryHtml(entry.text, goals)}</div>${referenceList(entry.references)}${metaChips(entry, goals)}`;
 
   const actions = editing
     ? ""
@@ -171,7 +190,7 @@ function closedRow(todo: Todo, goals: GoalIndex, returnTo: string): string {
         ${postButton({
           action: `/todos/${todo.id}/star`,
           todo,
-          label: todo.isHighlight ? `Unstar: ${todo.task}` : `Star as a highlight: ${todo.task}`,
+          label: todo.isHighlight ? `Unstar: ${textOf(todo.task)}` : `Star as a highlight: ${textOf(todo.task)}`,
           body: icon("star", todo.isHighlight),
           returnTo: `${returnTo}#todo-${todo.id}`,
           className: `icon-btn star-btn${todo.isHighlight ? " is-on" : ""}`,
@@ -181,7 +200,7 @@ function closedRow(todo: Todo, goals: GoalIndex, returnTo: string): string {
         ${postButton({
           action: `/todos/${todo.id}/status`,
           todo,
-          label: `Reopen: ${todo.task}`,
+          label: `Reopen: ${textOf(todo.task)}`,
           body: icon("undo"),
           returnTo,
           fields: { status: "Open" },
@@ -203,7 +222,7 @@ function trayTodo(todo: Todo, goals: GoalIndex, returnTo: string, date: string, 
       ${postButton({
         action: `/todos/${todo.id}/status`,
         todo,
-        label: `Mark done: ${todo.task}`,
+        label: `Mark done: ${textOf(todo.task)}`,
         body: icon("check"),
         returnTo,
         fields: { status: "Done", on: date },
@@ -216,7 +235,7 @@ function trayTodo(todo: Todo, goals: GoalIndex, returnTo: string, date: string, 
         ${meta ? `<div class="todo-meta">${meta}</div>` : ""}
         ${subtaskPanel(todo, goals, { returnTo, full: false })}
       </div>
-      <a class="icon-btn" href="${escapeHtml(editHref)}" aria-label="Edit details: ${escapeHtml(todo.task)}" title="Edit details">${icon("edit")}</a>
+      <a class="icon-btn" href="${escapeHtml(editHref)}" aria-label="Edit details: ${escapeHtml(textOf(todo.task))}" title="Edit details">${icon("edit")}</a>
     </li>`;
 }
 
@@ -291,6 +310,6 @@ export function renderToday(data: TodayViewData): string {
       </div>
     </section>
     ${tray(data, goals, returnTo)}
-    ${composerData(data.tagCounts, data.goals, data.date.slice(0, 4))}
+    ${composerData(data.tagCounts, data.goals, cycleOf(data.date))}
   </div>`;
 }

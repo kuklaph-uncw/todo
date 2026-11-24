@@ -1,3 +1,5 @@
+import { cycleLabel } from "./cycle";
+
 export const PRIORITIES = ["High", "Medium", "Low"] as const;
 export const STATUSES = ["Open", "Done"] as const;
 export const GOAL_STATUSES = ["draft", "agreed", "dropped"] as const;
@@ -71,11 +73,12 @@ export function isReservedSlug(slug: string): boolean {
 /**
  * A cycle as stored: control characters (tabs, line breaks, C1 controls, line and
  * paragraph separators) become spaces, and the ends are trimmed. Other spacing is
- * kept, so a hand-written cycle like "FY  2027" stays the same cycle.
+ * kept, so a hand-written cycle like "FY  2027" stays the same cycle. A bare
+ * year is the cycle that started that April ("2026" → "26-27").
  */
 export function cleanCycle(text: string): string {
   // biome-ignore lint/suspicious/noControlCharactersInRegex: matching them is the point.
-  return text.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, " ").trim();
+  return cycleLabel(text.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, " ").trim());
 }
 
 /** "Improve platform reliability!" -> "improve-platform-reliability" */

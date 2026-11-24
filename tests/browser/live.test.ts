@@ -86,8 +86,8 @@ it("keeps an edit whose todo an agent deleted, and says the rest of the page wai
 }, 30000);
 
 it("marks a goal agreed in place and stays with that goal", async () => {
-  const goal = ctx.vault.createGoal({ title: "Ship the thing", cycle: "2026" });
-  await page.goto(`${server.url}goals?view=reader&cycle=2026`);
+  const goal = ctx.vault.createGoal({ title: "Ship the thing", cycle: "26-27" });
+  await page.goto(`${server.url}goals?view=reader&cycle=26-27`);
   await markDocument();
   const section = page.locator(`#goal-${goal.slug}`);
   await section.getByRole("button", { name: `Mark agreed: ${goal.title}`, exact: true }).click();
@@ -99,7 +99,7 @@ it("marks a goal agreed in place and stays with that goal", async () => {
 }, 30000);
 
 it("keeps a goal status choice after focus has left the form, and doesn't announce unrelated changes", async () => {
-  const goal = ctx.vault.createGoal({ title: "Status kept", cycle: "2026" });
+  const goal = ctx.vault.createGoal({ title: "Status kept", cycle: "26-27" });
   await page.goto(`${server.url}goals/${goal.slug}?edit=1`);
   const agreed = page.locator('.goal-edit input[name="status"][value="agreed"]');
   await agreed.check();
@@ -247,8 +247,8 @@ it("doesn't move focus into an untouched editor when the page updates", async ()
 }, 30000);
 
 it("ignores a click on a goal an agent changed a moment ago", async () => {
-  const goal = ctx.vault.createGoal({ title: "Changed under the pointer", cycle: "2026" });
-  await page.goto(`${server.url}goals?view=reader&cycle=2026`);
+  const goal = ctx.vault.createGoal({ title: "Changed under the pointer", cycle: "26-27" });
+  await page.goto(`${server.url}goals?view=reader&cycle=26-27`);
   const section = page.locator(`#goal-${goal.slug}`);
   const agree = section.getByRole("button", { name: `Mark agreed: ${goal.title}`, exact: true });
   await agree.hover();

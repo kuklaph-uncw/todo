@@ -1,5 +1,5 @@
 import { escapeHtml } from "../lib/html";
-import { MONTHS, shortMonthDay } from "../lib/date";
+import { shortMonthDay } from "../lib/date";
 import { dayPosition, goalTimeline, type TimelineMonth } from "../timeline";
 import type { Goal } from "../vault/format";
 import { icon } from "./components";
@@ -44,9 +44,9 @@ function monthClass(month: TimelineMonth, base: string): string {
     .join(" ");
 }
 
-function monthLabel(month: TimelineMonth, index: number): string {
+function monthLabel(month: TimelineMonth): string {
   if (month.off) return "";
-  const name = `${MONTHS[index]}${month.nowDay === null ? "" : " so far"}`;
+  const name = `${month.name}${month.nowDay === null ? "" : " so far"}`;
   if (month.future) return `${name}: still ahead`;
   const starred = month.ticks.filter((tick) => tick.starred).length;
   const parts = [month.ticks.length ? String(month.ticks.length) : "none"];
@@ -61,15 +61,15 @@ function ordinal(day: number): string {
 }
 
 /** The month header row, with today's date flagged. */
-export function timelineHead(opts: { year: number; today: string; label: string }): string {
-  const { months } = goalTimeline({ year: opts.year, today: opts.today, items: [], droppedOn: null });
-  const cells = months.map((month, index) => {
+export function timelineHead(opts: { months: string[]; today: string; label: string }): string {
+  const { months } = goalTimeline({ months: opts.months, today: opts.today, items: [], droppedOn: null });
+  const cells = months.map((month) => {
     const flag =
       month.nowDay === null
         ? ""
         : // Late in the month the date goes before the line, so it stays in its month.
           `<svg class="tick-marks" aria-hidden="true" focusable="false"><text class="now-flag" x="${nowX(month)}" ${month.nowDay > 20 ? 'dx="-4" text-anchor="end"' : 'dx="4"'} y="92%">${month.nowDay}</text>${nowLine(month, "60%")}</svg>`;
-    return `<li class="${monthClass(month, "mh")}">${MONTHS[index].slice(0, 3)}${flag}</li>`;
+    return `<li class="${monthClass(month, "mh")}">${month.name.slice(0, 3)}${flag}</li>`;
   });
   return `<div class="map-head">
       <div class="head-label">${opts.label}</div>
@@ -79,12 +79,12 @@ export function timelineHead(opts: { year: number; today: string; label: string 
 }
 
 /**
- * One goal's line across the year. `label` is the row's name cell (HTML);
+ * One goal's line across the cycle's months (see cycleMonths). `label` is the row's name cell (HTML);
  * `detail` unfolds under the row (HTML). `items` are the goal's linked work.
  */
 export function timelineRow(opts: {
   goal: Goal;
-  year: number;
+  months: string[];
   today: string;
   items: { date: string; isHighlight: boolean }[];
   label: string;
@@ -93,7 +93,7 @@ export function timelineRow(opts: {
 }): string {
   const { goal } = opts;
   const { months, gaps } = goalTimeline({
-    year: opts.year,
+    months: opts.months,
     today: opts.today,
     items: opts.items,
     droppedOn: goal.status === "dropped" ? goal.droppedOn : null,
@@ -101,7 +101,7 @@ export function timelineRow(opts: {
   const cells = months.map((month, index) => {
     const gap = gaps.find((g) => g.from === index);
     const note = gap ? `<span class="gap-note" data-span="${gap.span}" aria-hidden="true">${gap.label}</span>` : "";
-    const label = monthLabel(month, index);
+    const label = monthLabel(month);
     return `<li class="${monthClass(month, "m")}">${label ? `<span class="sr-only">${label}</span>` : ""}${marks(month)}${note}</li>`;
   });
 
@@ -131,11 +131,10 @@ export function timelineRow(opts: {
 }
 
 /** How to read the map. */
-export function timelineLegend(today: string, year: number): string {
-  const todayKey =
-    Number(today.slice(0, 4)) === year
-      ? `<li><span class="key k-now" aria-hidden="true"></span>Today, ${shortMonthDay(today)}</li>`
-      : "";
+export function timelineLegend(today: string, months: string[]): string {
+  const todayKey = months.includes(today.slice(0, 7))
+    ? `<li><span class="key k-now" aria-hidden="true"></span>Today, ${shortMonthDay(today)}</li>`
+    : "";
   const tick = (extra = "") =>
     `<svg class="tick-marks" aria-hidden="true" focusable="false"><line class="tick${extra}" x1="50%" x2="50%" y1="100%" y2="${extra ? "10%" : "40%"}"></line></svg>`;
   return `<ul class="legend" aria-label="How to read the timeline">

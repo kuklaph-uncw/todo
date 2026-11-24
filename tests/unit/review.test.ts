@@ -24,6 +24,7 @@ function item(overrides: Partial<ReviewItem>): ReviewItem {
     isHighlight: false,
     priority: null,
     status: null,
+    references: [],
     ...overrides,
   };
 }
@@ -32,7 +33,7 @@ const goals: Goal[] = [
   {
     slug: "reliability",
     title: "Improve reliability",
-    cycle: "2026",
+    cycle: "26-27",
     status: "agreed",
     kind: "goal",
     order: 1,
@@ -271,6 +272,15 @@ describe("exports", () => {
       "First\n\nSecond",
       "First\n\nSecond",
     ]);
+  });
+
+  it("lists an entry's references under it in Markdown, and as data in JSON", () => {
+    const refs = [{ label: "Ticket", url: "https://tickets.test/31058364" }];
+    const withRefs = buildReview([item({ text: "Consolidated pages", references: refs })], goals, filters, "");
+    expect(reviewToMarkdown(withRefs, goals)).toContain(
+      "- Consolidated pages\n  🔗 [Ticket](https://tickets.test/31058364)",
+    );
+    expect(reviewToJson(withRefs, goals).items[0].references).toEqual(refs);
   });
 
   it("JSONL writes one self-contained item per line", () => {

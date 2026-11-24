@@ -1,7 +1,9 @@
 import { escapeHtml } from "../lib/html";
-import { renderEntryMarkdown } from "../lib/markdown";
+import { renderEntryMarkdown, renderInlineMarkdown } from "../lib/markdown";
 import { formatMinutes, shortMonthDay } from "../lib/date";
 import { allSubtasks, findLinks, findTags, type Goal, type Subtask, type Todo } from "../vault/format";
+import { isWebUrl } from "../../public/rich-text.js";
+import type { Reference } from "../vault/references";
 import { contentRevision } from "../vault/revision";
 
 /** Small inline icons; stroke uses currentColor so they follow text color. */
@@ -22,6 +24,7 @@ const ICON_PATHS: Record<string, string> = {
   undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
   clock: '<circle cx="12" cy="13" r="7"/><path d="M12 9.5V13l2.5 1.5M10 3.5h4"/>',
   expand: '<path d="M14 4h6v6M20 4l-6.5 6.5M10 20H4v-6M4 20l6.5-6.5"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
   settings:
     '<circle cx="12" cy="12" r="2.6"/><circle cx="12" cy="12" r="6.4"/><circle cx="12" cy="12" r="8.3" stroke-width="2.6" stroke-dasharray="2.7 3.82" stroke-linecap="butt"/>',
   keyboard:
@@ -51,12 +54,23 @@ export function goalTitle(slug: string, goals: GoalIndex): string {
   return goals.get(slug)?.title ?? slug;
 }
 
+/** The words a reader sees in one line of Markdown, for labels read aloud or shown on hover. */
+export function textOf(markdown: string): string {
+  return renderInlineMarkdown(markdown)
+    .replace(/<[^>]*>/g, "")
+    .replace(
+      /&(?:amp|lt|gt|quot|#39);/g,
+      (entity) => ({ "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'" })[entity]!,
+    );
+}
+
 /**
- * Escapes user text, then styles the inline #tags and [[goal]] links the
- * user typed. Runs on escaped text, so no raw HTML can get through.
+ * One line of user text, such as a todo title: inline Markdown (bold, italic,
+ * code, links) plus the #tags and [[goal]] links the user typed. The renderer
+ * escapes first, so no raw HTML can get through.
  */
 export function richText(text: string, goals: GoalIndex): string {
-  return decorateEntryText(escapeHtml(text), goals);
+  return renderInlineMarkdown(text, (escaped) => decorateEntryText(escaped, goals));
 }
 
 /** Renders entry Markdown with the same inline metadata as todo text. */
@@ -104,6 +118,21 @@ export function metaChips(
   return chips.length ? `<div class="chips">${chips.join("")}</div>` : "";
 }
 
+/**
+ * An entry's references, under its text. A web address opens in the browser;
+ * any other (such as an agent thread) can't open from here, so app.js copies it.
+ */
+export function referenceList(references: Reference[]): string {
+  if (references.length === 0) return "";
+  const items = references.map(({ label, url }) => {
+    const text = escapeHtml(label || url);
+    return isWebUrl(url)
+      ? `<li><a class="ref" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(url)}">${icon("link")}<span>${text}</span></a></li>`
+      : `<li><button type="button" class="ref" data-copy-ref="${escapeHtml(url)}" title="Copy ${escapeHtml(url)}">${icon("copy")}<span>${text}</span></button></li>`;
+  });
+  return `<ul class="refs" aria-label="References">${items.join("")}</ul>`;
+}
+
 /** Drag handle; app.js also moves the focused row with Alt+arrows. */
 export function grip(id: string, label: string): string {
   return `<button type="button" class="grip" id="grip-${escapeHtml(id)}" aria-label="Move: ${escapeHtml(label)}" title="Drag to move. Alt+arrows move and indent.">${icon("grip", true)}</button>`;
@@ -135,7 +164,7 @@ export function subtaskToggle(todo: Todo): string {
  * runs, since only the script can open the list.
  */
 export function subtaskButton(todo: Todo): string {
-  return `<button type="button" class="sr-only subtask-toggle" hidden data-subtasks="subs-${todo.id}" aria-controls="subs-${todo.id}" aria-expanded="false">Subtasks: ${escapeHtml(todo.task)}</button>`;
+  return `<button type="button" class="sr-only subtask-toggle" hidden data-subtasks="subs-${todo.id}" aria-controls="subs-${todo.id}" aria-expanded="false">Subtasks: ${escapeHtml(textOf(todo.task))}</button>`;
 }
 
 /**
@@ -154,6 +183,7 @@ export function subtaskPanel(
 
   const row = (subtask: Subtask): string => {
     const text = escapeHtml(subtask.text);
+    const name = escapeHtml(textOf(subtask.text));
     const editing = opts.full && opts.editId === subtask.id;
     const body = editing
       ? `<form class="edit-form subtask-edit" method="post" action="/subtasks/${subtask.id}">
@@ -167,11 +197,11 @@ export function subtaskPanel(
     const actions =
       opts.full && !editing
         ? `<div class="row-actions">
-            <a class="icon-btn" href="${escapeHtml(linkTo(subtask.id))}" aria-label="Edit: ${text}" title="Edit">${icon("edit")}</a>
+            <a class="icon-btn" href="${escapeHtml(linkTo(subtask.id))}" aria-label="Edit: ${name}" title="Edit">${icon("edit")}</a>
             ${postButton({
               todo,
               action: `/subtasks/${subtask.id}/delete`,
-              label: `Delete: ${subtask.text}`,
+              label: `Delete: ${textOf(subtask.text)}`,
               body: icon("trash"),
               returnTo: back,
               className: "icon-btn danger",
@@ -184,11 +214,11 @@ export function subtaskPanel(
     const move = opts.full ? ` data-move="subtask" data-id="${subtask.id}"` : "";
     return `<li class="subtask${subtask.done ? " is-done" : ""}" id="sub-${subtask.id}"${move}>
         <div class="subtask-line">
-          ${opts.full ? grip(subtask.id, subtask.text) : ""}
+          ${opts.full ? grip(subtask.id, textOf(subtask.text)) : ""}
           ${postButton({
             todo,
             action: `/subtasks/${subtask.id}/done`,
-            label: subtask.done ? `Uncheck: ${subtask.text}` : `Check: ${subtask.text}`,
+            label: subtask.done ? `Uncheck: ${textOf(subtask.text)}` : `Check: ${textOf(subtask.text)}`,
             body: icon("check"),
             returnTo: back,
             fields: { done: subtask.done ? "" : "1" },
@@ -209,7 +239,7 @@ export function subtaskPanel(
       ${todo.subtasks.length ? `<ul class="subtask-list">${todo.subtasks.map(row).join("")}</ul>` : ""}
       <form class="subtask-add" method="post" action="/todos/${todo.id}/subtasks">
         ${hidden("return_to", back)}${hidden("expected_revision", contentRevision(todo))}
-        <label class="sr-only" for="add-sub-${todo.id}">Add a subtask to: ${escapeHtml(todo.task)}</label>
+        <label class="sr-only" for="add-sub-${todo.id}">Add a subtask to: ${escapeHtml(textOf(todo.task))}</label>
         <input id="add-sub-${todo.id}" name="text" required placeholder="Add a subtask" autocomplete="off">
       </form>
     </details>`;
@@ -267,8 +297,8 @@ export function options(values: readonly string[], selected: string | null, blan
  * `data-composer` (see app.js). Rendered inside <main> so it stays current
  * when app.js swaps the page in place. Every goal is listed so typed links
  * still show as pills, but only `active` ones (from `currentCycle`, not
- * dropped) are suggested. Today passes the viewed day's year, so backfilling
- * late December in January still offers that year's goals; Todos pass this year.
+ * dropped) are suggested. Today passes the viewed day's cycle, so backfilling
+ * late March in April still offers that cycle's goals; Todos pass the current one.
  */
 export function composerData(tagCounts: [string, number][], goals: Goal[], currentCycle: string): string {
   const data = {

@@ -239,7 +239,7 @@ it("toggles a code block from the strip and copies code as typed", async () => {
 
 it("opens saved code blocks in visual mode and round-trips them unchanged", async () => {
   const body = "Plan\n\n```ts\nconst x = `y`; // **literal** [[ link ]]\n```";
-  const goal = ctx.vault.createGoal({ title: "Code goal", cycle: "2026", notes: body });
+  const goal = ctx.vault.createGoal({ title: "Code goal", cycle: "26-27", notes: body });
   await page.goto(`${server.url}goals/${goal.slug}?edit=1`);
   const editor = page.getByRole("textbox", { name: "Notes", exact: true });
   expect(await editor.locator("pre").count()).toBe(1);

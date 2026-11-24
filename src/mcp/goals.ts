@@ -1,4 +1,5 @@
 import * as z from "zod/v4";
+import { cycleOf } from "../lib/cycle";
 import { localDateString } from "../lib/date";
 import { cleanCycle, GOAL_KINDS, GOAL_STATUSES } from "../lib/validation";
 import type { Goal } from "../vault/format";
@@ -135,8 +136,8 @@ export class GoalService {
       const value = command.input;
       const goal = this.vault.createGoal({
         title: value.title,
-        // The same default as the Goals page: this year.
-        cycle: value.cycle ?? today.slice(0, 4),
+        // The same default as the Goals page: the current review cycle.
+        cycle: value.cycle ?? cycleOf(today),
         kind: value.kind ?? "goal",
         status: value.status ?? "draft",
         description: value.description,

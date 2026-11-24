@@ -7,6 +7,7 @@ import { renderEntryMarkdown } from "./lib/markdown";
 import { formatMinutes, isValidDateString, presetRange, RANGE_PRESETS, type RangePreset } from "./lib/date";
 import type { Priority, Status } from "./lib/validation";
 import { plainText, type Goal } from "./vault/format";
+import { formatReference, REFERENCE_MARK, type Reference } from "./vault/references";
 import type { Vault } from "./vault/vault";
 
 export interface ReviewItem {
@@ -20,6 +21,8 @@ export interface ReviewItem {
   isHighlight: boolean;
   priority: Priority | null;
   status: Status | null;
+  /** An entry's references; todos have none. */
+  references: Reference[];
 }
 
 export interface ReviewFilters {
@@ -75,6 +78,7 @@ export function collectItems(vault: Vault, from: string, to: string): ReviewItem
     isHighlight: entry.isHighlight,
     priority: null,
     status: null,
+    references: entry.references,
   }));
 
   const todos: ReviewItem[] = vault
@@ -94,6 +98,7 @@ export function collectItems(vault: Vault, from: string, to: string): ReviewItem
       isHighlight: todo.isHighlight,
       priority: todo.priority,
       status: todo.status,
+      references: [],
     }));
 
   return [...entries, ...todos];
@@ -234,10 +239,17 @@ function itemLine(item: ReviewItem, titleOf: TitleOf): string {
 /** Starred work is marked in every list, not only under Highlights. */
 const star = (item: ReviewItem) => (item.isHighlight ? "★ " : "");
 
-/** Keeps continuation text under its export bullet without adding spaces to blank lines. */
-function reviewBullet(text: string): string {
+/**
+ * Keeps continuation text under its export bullet without adding spaces to blank
+ * lines, followed by the item's references as in the daily note.
+ */
+function reviewBullet(text: string, references: Reference[] = []): string {
   const [first, ...body] = text.split("\n");
-  return [`- ${first}`, ...body.map((line) => (line ? `  ${line}` : ""))].join("\n");
+  return [
+    `- ${first}`,
+    ...body.map((line) => (line ? `  ${line}` : "")),
+    ...references.map((reference) => `  ${REFERENCE_MARK}${formatReference(reference)}`),
+  ].join("\n");
 }
 
 export function reviewToMarkdown(review: Review, goals: Goal[]): string {
@@ -267,14 +279,16 @@ export function reviewToMarkdown(review: Review, goals: Goal[]): string {
 
   if (review.highlights.length > 0 && !filters.highlightsOnly) {
     out.push("", "## Highlights", "");
-    for (const item of review.highlights) out.push(reviewBullet(`${item.date} — ${itemLine(item, titleOf)}`));
+    for (const item of review.highlights)
+      out.push(reviewBullet(`${item.date} — ${itemLine(item, titleOf)}`, item.references));
   }
 
   if (review.byGoal.length > 0) {
     out.push("", "## By goal");
     for (const group of review.byGoal) {
       out.push("", `### ${group.goal.title}`, "");
-      for (const item of group.items) out.push(reviewBullet(`${item.date} — ${star(item)}${itemLine(item, titleOf)}`));
+      for (const item of group.items)
+        out.push(reviewBullet(`${item.date} — ${star(item)}${itemLine(item, titleOf)}`, item.references));
     }
   }
 
@@ -283,7 +297,8 @@ export function reviewToMarkdown(review: Review, goals: Goal[]): string {
     out.push("", `### ${day.date}`);
     if (day.entries.length > 0) {
       out.push("", "#### Journal", "");
-      for (const item of day.entries) out.push(reviewBullet(`${star(item)}${plainText(item.text, titleOf)}`));
+      for (const item of day.entries)
+        out.push(reviewBullet(`${star(item)}${plainText(item.text, titleOf)}`, item.references));
     }
     if (day.todos.length > 0) {
       out.push("", "#### Completed TODOs", "");
@@ -333,6 +348,7 @@ function itemJson(item: ReviewItem, goals: Goal[]) {
     minutes: item.minutes,
     priority: item.priority,
     status: item.status,
+    references: item.references,
   };
 }
 

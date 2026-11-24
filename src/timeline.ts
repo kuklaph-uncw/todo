@@ -1,10 +1,13 @@
 /**
- * The Goals timeline: one line per goal across the cycle year, with a tick on
- * the day of each piece of linked work. Pure, so it's tested without a page.
+ * The Goals timeline: one line per goal across the review cycle (April to
+ * March), with a tick on the day of each piece of linked work. Pure, so it's
+ * tested without a page.
  */
 import { MONTHS } from "./lib/date";
 
 export interface TimelineMonth {
+  /** The month's full name, such as "April". */
+  name: string;
   /** Linked work in this month, by day of the month. */
   ticks: { day: number; starred: boolean }[];
   /** Later than this month of today. */
@@ -19,7 +22,7 @@ export interface TimelineMonth {
   dropDay: number | null;
 }
 
-/** A quiet stretch: `from` is the first month (0 = January). */
+/** A quiet stretch: `from` is its first month's position in the cycle (0 = the cycle's first month). */
 export interface TimelineGap {
   from: number;
   span: number;
@@ -29,24 +32,21 @@ export interface TimelineGap {
 /** Three past months in a row with nothing linked is worth pointing out. */
 const GAP_MONTHS = 3;
 
-/** A cycle is usually a year. Any other label shows this year. */
-export function cycleYear(cycle: string, today: string): number {
-  return /^\d{4}$/.test(cycle) ? Number(cycle) : Number(today.slice(0, 4));
-}
-
+/** `months` are the cycle's months as YYYY-MM (see cycleMonths). */
 export function goalTimeline(opts: {
-  year: number;
+  months: string[];
   today: string;
   items: { date: string; isHighlight: boolean }[];
   droppedOn: string | null;
 }): { months: TimelineMonth[]; gaps: TimelineGap[] } {
-  const { year, today, droppedOn } = opts;
+  const { today, droppedOn } = opts;
   const thisMonth = today.slice(0, 7);
   const items = opts.items.filter((item) => droppedOn === null || item.date <= droppedOn);
 
-  const months = MONTHS.map((_name, index): TimelineMonth => {
-    const month = `${year}-${String(index + 1).padStart(2, "0")}`;
+  const months = opts.months.map((month): TimelineMonth => {
+    const [year, number] = month.split("-").map(Number);
     return {
+      name: MONTHS[number - 1],
       ticks: items
         .filter((item) => item.date.startsWith(month))
         .map((item) => ({ day: Number(item.date.slice(8, 10)), starred: item.isHighlight }))
@@ -56,12 +56,12 @@ export function goalTimeline(opts: {
       nowDay: month === thisMonth ? Number(today.slice(8, 10)) : null,
       dropDay: droppedOn?.startsWith(month) ? Number(droppedOn.slice(8, 10)) : null,
       // Day 0 of the next month is the last day of this one.
-      days: new Date(year, index + 1, 0).getDate(),
+      days: new Date(year, number, 0).getDate(),
     };
   });
 
   // Quiet months only count once work has been linked: a goal written in
-  // September shouldn't be flagged for January to August.
+  // September shouldn't be flagged for April to August.
   const firstLinked = months.findIndex((month) => month.ticks.length > 0);
   const gaps: TimelineGap[] = [];
   let run = 0;
@@ -77,7 +77,7 @@ export function goalTimeline(opts: {
     const ends = !quiet || index === months.length - 1;
     if (ends && run >= GAP_MONTHS) {
       const from = (quiet ? index + 1 : index) - run;
-      gaps.push({ from, span: run, label: `Nothing linked ${MONTHS[from]} to ${MONTHS[from + run - 1]}` });
+      gaps.push({ from, span: run, label: `Nothing linked ${months[from].name} to ${months[from + run - 1].name}` });
     }
     if (!quiet) run = 0;
   });

@@ -34,6 +34,7 @@ describe("journal entry lines", () => {
       goals: ["reliability"],
       minutes: 45,
       isHighlight: true,
+      references: [],
     });
   });
 
@@ -101,6 +102,7 @@ describe("journal entry blocks", () => {
         goals: ["reliability", "delivery"],
         minutes: 45,
         isHighlight: true,
+        references: [],
       },
     });
   });
@@ -432,7 +434,7 @@ describe("frontmatter and goals", () => {
     expect(legacy("active")).toEqual({
       slug: "old",
       title: "Old",
-      cycle: "2025",
+      cycle: "25-26",
       status: "agreed",
       kind: "goal",
       order: Number.POSITIVE_INFINITY,

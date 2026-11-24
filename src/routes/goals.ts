@@ -1,3 +1,4 @@
+import { cycleLabel, cycleOf, nextCycle } from "../lib/cycle";
 import { cleanCycle, isValidGoalKind, isValidGoalStatus, slugify } from "../lib/validation";
 import { collectItems } from "../review";
 import type { Goal } from "../vault/format";
@@ -25,12 +26,11 @@ function goalsView(ctx: AppContext, requested: string | null): GoalsView {
   return requested;
 }
 
-/** The year after a year-like cycle, if that cycle has no goals yet and this one has some. */
-function nextCycle(cycle: string, goals: Goal[]): string | null {
-  if (!/^\d{4}$/.test(cycle)) return null;
-  const next = String(Number(cycle) + 1);
+/** The cycle after this one ("26-27" → "27-28"), if it has no goals yet and this one has some. */
+function startableCycle(cycle: string, goals: Goal[]): string | null {
+  const next = nextCycle(cycle);
   const ready = goals.some((goal) => goal.cycle === cycle && goal.status !== "dropped");
-  return ready && !goals.some((goal) => goal.cycle === next) ? next : null;
+  return next && ready && !goals.some((goal) => goal.cycle === next) ? next : null;
 }
 
 /** "3,1" after a link change (entries and todos rewritten), or "3,1,2,old" when 2 were left on `old`. */
@@ -45,14 +45,16 @@ function renamedCounts(raw: string | null): LinkChange | null {
 export function handleGoals(req: Request, ctx: AppContext): Response {
   const params = new URL(req.url).searchParams;
   const view = goalsView(ctx, params.get("view"));
-  const currentYear = today(ctx).slice(0, 4);
+  const current = cycleOf(today(ctx));
   const all = ctx.vault.getGoals();
   // Goals written by hand without a cycle get their own "No cycle" entry, so they can still be edited.
-  const cycles = [...new Set([currentYear, ...all.map((g) => g.cycle)])].sort().reverse();
-  const cycle = params.get("cycle") ?? currentYear;
+  const cycles = [...new Set([current, ...all.map((g) => g.cycle)])].sort().reverse();
+  // Older links name a cycle by its year ("2026").
+  const cycle = cycleLabel(params.get("cycle") ?? current);
   const goals = all.filter((goal) => goal.cycle === cycle);
 
-  const from = params.get("from");
+  const rawFrom = params.get("from");
+  const from = rawFrom === null ? null : cycleLabel(rawFrom);
   const carryGoals = all.filter((goal) => goal.cycle === from && goal.status !== "dropped");
   const carry = from && goals.length === 0 && carryGoals.length > 0 ? { from, goals: carryGoals } : null;
 
@@ -73,7 +75,7 @@ export function handleGoals(req: Request, ctx: AppContext): Response {
     edit: params.get("edit"),
     open: params.get("open"),
     add: isValidGoalKind(add) ? add : null,
-    nextCycle: carry ? null : nextCycle(cycle, all),
+    nextCycle: carry ? null : startableCycle(cycle, all),
     carry,
     error: params.get("error"),
     renamed: renamedCounts(params.get("renamed")),
@@ -111,7 +113,7 @@ function viewField(value: string): GoalsView {
 export async function createGoal(req: Request, ctx: AppContext): Promise<Response> {
   const form = await readForm(req);
   const title = form.text("title").trim();
-  const cycle = cleanCycle(form.text("cycle")) || today(ctx).slice(0, 4);
+  const cycle = cleanCycle(form.text("cycle")) || cycleOf(today(ctx));
   const rawKind = form.text("kind");
   const kind = isValidGoalKind(rawKind) ? rawKind : "goal";
   const view = viewField(form.text("view"));
@@ -258,7 +260,7 @@ export async function moveGoal(req: Request, ctx: AppContext, slug: string): Pro
  */
 export async function carryGoals(req: Request, ctx: AppContext): Promise<Response> {
   const form = await readForm(req);
-  const from = form.text("from");
+  const from = cleanCycle(form.text("from"));
   // Cleaned as createGoal stores it, so the double-post check and the redirect see the same cycle.
   const cycle = cleanCycle(form.text("cycle"));
   const view = viewField(form.text("view"));

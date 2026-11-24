@@ -16,6 +16,11 @@ export function isWebUrl(value) {
   }
 }
 
+/** Any address with a scheme (t3-thread:, mailto:), on one line. Shown by its label; never opened. */
+function isLinkUrl(value) {
+  return /^[a-z][a-z0-9+.-]*:/i.test(value) && !/[\s\p{Cc}]/u.test(value);
+}
+
 const unescapeHtml = (value) =>
   value.replace(
     /&(?:amp|lt|gt|quot|#39);/g,
@@ -31,14 +36,14 @@ function markdownLink(text) {
     const end = text.indexOf("&gt;)", start + 4);
     if (end < 0) return null;
     const href = unescapeHtml(text.slice(start + 4, end));
-    return isWebUrl(href) ? { label: label[1], href, length: end + 5 } : null;
+    return isWebUrl(href) || isLinkUrl(href) ? { label: label[1], href, length: end + 5 } : null;
   }
   let depth = 1;
   for (let at = label[0].length; at < text.length; at++) {
     if (text[at] === "(") depth++;
     if (text[at] === ")" && --depth === 0) {
       const href = unescapeHtml(text.slice(label[0].length, at));
-      return isWebUrl(href) ? { label: label[1], href, length: at + 1 } : null;
+      return isWebUrl(href) || isLinkUrl(href) ? { label: label[1], href, length: at + 1 } : null;
     }
   }
   return null;
@@ -57,13 +62,44 @@ function continuationEnd(lines, start, indent) {
 /**
  * A small, safe subset of Markdown as HTML, for entry text. Everything is escaped first;
  * only paragraphs, indented bullet and numbered lists, headings (offset by two, max h6),
- * bold, italic, code spans/blocks and HTTP(S) links become markup. Other Markdown stays literal.
+ * bold, italic, code spans/blocks, links and bare web addresses become markup. A link
+ * with another scheme (such as t3-thread:) shows its label, since only web links leave
+ * the app. Other Markdown stays literal.
  * `inline` decorates escaped runs outside code spans, for example tag pills.
  */
 export function renderEntryMarkdown(text, inline = (s) => s) {
   const escaped = escapeHtml(text);
   const lines = escaped.replace(/\t/g, "    ").split("\n");
   return renderBlocks(lines, inline);
+}
+
+/** One line of Markdown, such as a todo title: inline formatting and links, never blocks. */
+export function renderInlineMarkdown(text, inline = (s) => s) {
+  return renderInline(escapeHtml(text), inline);
+}
+
+/**
+ * A web address typed without a label. Trailing punctuation and an unmatched `)`
+ * stay outside it, and one inside literal link syntax (`\[label\](address)`) stays text.
+ */
+function bareUrl(escaped, at) {
+  if (at > 0 && (!/[\s(]/.test(escaped[at - 1]) || escaped.slice(at - 2, at) === "](")) return null;
+  // The text is HTML-escaped, so a typed & is always &amp;, and < > " ' are entities that end the address.
+  // A backslash before punctuation is a Markdown escape (the editor adds them before _ and *).
+  let text = /^https?:\/\/(?:&amp;|\\[!-/:-@[-`{-~]|[^\s<>&\\])+/i.exec(escaped.slice(at))?.[0];
+  if (!text) return null;
+  for (;;) {
+    // Sentence punctuation and closing emphasis stay outside; so does the ; of a trailing &amp;.
+    const trimmed = text.replace(/(?:[.,:!?*_~\\]|(?<!&amp);)$/, "");
+    const opens = (trimmed.match(/\(/g) ?? []).length;
+    const closes = (trimmed.match(/\)/g) ?? []).length;
+    const next = trimmed.endsWith(")") && closes > opens ? trimmed.slice(0, -1) : trimmed;
+    if (next === text) break;
+    text = next;
+  }
+  const html = text.replace(/\\([!-/:-@[-`{-~])/g, "$1");
+  const href = unescapeHtml(html);
+  return isWebUrl(href) ? { length: text.length, html, href } : null;
 }
 
 /** Keeps code spans literal and undecorated, applying emphasis and the inline hook everywhere else. */
@@ -101,10 +137,23 @@ function renderInline(escaped, inline, links = true) {
     const link = links && escaped[at] === "[" && escaped[at - 1] !== "!" && markdownLink(escaped.slice(at));
     if (link) {
       flush();
+      const label = renderInline(link.label, (text) => text, false);
+      const href = escapeHtml(link.href);
       tokens.push({
-        html: `<a href="${escapeHtml(link.href)}" target="_blank" rel="noopener noreferrer">${renderInline(link.label, (text) => text, false)}</a>`,
+        html: isWebUrl(link.href)
+          ? `<a href="${href}" target="_blank" rel="noopener noreferrer">${label}</a>`
+          : `<span class="local-link" data-href="${href}" title="${href}">${label}</span>`,
       });
       at += link.length;
+      continue;
+    }
+    const bare = links && escaped[at] === "h" && bareUrl(escaped, at);
+    if (bare) {
+      flush();
+      tokens.push({
+        html: `<a href="${escapeHtml(bare.href)}" target="_blank" rel="noopener noreferrer" data-bare>${bare.html}</a>`,
+      });
+      at += bare.length;
       continue;
     }
     const code = /^`+/.exec(escaped.slice(at))?.[0];
@@ -255,7 +304,10 @@ function renderParagraph(source, at, inline) {
 const escapeMarkdown = (text) =>
   text
     .replace(/ /g, " ")
-    .replace(/[\\*`_]/g, "\\$&")
+    // A typed web address keeps its _ and *, so it reads back as the same link.
+    .split(/(https?:\/\/[^\s<>]+)/i)
+    .map((part, index) => (index % 2 ? part : part.replace(/[\\*`_]/g, "\\$&")))
+    .join("")
     // A text node is literal. Actual anchors serialize separately below.
     .replace(/\[/g, (bracket, at, source) =>
       source[at - 1] !== "!" && markdownLink(escapeHtml(source.slice(at))) ? "\\[" : bracket,
@@ -308,9 +360,12 @@ export function editorMarkdown(node) {
       return `${fence}${pad ? " " : ""}${text}${pad ? " " : ""}${fence}`;
     }
     const text = [...child.childNodes].map(inline).join("");
-    if (child.nodeName === "A" && isWebUrl(child.getAttribute("href") ?? "")) {
+    // A link this app shows by its label (data-href) keeps its address too.
+    const href = (child.nodeName === "A" ? child.getAttribute("href") : null) ?? child.getAttribute("data-href") ?? "";
+    if ((child.nodeName === "A" && isWebUrl(href)) || (child.hasAttribute("data-href") && isLinkUrl(href))) {
+      // An address typed without a label stays bare.
+      if (child.hasAttribute("data-bare") && child.textContent === href) return href;
       const label = text.replace(/(?<!\\)[[\]]/g, "\\$&");
-      const href = child.getAttribute("href");
       const link = `[${label}](${href})`;
       const escaped = escapeHtml(link);
       // Angle brackets keep an unbalanced parenthesis in a pasted URL inside its destination.

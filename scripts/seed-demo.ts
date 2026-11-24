@@ -8,6 +8,7 @@
  */
 import { existsSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
+import { cycleOf } from "../src/lib/cycle";
 import { addDays, localDateString, parseLocalDate } from "../src/lib/date";
 import { Vault } from "../src/vault/vault";
 
@@ -19,12 +20,12 @@ if (existsSync(root) && readdirSync(root).length > 0) {
 
 const vault = new Vault(root);
 const today = localDateString();
-const year = today.slice(0, 4);
+const cycle = cycleOf(today);
 
 // Goals in Full Cycle Performance's shape: name, description, meeting and exceeding expectations.
 const delivery = vault.createGoal({
   title: "Improve Workflow Efficiency and Operational Processes",
-  cycle: year,
+  cycle,
   status: "agreed",
   description:
     "Improve, automate, and document workflows that reduce manual effort, increase consistency, clarify processes, and improve the experience of technicians, clients, and end users.",
@@ -37,7 +38,7 @@ const delivery = vault.createGoal({
 }).slug;
 vault.createGoal({
   title: "Strengthen Data, Content, Document, and Digital Asset Stewardship",
-  cycle: year,
+  cycle,
   status: "agreed",
   description:
     "Improve the quality, structure, accessibility, maintainability, and lifecycle management of data, content, documents, PDFs, and digital assets.",
@@ -49,7 +50,7 @@ vault.createGoal({
 });
 const reliability = vault.createGoal({
   title: "Develop Technical Solutions, Tools, Applications, and Integrations",
-  cycle: year,
+  cycle,
   status: "agreed",
   description:
     "Develop and improve technical solutions that support automation, reporting, system integration, client needs, team efficiency, platform capabilities, and responsible use of emerging development workflows.",
@@ -60,7 +61,7 @@ const reliability = vault.createGoal({
 }).slug;
 const mentoring = vault.createGoal({
   title: "Improve Client Communication, Service Delivery, and Stakeholder Engagement Across Campus Units",
-  cycle: year,
+  cycle,
   description:
     "Improve how requests, updates, and outcomes are communicated to clients and stakeholders across campus units. This includes setting clear expectations at intake, giving timely status updates on longer projects, and closing the loop when work is finished.",
   meeting:
@@ -69,11 +70,11 @@ const mentoring = vault.createGoal({
     "Exceeding expectations may include establishing a repeatable communication approach, such as intake templates, status update schedules, or project summaries, that other team members adopt.",
   notes: "My manager wants fewer units named in the description. Rework after the next check-in, then mark agreed.",
 }).slug;
-const retired = vault.createGoal({ title: "Retire the Legacy Intranet Server", cycle: year, status: "agreed" });
+const retired = vault.createGoal({ title: "Retire the Legacy Intranet Server", cycle, status: "agreed" });
 vault.saveGoal(retired.slug, { ...retired, status: "dropped" }, addDays(today, -40));
 vault.createGoal({
   title: "Technical expertise",
-  cycle: year,
+  cycle,
   kind: "activity",
   status: "agreed",
   description:

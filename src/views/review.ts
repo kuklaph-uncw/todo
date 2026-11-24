@@ -10,7 +10,16 @@ import {
   type ReviewFilters,
   type ReviewItem,
 } from "../review";
-import { emptyState, entryHtml, goalIndex, icon, metaChips, richText, type GoalIndex } from "./components";
+import {
+  emptyState,
+  entryHtml,
+  goalIndex,
+  icon,
+  metaChips,
+  referenceList,
+  richText,
+  type GoalIndex,
+} from "./components";
 
 export interface ReviewViewData {
   review: Review;
@@ -42,7 +51,7 @@ function sheetItem(item: ReviewItem, goals: GoalIndex, withDate: boolean): strin
     : "";
   const date = withDate ? `<time class="item-date" datetime="${item.date}">${shortMonthDay(item.date)}</time>` : "";
   return `<li class="sheet-item${item.isHighlight ? " is-starred" : ""}${item.kind === "todo" ? " is-todo" : ""}">
-      ${date}${marker}${item.kind === "entry" ? `<div class="sheet-text">${entryHtml(item.text, goals)}</div>` : `<span class="sheet-text">${richText(item.text, goals)}</span>`}${priority}
+      ${date}${marker}${item.kind === "entry" ? `<div class="sheet-text">${entryHtml(item.text, goals)}</div>${referenceList(item.references)}` : `<span class="sheet-text">${richText(item.text, goals)}</span>`}${priority}
       ${metaChips({ ...item, minutes: null }, goals)}
     </li>`;
 }

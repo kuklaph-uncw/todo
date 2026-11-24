@@ -18,6 +18,7 @@ import {
   options,
   postButton,
   richText,
+  textOf,
   subtaskCount,
   subtaskPanel,
   subtaskButton,
@@ -41,7 +42,7 @@ export interface TodosViewData {
   goals: Goal[];
   /** Every tag in the vault with its use count, for #tag suggestions. */
   tagCounts: [string, number][];
-  /** The review cycle whose goals are suggested: this year, as on the Goals page. */
+  /** The review cycle whose goals are suggested: the current one, as on the Goals page. */
   currentCycle: string;
   editId: string | null;
   error: string | null;
@@ -80,11 +81,13 @@ export function filterTodos(todos: Todo[], filters: TodoFilters): Todo[] {
   // Search everything the user can see on the row, including tags, goal links and subtasks.
   const haystack = (todo: Todo) =>
     [
+      // As typed, and as shown ("**Ship** it" is found by "ship it").
       todo.task,
+      textOf(todo.task),
       todo.notes,
       ...todo.tags.map((tag) => `#${tag}`),
       ...todo.goals,
-      ...allSubtasks(todo.subtasks).map((s) => s.text),
+      ...allSubtasks(todo.subtasks).flatMap((s) => [s.text, textOf(s.text)]),
     ]
       .join(" ")
       .toLowerCase();
@@ -155,7 +158,7 @@ function todoRow(todo: Todo, goals: GoalIndex, data: TodosViewData): string {
   const check = postButton({
     todo,
     action: `/todos/${todo.id}/status`,
-    label: done ? `Reopen: ${todo.task}` : `Mark done: ${todo.task}`,
+    label: done ? `Reopen: ${textOf(todo.task)}` : `Mark done: ${textOf(todo.task)}`,
     body: icon("check"),
     returnTo: back,
     fields: { status: done ? "Open" : "Done" },
@@ -176,14 +179,14 @@ function todoRow(todo: Todo, goals: GoalIndex, data: TodosViewData): string {
   ].join("");
 
   const notes = todo.notes ? `<div class="todo-notes">${renderEntryMarkdown(todo.notes)}</div>` : "";
-  const task = escapeHtml(todo.task);
+  const task = escapeHtml(textOf(todo.task));
 
   // Only open todos are in the user's order; Done is sorted by date.
   const movable = !done;
   const move = movable ? ` data-move="todo" data-id="${todo.id}"` : "";
 
   return `<li class="todo-row ${statusClass(todo.status)}${todo.isHighlight ? " is-starred" : ""}" id="todo-${todo.id}" data-todo-revision="${contentRevision(todo)}"${move}>
-      ${movable ? grip(todo.id, todo.task) : ""}
+      ${movable ? grip(todo.id, textOf(todo.task)) : ""}
       ${check}
       <div class="todo-body">
         <p class="todo-task"${subtaskToggle(todo)}>${richText(todo.task, goals)}</p>
@@ -200,7 +203,7 @@ function todoRow(todo: Todo, goals: GoalIndex, data: TodosViewData): string {
         ${postButton({
           action: `/todos/${todo.id}/star`,
           todo,
-          label: todo.isHighlight ? `Unstar: ${todo.task}` : `Star as a highlight: ${todo.task}`,
+          label: todo.isHighlight ? `Unstar: ${textOf(todo.task)}` : `Star as a highlight: ${textOf(todo.task)}`,
           body: icon("star", todo.isHighlight),
           returnTo: back,
           className: `icon-btn star-btn${todo.isHighlight ? " is-on" : ""}`,
@@ -211,7 +214,7 @@ function todoRow(todo: Todo, goals: GoalIndex, data: TodosViewData): string {
         ${postButton({
           action: `/todos/${todo.id}/delete`,
           todo,
-          label: `Delete: ${todo.task}`,
+          label: `Delete: ${textOf(todo.task)}`,
           body: icon("trash"),
           returnTo,
           className: "icon-btn danger",

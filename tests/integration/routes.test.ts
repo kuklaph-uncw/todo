@@ -65,7 +65,7 @@ describe("pages", () => {
       isHighlight: false,
       time: null,
     });
-    ctx.vault.createGoal({ title: "Ship </script><b>v2</b>", cycle: "2026" });
+    ctx.vault.createGoal({ title: "Ship </script><b>v2</b>", cycle: "26-27" });
     const page = await html(path);
     const json = /<script type="application\/json" id="composer-data">(.*?)<\/script>/.exec(page)?.[1] ?? "";
     expect(json).not.toContain("<");
@@ -76,9 +76,9 @@ describe("pages", () => {
   });
 
   it.each(["/", "/todos"])("GET %s suggests only this cycle's goals that aren't dropped", async (path) => {
-    const old = ctx.vault.createGoal({ title: "Last year", cycle: "2025", status: "agreed" });
-    const current = ctx.vault.createGoal({ title: "This year", cycle: "2026" });
-    const gone = ctx.vault.createGoal({ title: "Gone", cycle: "2026" });
+    const old = ctx.vault.createGoal({ title: "Last year", cycle: "25-26", status: "agreed" });
+    const current = ctx.vault.createGoal({ title: "This year", cycle: "26-27" });
+    const gone = ctx.vault.createGoal({ title: "Gone", cycle: "26-27" });
     ctx.vault.saveGoal(gone.slug, { ...gone, status: "dropped" });
     ctx.vault.addEntries("2026-09-28", [`Kept the old link [[${old.slug}]]`], {
       tags: [],
@@ -98,16 +98,19 @@ describe("pages", () => {
     if (path === "/") expect(page).toContain(`<a class="goal-link" href="/goals/${old.slug}">Last year</a>`);
   });
 
-  it("suggests the viewed day's cycle on Today, so backfilling December offers that year's goals", async () => {
-    ctx.vault.createGoal({ title: "Last year", cycle: "2025" });
-    ctx.vault.createGoal({ title: "This year", cycle: "2026" });
+  it("suggests the viewed day's cycle on Today, so backfilling late March offers that cycle's goals", async () => {
+    ctx.vault.createGoal({ title: "Last year", cycle: "25-26" });
+    ctx.vault.createGoal({ title: "This year", cycle: "26-27" });
     const active = async (path: string) =>
       JSON.parse(/<script type="application\/json" id="composer-data">(.*?)<\/script>/.exec(await html(path))![1])
         .goals.filter((goal: { active: boolean }) => goal.active)
         .map((goal: { title: string }) => goal.title);
     expect(await active("/?date=2025-12-30")).toEqual(["Last year"]);
+    // Cycles change over on April 1.
+    expect(await active("/?date=2026-03-31")).toEqual(["Last year"]);
+    expect(await active("/?date=2026-04-01")).toEqual(["This year"]);
     expect(await active("/")).toEqual(["This year"]);
-    // Todos have no day, so they keep this year.
+    // Todos have no day, so they use the current cycle.
     expect(await active("/todos")).toEqual(["This year"]);
   });
 
@@ -245,8 +248,8 @@ describe("journal capture", () => {
     expect(page).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
   });
 
-  it("renders entry Markdown and inline metadata across Today, goal evidence and review, leaving todos inline", async () => {
-    const goal = ctx.vault.createGoal({ title: "Delivery", cycle: "2026" });
+  it("renders entry Markdown and inline metadata across Today, goal evidence and review, and todo titles inline", async () => {
+    const goal = ctx.vault.createGoal({ title: "Delivery", cycle: "26-27" });
     const text = "Retro\n\n- **Checks** #ops [[delivery]]\n- `#literal`";
     ctx.vault.addEntries("2026-09-28", [text], { tags: [], goals: [], minutes: null, isHighlight: false, time: null });
     const todo = ctx.vault.addTodo(
@@ -261,8 +264,12 @@ describe("journal capture", () => {
         `<div class="${className}"><p>Retro</p><ul><li><strong>Checks</strong> <span class="tag">#ops</span> <a class="goal-link" href="/goals/delivery">Delivery</a></li><li><code>#literal</code></li></ul></div>`,
       );
       expect(page).toContain(
-        path === "/review" ? '<span class="sheet-text">**Todo**</span>' : '<p class="entry-text">**Todo**</p>',
+        path === "/review"
+          ? '<span class="sheet-text"><strong>Todo</strong></span>'
+          : '<p class="entry-text"><strong>Todo</strong></p>',
       );
+      // Labels read aloud use the words, not the Markdown (Review's Markdown export panel is Markdown on purpose).
+      if (path !== "/review") expect(page).not.toContain("**Todo**");
     }
   });
 });
@@ -560,9 +567,9 @@ describe("goals", () => {
 
   it("starts new goals as drafts and drops dropped goals from goal suggestions", async () => {
     const res = await send(
-      formPost("/goals", { title: "Improve reliability", cycle: "2026", kind: "goal", view: "reader" }),
+      formPost("/goals", { title: "Improve reliability", cycle: "26-27", kind: "goal", view: "reader" }),
     );
-    expect(res.headers.get("location")).toBe("/goals?view=reader&cycle=2026#goal-improve-reliability");
+    expect(res.headers.get("location")).toBe("/goals?view=reader&cycle=26-27#goal-improve-reliability");
     expect(ctx.vault.getGoal("improve-reliability")).toMatchObject({ status: "draft", kind: "goal", order: 1 });
     expect(await composerGoals()).toEqual([
       { slug: "improve-reliability", title: "Improve reliability", active: true },
@@ -578,18 +585,18 @@ describe("goals", () => {
   it("shows the sheet: numbered goals, FCP parts, notes, and dropped goals folded away at the end", async () => {
     const first = ctx.vault.createGoal({
       title: "Workflow <b>efficiency</b>",
-      cycle: "2026",
+      cycle: "26-27",
       status: "agreed",
       description: "Automate & document.\nSecond line.",
       meeting: "Meeting: forms.",
       exceeding: "Exceeding: standards.",
       notes: "Ask about **templates**.",
     });
-    const gone = ctx.vault.createGoal({ title: "Retire the server", cycle: "2026" });
-    const third = ctx.vault.createGoal({ title: "Client communication", cycle: "2026" });
+    const gone = ctx.vault.createGoal({ title: "Retire the server", cycle: "26-27" });
+    const third = ctx.vault.createGoal({ title: "Client communication", cycle: "26-27" });
     const plan = ctx.vault.createGoal({
       title: "Technical expertise",
-      cycle: "2026",
+      cycle: "26-27",
       kind: "activity",
       description: "Learn MCP.",
     });
@@ -597,10 +604,10 @@ describe("goals", () => {
     link("2026-09-10", first.slug, true);
     link("2026-09-20", first.slug);
 
-    const page = await html("/goals?view=reader&cycle=2026");
-    expect(page).toContain('<p class="kicker">Review cycle 2026</p>');
+    const page = await html("/goals?view=reader&cycle=26-27");
+    expect(page).toContain('<p class="kicker">Review cycle 26-27</p>');
     expect(page).toContain('Individual goals <span class="count">2</span>');
-    expect(page).toContain("Weight is set by your manager in FCP.");
+    expect(page).not.toContain("Weight");
     expect(page).toContain('Talent development plan <span class="count">1</span>');
 
     const one = section(page, first.slug);
@@ -628,11 +635,11 @@ describe("goals", () => {
   });
 
   it("moves goals up and down from the sheet, with no move past either end", async () => {
-    const first = ctx.vault.createGoal({ title: "First <one>", cycle: "2026" });
-    const second = ctx.vault.createGoal({ title: "Second", cycle: "2026" });
-    const gone = ctx.vault.createGoal({ title: "Gone", cycle: "2026" });
+    const first = ctx.vault.createGoal({ title: "First <one>", cycle: "26-27" });
+    const second = ctx.vault.createGoal({ title: "Second", cycle: "26-27" });
+    const gone = ctx.vault.createGoal({ title: "Gone", cycle: "26-27" });
     ctx.vault.saveGoal(gone.slug, { ...gone, status: "dropped" });
-    const page = await html("/goals?view=reader&cycle=2026");
+    const page = await html("/goals?view=reader&cycle=26-27");
     const one = section(page, first.slug);
     expect(one).toContain(`action="/goals/${first.slug}/move"`);
     expect(one).toMatch(
@@ -647,11 +654,11 @@ describe("goals", () => {
     const res = await send(
       formPost(`/goals/${second.slug}/move`, {
         direction: "up",
-        return_to: `/goals?view=reader&cycle=2026#goal-${second.slug}`,
+        return_to: `/goals?view=reader&cycle=26-27#goal-${second.slug}`,
       }),
     );
     expect(res.status).toBe(303);
-    expect(res.headers.get("location")).toBe(`/goals?view=reader&cycle=2026#goal-${second.slug}`);
+    expect(res.headers.get("location")).toBe(`/goals?view=reader&cycle=26-27#goal-${second.slug}`);
     expect([ctx.vault.getGoal(second.slug)?.order, ctx.vault.getGoal(first.slug)?.order]).toEqual([1, 2]);
     expect((await send(formPost(`/goals/${second.slug}/move`, { direction: "sideways" }))).status).toBe(303);
     expect(ctx.vault.getGoal(second.slug)?.order).toBe(1);
@@ -659,9 +666,9 @@ describe("goals", () => {
   });
 
   it("refuses a stale Mark agreed or move from a page loaded before another change", async () => {
-    const first = ctx.vault.createGoal({ title: "First", cycle: "2026" });
-    ctx.vault.createGoal({ title: "Second", cycle: "2026" });
-    const page = await html("/goals?view=reader&cycle=2026");
+    const first = ctx.vault.createGoal({ title: "First", cycle: "26-27" });
+    ctx.vault.createGoal({ title: "Second", cycle: "26-27" });
+    const page = await html("/goals?view=reader&cycle=26-27");
     const revisionIn = (action: string) =>
       new RegExp(
         `action="${action}"[^>]*>\\s*<input type="hidden" name="return_to" value="[^"]*">\\s*<input type="hidden" name="expected_revision" value="([a-f0-9]{64})">`,
@@ -673,7 +680,7 @@ describe("goals", () => {
 
     // An agent drops the goal after the page loaded.
     ctx.vault.saveGoal(first.slug, { ...first, status: "dropped" }, "2026-09-20");
-    const back = "/goals?view=reader&cycle=2026#goal-first";
+    const back = "/goals?view=reader&cycle=26-27#goal-first";
     const status = (fields: Record<string, string>) =>
       send(formPost("/goals/first/status", { status: "agreed", return_to: back, ...fields }));
     const move = (fields: Record<string, string>) =>
@@ -685,7 +692,7 @@ describe("goals", () => {
       await move({ expected_revision: moveRevision! }),
     ]) {
       const location = response.headers.get("location")!;
-      expect(location).toStartWith("/goals?view=reader&cycle=2026&error=");
+      expect(location).toStartWith("/goals?view=reader&cycle=26-27&error=");
       expect(location).toEndWith("#goal-first");
       expect(await html(location)).toContain(escapeHtml(notice));
     }
@@ -708,30 +715,41 @@ describe("goals", () => {
   });
 
   it("marks a draft agreed from the sheet", async () => {
-    const goal = ctx.vault.createGoal({ title: "Client communication", cycle: "2026", description: "Kept." });
-    const back = "/goals?view=reader&cycle=2026#goal-client-communication";
+    const goal = ctx.vault.createGoal({ title: "Client communication", cycle: "26-27", description: "Kept." });
+    const back = "/goals?view=reader&cycle=26-27#goal-client-communication";
     const res = await send(formPost(`/goals/${goal.slug}/status`, { status: "agreed", return_to: back }));
     expect(res.headers.get("location")).toBe(back);
     expect(ctx.vault.getGoal(goal.slug)).toMatchObject({ status: "agreed", description: "Kept." });
   });
 
-  it("shows the shape of a goal on an empty cycle, and offers to start the next cycle", async () => {
-    const empty = await html("/goals?view=reader&cycle=2026");
-    expect(empty).toContain("No goals for 2026 yet.");
-    expect(empty).toContain('href="/goals?view=reader&amp;cycle=2026&amp;add=goal#add-goal">Write your first goal</a>');
-    expect(empty).not.toContain("Start 2027");
+  it("opens the current review cycle (April to March), and reads an older year link as that cycle", async () => {
+    ctx.vault.createGoal({ title: "This cycle", cycle: "26-27" });
+    // The clock says September 28, 2026.
+    expect(await html("/goals?view=reader")).toContain('<p class="kicker">Review cycle 26-27</p>');
+    const old = await html("/goals?view=reader&cycle=2026");
+    expect(old).toContain('<p class="kicker">Review cycle 26-27</p>');
+    expect(old).toContain("This cycle");
+  });
 
-    ctx.vault.createGoal({ title: "Ship", cycle: "2026" });
-    const sheet = await html("/goals?view=reader&cycle=2026");
+  it("shows the shape of a goal on an empty cycle, and offers to start the next cycle", async () => {
+    const empty = await html("/goals?view=reader&cycle=26-27");
+    expect(empty).toContain("No goals for 26-27 yet.");
+    expect(empty).toContain(
+      'href="/goals?view=reader&amp;cycle=26-27&amp;add=goal#add-goal">Write your first goal</a>',
+    );
+    expect(empty).not.toContain("Start 27-28");
+
+    ctx.vault.createGoal({ title: "Ship", cycle: "26-27" });
+    const sheet = await html("/goals?view=reader&cycle=26-27");
     expect(sheet).not.toContain("Write your first goal");
-    expect(sheet).toContain('href="/goals?view=reader&amp;cycle=2027&amp;from=2026">Start 2027</a>');
-    ctx.vault.createGoal({ title: "Ship", cycle: "2027" });
-    expect(await html("/goals?view=reader&cycle=2026")).not.toContain("Start 2027");
+    expect(sheet).toContain('href="/goals?view=reader&amp;cycle=27-28&amp;from=26-27">Start 27-28</a>');
+    ctx.vault.createGoal({ title: "Ship", cycle: "27-28" });
+    expect(await html("/goals?view=reader&cycle=26-27")).not.toContain("Start 27-28");
   });
 
   it("edits a goal in place and returns to it on the sheet", async () => {
-    const goal = ctx.vault.createGoal({ title: "Ship", cycle: "2026", description: "Old.", notes: "Mine." });
-    const page = await html(`/goals?view=reader&cycle=2026&edit=${goal.slug}`);
+    const goal = ctx.vault.createGoal({ title: "Ship", cycle: "26-27", description: "Old.", notes: "Mine." });
+    const page = await html(`/goals?view=reader&cycle=26-27&edit=${goal.slug}`);
     const form = section(page, goal.slug);
     expect(page).toContain(
       `<form class="clause goal-edit is-editing is-draft" id="goal-${goal.slug}" data-goal method="post"`,
@@ -747,7 +765,7 @@ describe("goals", () => {
     );
     expect(form).toContain('<input type="radio" name="status" value="draft" checked> Draft');
     expect(form).toContain('value="dropped"');
-    expect(form).toContain('href="/goals?view=reader&amp;cycle=2026#goal-ship">Cancel</a>');
+    expect(form).toContain('href="/goals?view=reader&amp;cycle=26-27#goal-ship">Cancel</a>');
 
     const res = await send(
       formPost(`/goals/${goal.slug}`, {
@@ -757,13 +775,13 @@ describe("goals", () => {
         meeting: "Meets.",
         exceeding: "Exceeds.",
         notes: "Talk.",
-        return_to: "/goals?view=reader&cycle=2026#goal-ship",
+        return_to: "/goals?view=reader&cycle=26-27#goal-ship",
       }),
     );
-    expect(res.headers.get("location")).toBe("/goals?view=reader&cycle=2026#goal-ship");
+    expect(res.headers.get("location")).toBe("/goals?view=reader&cycle=26-27#goal-ship");
     expect(ctx.vault.getGoal("ship")).toMatchObject({
       title: "Ship",
-      cycle: "2026",
+      cycle: "26-27",
       status: "agreed",
       description: "New.\nLine two.",
       meeting: "Meets.",
@@ -773,10 +791,10 @@ describe("goals", () => {
   });
 
   it("changes a goal's link from the edit form, updating linked work, and lands on the new anchor", async () => {
-    const goal = ctx.vault.createGoal({ title: "Client communication", cycle: "2026", description: "Old." });
+    const goal = ctx.vault.createGoal({ title: "Client communication", cycle: "26-27", description: "Old." });
     link("2026-09-10", goal.slug);
     await send(formPost("/todos", { task: `Call the client [[${goal.slug}]]`, return_to: "/todos" }));
-    const form = section(await html(`/goals?view=reader&cycle=2026&edit=${goal.slug}`), goal.slug);
+    const form = section(await html(`/goals?view=reader&cycle=26-27&edit=${goal.slug}`), goal.slug);
     expect(form).toContain(`<label class="term-label" for="edit-${goal.slug}-link">Link</label>`);
     expect(form).toContain(`name="link" value="${goal.slug}"`);
     expect(form).toContain("Changing it updates linked entries.");
@@ -789,10 +807,10 @@ describe("goals", () => {
       exceeding: "",
       notes: "",
       view: "reader",
-      return_to: `/goals?view=reader&cycle=2026#goal-${goal.slug}`,
+      return_to: `/goals?view=reader&cycle=26-27#goal-${goal.slug}`,
     };
     const res = await send(formPost(`/goals/${goal.slug}`, { ...fields, link: "Clients" }));
-    expect(res.headers.get("location")).toBe("/goals?view=reader&cycle=2026&renamed=1%2C1#goal-clients");
+    expect(res.headers.get("location")).toBe("/goals?view=reader&cycle=26-27&renamed=1%2C1#goal-clients");
     expect(ctx.vault.getGoal(goal.slug)).toBeNull();
     expect(ctx.vault.getGoal("clients")).toMatchObject({ status: "agreed", description: "New text." });
     expect(ctx.vault.getEntries("2026-09-10")[0].goals).toEqual(["clients"]);
@@ -804,8 +822,8 @@ describe("goals", () => {
 
   it("leaves a goal's link alone when the Link field is saved unchanged, however the slug is spelled", async () => {
     const title = "A very long goal title that runs well past the slug length limit";
-    ctx.vault.createGoal({ title, cycle: "2026" });
-    const long = ctx.vault.createGoal({ title, cycle: "2026" }).slug;
+    ctx.vault.createGoal({ title, cycle: "26-27" });
+    const long = ctx.vault.createGoal({ title, cycle: "26-27" }).slug;
     mkdirSync(join(ctx.root, "goals"), { recursive: true });
     writeFileSync(join(ctx.root, "goals", "Improve.md"), "---\ntitle: Improve\ncycle: 2026\n---\n");
     writeFileSync(join(ctx.root, "goals", "café.md"), "---\ntitle: Café\ncycle: 2026\n---\n");
@@ -817,21 +835,21 @@ describe("goals", () => {
           description: "Saved.",
           link: slug,
           view: "reader",
-          return_to: "/goals?view=reader&cycle=2026",
+          return_to: "/goals?view=reader&cycle=26-27",
         }),
       );
-      expect(res.headers.get("location")).toBe("/goals?view=reader&cycle=2026");
+      expect(res.headers.get("location")).toBe("/goals?view=reader&cycle=26-27");
       expect(ctx.vault.getGoal(slug)).toMatchObject({ status: "agreed", description: "Saved." });
     }
   });
 
   it("says which old link is left when a file couldn't be updated", async () => {
-    ctx.vault.createGoal({ title: "Old", cycle: "2026" });
+    ctx.vault.createGoal({ title: "Old", cycle: "26-27" });
     link("2026-09-10", "old");
     mkdirSync(join(ctx.root, "journal", "2026", "2026-09-10.md.tmp"));
     const res = await send(formPost("/goals/old", { title: "Old", status: "draft", link: "new", view: "reader" }));
     const location = res.headers.get("location")!;
-    expect(location).toBe("/goals?view=reader&cycle=2026&renamed=0%2C0%2C1%2Cold#goal-new");
+    expect(location).toBe("/goals?view=reader&cycle=26-27&renamed=0%2C0%2C1%2Cold#goal-new");
     const page = await html(location);
     expect(page).toContain(
       escapeHtml("Link changed, but 1 entry or todo couldn't be updated safely and still link to [[old]]."),
@@ -841,7 +859,7 @@ describe("goals", () => {
   });
 
   it("doesn't offer to undo by typing a hand-written link that typing would respell", async () => {
-    const page = await html("/goals?view=reader&cycle=2026&renamed=0%2C0%2C1%2CImprove");
+    const page = await html("/goals?view=reader&cycle=26-27&renamed=0%2C0%2C1%2CImprove");
     expect(page).toContain(
       escapeHtml("couldn't be updated safely and still link to [[Improve]]. Fix those links by hand."),
     );
@@ -849,15 +867,15 @@ describe("goals", () => {
   });
 
   it("sends a goal's new link through exactly as checked, even when slugify would respell it again", async () => {
-    ctx.vault.createGoal({ title: "Old", cycle: "2026" });
+    ctx.vault.createGoal({ title: "Old", cycle: "26-27" });
     // slugify("ℌello") is "Hello", and slugify("Hello") is "hello".
     const res = await send(formPost("/goals/old", { title: "Old", status: "draft", link: "ℌello", view: "reader" }));
-    expect(res.headers.get("location")).toBe("/goals?view=reader&cycle=2026&renamed=0%2C0#goal-Hello");
+    expect(res.headers.get("location")).toBe("/goals?view=reader&cycle=26-27&renamed=0%2C0#goal-Hello");
     expect(ctx.vault.getGoals().map((goal) => goal.slug)).toEqual(["Hello"]);
   });
 
   it("returns to the form with the text kept when the goal's file can't be renamed", async () => {
-    ctx.vault.createGoal({ title: "Old", cycle: "2026" });
+    ctx.vault.createGoal({ title: "Old", cycle: "26-27" });
     // Stands in for a file another app holds open (EBUSY on Windows).
     ctx.vault.renameGoal = () => {
       throw new Error("EBUSY: resource busy or locked");
@@ -869,11 +887,11 @@ describe("goals", () => {
         description: "Typed.",
         link: "new",
         view: "reader",
-        return_to: "/goals?view=reader&cycle=2026#goal-old",
+        return_to: "/goals?view=reader&cycle=26-27#goal-old",
       }),
     );
     const location = res.headers.get("location")!;
-    expect(location).toStartWith("/goals?view=reader&cycle=2026&edit=old&error=");
+    expect(location).toStartWith("/goals?view=reader&cycle=26-27&edit=old&error=");
     expect(location).toEndWith("#goal-old");
     const page = await html(location);
     expect(page).toContain(escapeHtml("Your changes were saved under [[old]], but the link couldn't be changed."));
@@ -894,14 +912,14 @@ describe("goals", () => {
     const res = await send(
       formPost("/goals/Improve", { title: "Improve", status: "draft", link: "improve", view: "reader" }),
     );
-    expect(res.headers.get("location")).toBe("/goals?view=reader&cycle=2026&renamed=1%2C0#goal-improve");
+    expect(res.headers.get("location")).toBe("/goals?view=reader&cycle=26-27&renamed=1%2C0#goal-improve");
     expect(ctx.vault.getGoals().map((goal) => goal.slug)).toEqual(["improve"]);
     expect(ctx.vault.getEntries("2026-09-10")[0].goals).toEqual(["improve"]);
   });
 
   it("keeps the typed text and changes nothing when the new link is taken, reserved or empty", async () => {
-    const goal = ctx.vault.createGoal({ title: "Ship", cycle: "2026", description: "Old." });
-    ctx.vault.createGoal({ title: "Taken", cycle: "2026" });
+    const goal = ctx.vault.createGoal({ title: "Ship", cycle: "26-27", description: "Old." });
+    ctx.vault.createGoal({ title: "Taken", cycle: "26-27" });
     const post = (link: string) =>
       send(
         formPost(`/goals/${goal.slug}`, {
@@ -913,7 +931,7 @@ describe("goals", () => {
           notes: "",
           link,
           view: "timeline",
-          return_to: "/goals?view=timeline&cycle=2026&open=ship#goal-ship",
+          return_to: "/goals?view=timeline&cycle=26-27&open=ship#goal-ship",
         }),
       );
     for (const [link, message] of [
@@ -923,7 +941,7 @@ describe("goals", () => {
       ["!!", "A link needs at least one letter or number."],
     ]) {
       const location = (await post(link)).headers.get("location")!;
-      expect(location).toStartWith("/goals?view=timeline&cycle=2026&edit=ship&error=");
+      expect(location).toStartWith("/goals?view=timeline&cycle=26-27&edit=ship&error=");
       expect(location).toEndWith("#goal-ship");
       const page = await html(location);
       expect(page).toContain(escapeHtml(message));
@@ -937,11 +955,11 @@ describe("goals", () => {
   it("doesn't let a stale edit form undo a change made elsewhere, such as by an agent", async () => {
     const goal = ctx.vault.createGoal({
       title: "Ship",
-      cycle: "2026",
+      cycle: "26-27",
       description: "Old description.",
       notes: "Mine.",
     });
-    const form = await html(`/goals?view=reader&cycle=2026&edit=${goal.slug}`);
+    const form = await html(`/goals?view=reader&cycle=26-27&edit=${goal.slug}`);
     const revision = /name="expected_revision" value="([a-f0-9]{64})"/.exec(form)![1];
     ctx.vault.saveGoal(goal.slug, { ...goal, notes: "From an agent." });
     const post = (expected: string) =>
@@ -955,11 +973,11 @@ describe("goals", () => {
           link: goal.slug,
           view: "reader",
           expected_revision: expected,
-          return_to: "/goals?view=reader&cycle=2026#goal-ship",
+          return_to: "/goals?view=reader&cycle=26-27#goal-ship",
         }),
       );
     const location = (await post(revision)).headers.get("location")!;
-    expect(location).toStartWith("/goals?view=reader&cycle=2026&edit=ship&error=");
+    expect(location).toStartWith("/goals?view=reader&cycle=26-27&edit=ship&error=");
     const page = await html(location);
     expect(page).toContain("This goal changed somewhere else while you were editing");
     expect(page).toContain("Typed in the form.</textarea>");
@@ -968,13 +986,13 @@ describe("goals", () => {
     expect(ctx.vault.getGoal("ship")).toMatchObject({ notes: "From an agent.", description: "Old description." });
     // Saving again from that form, which now carries the current revision, replaces it on purpose.
     const fresh = /name="expected_revision" value="([a-f0-9]{64})"/.exec(page)![1];
-    expect((await post(fresh)).headers.get("location")).toBe("/goals?view=reader&cycle=2026#goal-ship");
+    expect((await post(fresh)).headers.get("location")).toBe("/goals?view=reader&cycle=26-27#goal-ship");
     expect(ctx.vault.getGoal("ship")).toMatchObject({ notes: "Typed in the form.", description: "" });
   });
 
   it("edits an activity with one activity field and keeps any expectation text it has", async () => {
-    const plan = ctx.vault.createGoal({ title: "Learn", cycle: "2026", kind: "activity", meeting: "Hand-written." });
-    const form = section(await html(`/goals?view=reader&cycle=2026&edit=${plan.slug}`), plan.slug);
+    const plan = ctx.vault.createGoal({ title: "Learn", cycle: "26-27", kind: "activity", meeting: "Hand-written." });
+    const form = section(await html(`/goals?view=reader&cycle=26-27&edit=${plan.slug}`), plan.slug);
     expect(form).toContain(">Activity</label>");
     expect(form).toContain(">Activity name</label>");
     expect(form).not.toContain("Meeting expectations");
@@ -986,7 +1004,7 @@ describe("goals", () => {
 
   it("cleans control characters out of names and cycles posted by the goal forms", async () => {
     await send(formPost("/goals", { title: "Ship\u0001 it", cycle: "2026\u007f", kind: "goal", view: "reader" }));
-    expect(ctx.vault.getGoal("ship-it")).toMatchObject({ title: "Ship it", cycle: "2026" });
+    expect(ctx.vault.getGoal("ship-it")).toMatchObject({ title: "Ship it", cycle: "26-27" });
     await send(
       formPost("/goals/ship-it", { title: "Ship\u0000 again", status: "draft", link: "ship-it", view: "reader" }),
     );
@@ -999,7 +1017,7 @@ describe("goals", () => {
     expect(ctx.vault.getGoal("second")?.cycle).toBe("FY  2027");
     expect(res.headers.get("location")).toContain(`cycle=${encodeURIComponent("FY  2027").replace(/%20/g, "+")}`);
 
-    ctx.vault.createGoal({ title: "Carried", cycle: "2026" });
+    ctx.vault.createGoal({ title: "Carried", cycle: "26-27" });
     const carry = { from: "2026", cycle: "Q1  2027", goal: "carried", view: "reader" };
     const first = await send(formPost("/goals/carry", carry));
     await send(formPost("/goals/carry", carry));
@@ -1008,8 +1026,8 @@ describe("goals", () => {
   });
 
   it("adds a goal or activity in place and keeps typed text when the name is missing", async () => {
-    ctx.vault.createGoal({ title: "First", cycle: "2026" });
-    const page = await html("/goals?view=reader&cycle=2026&add=goal");
+    ctx.vault.createGoal({ title: "First", cycle: "26-27" });
+    const page = await html("/goals?view=reader&cycle=26-27&add=goal");
     const form = page.slice(page.indexOf('id="add-goal"'));
     expect(form).toMatch(/<span class="no">Goal 2<\/span>\s*<span class="editing-mark">New<\/span>/);
     expect(form).toContain('<input type="hidden" name="kind" value="goal">');
@@ -1018,7 +1036,7 @@ describe("goals", () => {
     const res = await send(
       formPost("/goals", {
         title: "  ",
-        cycle: "2026",
+        cycle: "26-27",
         kind: "goal",
         view: "reader",
         description: "A long description.",
@@ -1026,7 +1044,7 @@ describe("goals", () => {
       }),
     );
     const location = res.headers.get("location")!;
-    expect(location).toStartWith("/goals?view=reader&cycle=2026&add=goal&error=");
+    expect(location).toStartWith("/goals?view=reader&cycle=26-27&add=goal&error=");
     expect(location).toEndWith("#add-goal");
     const retry = await html(location);
     expect(retry).toContain("A goal needs a name.");
@@ -1034,23 +1052,23 @@ describe("goals", () => {
     expect(retry).toContain("Meets &lt;it&gt;.</textarea>");
 
     const added = await send(
-      formPost("/goals", { title: "Learn MCP", cycle: "2026", kind: "activity", view: "reader", status: "agreed" }),
+      formPost("/goals", { title: "Learn MCP", cycle: "26-27", kind: "activity", view: "reader", status: "agreed" }),
     );
-    expect(added.headers.get("location")).toBe("/goals?view=reader&cycle=2026#goal-learn-mcp");
+    expect(added.headers.get("location")).toBe("/goals?view=reader&cycle=26-27#goal-learn-mcp");
     expect(ctx.vault.getGoal("learn-mcp")).toMatchObject({ kind: "activity", status: "agreed", order: 1 });
   });
 
   it("copies a goal for FCP as plain text in FCP's order", async () => {
     const goal = ctx.vault.createGoal({
       title: "Ship <v2>",
-      cycle: "2026",
+      cycle: "26-27",
       description: "Why.",
       meeting: "Meets.",
       exceeding: "Exceeds.",
       notes: "Not copied.",
     });
-    const plan = ctx.vault.createGoal({ title: "Learn", cycle: "2026", kind: "activity", description: "Courses." });
-    const page = await html("/goals?view=reader&cycle=2026");
+    const plan = ctx.vault.createGoal({ title: "Learn", cycle: "26-27", kind: "activity", description: "Courses." });
+    const page = await html("/goals?view=reader&cycle=26-27");
     expect(page).toContain(`data-copy="#fcp-text-${goal.slug}"`);
     expect(page).toContain(
       `<textarea id="fcp-text-${goal.slug}" hidden readonly aria-label="FCP text: Ship &lt;v2&gt;">Goal name\nShip &lt;v2&gt;\n\nDescription\nWhy.\n\nMeeting expectations\nMeets.\n\nExceeding expectations\nExceeds.</textarea>`,
@@ -1060,24 +1078,24 @@ describe("goals", () => {
   });
 
   it("draws the timeline: ticks on their days, today, gaps, drafts and dropped goals", async () => {
-    const agreed = ctx.vault.createGoal({ title: "Agreed goal", cycle: "2026", status: "agreed" });
-    const draft = ctx.vault.createGoal({ title: "Draft goal", cycle: "2026" });
-    const gone = ctx.vault.createGoal({ title: "Gone goal", cycle: "2026" });
+    const agreed = ctx.vault.createGoal({ title: "Agreed goal", cycle: "26-27", status: "agreed" });
+    const draft = ctx.vault.createGoal({ title: "Draft goal", cycle: "26-27" });
+    const gone = ctx.vault.createGoal({ title: "Gone goal", cycle: "26-27" });
     ctx.vault.saveGoal(gone.slug, { ...gone, status: "dropped" }, "2026-05-12");
-    link("2026-01-16", agreed.slug, true);
-    link("2026-02-03", agreed.slug);
+    link("2026-05-16", agreed.slug, true);
+    link("2026-05-20", agreed.slug);
     link("2026-09-05", agreed.slug);
-    link("2026-03-01", gone.slug);
+    link("2026-04-20", gone.slug);
     link("2026-06-01", gone.slug);
 
-    const page = await html("/goals?view=timeline&cycle=2026");
+    const page = await html("/goals?view=timeline&cycle=26-27");
     expect(page).toContain('aria-current="page">Timeline</a>');
     const row = section(page, agreed.slug);
     expect(page).toContain('<li class="map-row is-agreed" id="goal-agreed-goal" data-goal>');
-    expect(row).toContain('<span class="sr-only">January: 1, 1 starred</span>');
+    expect(row).toContain('<span class="sr-only">May: 2, 1 starred</span>');
     expect(row).toContain('<line class="tick s" x1="50.00%" x2="50.00%" y1="100%" y2="55%"></line>');
     expect(row).toContain(
-      '<span class="gap-note" data-span="6" aria-hidden="true">Nothing linked March to August</span>',
+      '<span class="gap-note" data-span="3" aria-hidden="true">Nothing linked June to August</span>',
     );
     expect(row).toContain('<li class="m is-now"><span class="sr-only">September so far: 1</span>');
     expect(row).toContain('<li class="m is-future"><span class="sr-only">October: still ahead</span>');
@@ -1101,28 +1119,28 @@ describe("goals", () => {
   });
 
   it("unfolds a timeline row, and edits it there with the same form as the sheet", async () => {
-    const goal = ctx.vault.createGoal({ title: "Ship", cycle: "2026", description: "Why.", notes: "Talk." });
-    const open = section(await html("/goals?view=timeline&cycle=2026&open=ship"), goal.slug);
+    const goal = ctx.vault.createGoal({ title: "Ship", cycle: "26-27", description: "Why.", notes: "Talk." });
+    const open = section(await html("/goals?view=timeline&cycle=26-27&open=ship"), goal.slug);
     expect(open).toContain('aria-expanded="true"');
     expect(open).toContain('<div class="row-detail" id="detail-ship">');
     expect(open).toContain("<dt>Description</dt><dd>Why.</dd>");
-    expect(open).toContain('href="/goals?view=timeline&amp;cycle=2026&amp;edit=ship#goal-ship"');
+    expect(open).toContain('href="/goals?view=timeline&amp;cycle=26-27&amp;edit=ship#goal-ship"');
     expect(open).toContain('data-copy="#fcp-text-ship"');
     expect(open).toContain('href="/goals/ship">Open goal page');
     expect(open).toContain('href="/review?goal=ship">Review this goal');
 
-    const editing = section(await html("/goals?view=timeline&cycle=2026&edit=ship"), goal.slug);
+    const editing = section(await html("/goals?view=timeline&cycle=26-27&edit=ship"), goal.slug);
     expect(editing).toContain('<form class="clause goal-edit is-editing is-draft" method="post" action="/goals/ship"');
-    expect(editing).toContain('name="return_to" value="/goals?view=timeline&amp;cycle=2026&amp;open=ship#goal-ship"');
+    expect(editing).toContain('name="return_to" value="/goals?view=timeline&amp;cycle=26-27&amp;open=ship#goal-ship"');
   });
 
   it("remembers the last view, and both views name goals the same way for switching", async () => {
-    const goal = ctx.vault.createGoal({ title: "Ship", cycle: "2026" });
+    const goal = ctx.vault.createGoal({ title: "Ship", cycle: "26-27" });
     expect(await html("/goals")).toContain('aria-current="page">Reader</a>');
-    const timeline = await html("/goals?view=timeline&cycle=2026");
-    expect(timeline).toContain('<a class="seg" href="/goals?view=reader&amp;cycle=2026" data-view-switch>Reader</a>');
+    const timeline = await html("/goals?view=timeline&cycle=26-27");
+    expect(timeline).toContain('<a class="seg" href="/goals?view=reader&amp;cycle=26-27" data-view-switch>Reader</a>');
     expect(await html("/goals")).toContain('aria-current="page">Timeline</a>');
-    expect(await html("/goals?cycle=2026")).toContain(`id="goal-${goal.slug}" data-goal`);
+    expect(await html("/goals?cycle=26-27")).toContain(`id="goal-${goal.slug}" data-goal`);
     const reader = await html("/goals?view=reader");
     expect(reader).toContain(`id="goal-${goal.slug}" data-goal`);
     expect(await html("/goals")).toContain('aria-current="page">Reader</a>');
@@ -1154,60 +1172,66 @@ describe("goals", () => {
   it("starts the next cycle by copying picked goals as drafts, notes only if asked", async () => {
     const one = ctx.vault.createGoal({
       title: "Workflow",
-      cycle: "2026",
+      cycle: "26-27",
       status: "agreed",
       description: "D1",
       notes: "N1",
     });
-    const two = ctx.vault.createGoal({ title: "Data", cycle: "2026", description: "D2" });
-    const gone = ctx.vault.createGoal({ title: "Gone", cycle: "2026" });
+    const two = ctx.vault.createGoal({ title: "Data", cycle: "26-27", description: "D2" });
+    const gone = ctx.vault.createGoal({ title: "Gone", cycle: "26-27" });
     ctx.vault.saveGoal(gone.slug, { ...gone, status: "dropped" });
-    const plan = ctx.vault.createGoal({ title: "Expertise", cycle: "2026", kind: "activity", description: "Learn" });
+    const plan = ctx.vault.createGoal({ title: "Expertise", cycle: "26-27", kind: "activity", description: "Learn" });
 
-    const page = await html("/goals?view=reader&cycle=2027&from=2026");
+    const page = await html("/goals?view=reader&cycle=27-28&from=26-27");
     expect(page).toContain('action="/goals/carry"');
-    expect(page).toContain("Start from 2026");
+    expect(page).toContain('<input type="hidden" name="from" value="26-27">');
+    expect(page).toContain("Start from 26-27");
     for (const goal of [one, two, plan])
       expect(page).toContain(`<input type="checkbox" name="goal" value="${goal.slug}" checked`);
     expect(page).not.toContain(`value="${gone.slug}"`);
     expect(page).toContain('<input type="checkbox" name="notes" value="1"> Copy notes too');
     expect(page).toContain(
-      'href="/goals?view=reader&amp;cycle=2027&amp;add=goal#add-goal">Start with a blank goal</a>',
+      'href="/goals?view=reader&amp;cycle=27-28&amp;add=goal#add-goal">Start with a blank goal</a>',
     );
 
     const res = await send(
-      formPost("/goals/carry", { from: "2026", cycle: "2027", view: "reader", goal: [one.slug, plan.slug, gone.slug] }),
+      formPost("/goals/carry", {
+        from: "26-27",
+        cycle: "27-28",
+        view: "reader",
+        goal: [one.slug, plan.slug, gone.slug],
+      }),
     );
-    expect(res.headers.get("location")).toBe("/goals?view=reader&cycle=2027");
-    const copies = ctx.vault.getGoals().filter((goal) => goal.cycle === "2027");
+    expect(res.headers.get("location")).toBe("/goals?view=reader&cycle=27-28");
+    const copies = ctx.vault.getGoals().filter((goal) => goal.cycle === "27-28");
     expect(copies.map(({ slug, status, kind, order, notes }) => ({ slug, status, kind, order, notes }))).toEqual([
-      { slug: "workflow-2027", status: "draft", kind: "goal", order: 1, notes: "" },
-      { slug: "expertise-2027", status: "draft", kind: "activity", order: 1, notes: "" },
+      { slug: "workflow-27-28", status: "draft", kind: "goal", order: 1, notes: "" },
+      { slug: "expertise-27-28", status: "draft", kind: "activity", order: 1, notes: "" },
     ]);
-    expect(ctx.vault.getGoal(one.slug)?.cycle).toBe("2026");
+    expect(ctx.vault.getGoal(one.slug)?.cycle).toBe("26-27");
 
     // A second post (say, after going back) copies nothing more.
-    await send(formPost("/goals/carry", { from: "2026", cycle: "2027", goal: [two.slug] }));
-    expect(ctx.vault.getGoals().filter((goal) => goal.cycle === "2027")).toHaveLength(2);
+    await send(formPost("/goals/carry", { from: "26-27", cycle: "27-28", goal: [two.slug] }));
+    expect(ctx.vault.getGoals().filter((goal) => goal.cycle === "27-28")).toHaveLength(2);
   });
 
   it("copies notes too when asked", async () => {
-    const one = ctx.vault.createGoal({ title: "Workflow", cycle: "2026", notes: "N1" });
-    await send(formPost("/goals/carry", { from: "2026", cycle: "2027", goal: [one.slug], notes: "1" }));
-    expect(ctx.vault.getGoal("workflow-2027")?.notes).toBe("N1");
+    const one = ctx.vault.createGoal({ title: "Workflow", cycle: "26-27", notes: "N1" });
+    await send(formPost("/goals/carry", { from: "2026", cycle: "27-28", goal: [one.slug], notes: "1" }));
+    expect(ctx.vault.getGoal("workflow-27-28")?.notes).toBe("N1");
   });
 
   it("shows a goal page with neighbours, its timeline row and its evidence", async () => {
-    const first = ctx.vault.createGoal({ title: "First", cycle: "2026", description: "Fewer pages." });
-    const second = ctx.vault.createGoal({ title: "Second", cycle: "2026" });
+    const first = ctx.vault.createGoal({ title: "First", cycle: "26-27", description: "Fewer pages." });
+    const second = ctx.vault.createGoal({ title: "Second", cycle: "26-27" });
     link("2026-09-10", second.slug);
     const page = await html(`/goals/${second.slug}`);
-    expect(page).toContain('<p class="kicker"><a href="/goals?cycle=2026#goal-second">Goals · 2026</a></p>');
+    expect(page).toContain('<p class="kicker"><a href="/goals?cycle=26-27#goal-second">Goals · 26-27</a></p>');
     expect(page).toContain('href="/goals/first" aria-label="Previous: First"');
     expect(page).toContain("<span>Goal 2 of 2</span>");
     expect(page).toContain('href="/review?goal=second&amp;from=2026-09-10&amp;to=2026-09-10">Review this goal');
     expect(page).toContain('<h1 class="clause-name" id="name-second">Second</h1>');
-    expect(page).toContain('href="/goals?view=reader&amp;cycle=2026&amp;edit=second#goal-second">');
+    expect(page).toContain('href="/goals?view=reader&amp;cycle=26-27&amp;edit=second#goal-second">');
     expect(page).toContain('data-copy="#fcp-text-second"');
     expect(page).toContain('<li class="map-row is-draft">');
     expect(page).toContain("Work on second");
@@ -1217,43 +1241,43 @@ describe("goals", () => {
   it("shows and edits goals that have no cycle", async () => {
     mkdirSync(join(ctx.root, "goals"), { recursive: true });
     writeFileSync(join(ctx.root, "goals", "loose.md"), "---\ntitle: Loose\n---\nBody.\n");
-    expect(await html("/goals?view=reader&cycle=2026")).toContain('href="/goals?view=reader&amp;cycle=">No cycle</a>');
+    expect(await html("/goals?view=reader&cycle=26-27")).toContain('href="/goals?view=reader&amp;cycle=">No cycle</a>');
     const page = await html("/goals?view=reader&cycle=&edit=loose");
     expect(page).toContain('<p class="kicker">No review cycle</p>');
     expect(page).toContain('<form class="clause goal-edit is-editing is-draft" id="goal-loose" data-goal');
   });
 
   it("keeps the add form's anchor apart from a goal named New, and copy ids apart too", async () => {
-    ctx.vault.createGoal({ title: "New", cycle: "2026" });
-    ctx.vault.createGoal({ title: "X", cycle: "2026" });
-    ctx.vault.createGoal({ title: "Status X", cycle: "2026" });
-    ctx.vault.createGoal({ title: "Text X", cycle: "2026" });
-    const page = await html("/goals?view=reader&cycle=2026&add=goal");
+    ctx.vault.createGoal({ title: "New", cycle: "26-27" });
+    ctx.vault.createGoal({ title: "X", cycle: "26-27" });
+    ctx.vault.createGoal({ title: "Status X", cycle: "26-27" });
+    ctx.vault.createGoal({ title: "Text X", cycle: "26-27" });
+    const page = await html("/goals?view=reader&cycle=26-27&add=goal");
     expect(page.match(/id="goal-new"/g)).toHaveLength(1);
     expect(page).toContain(
       '<form class="clause goal-edit is-editing is-draft" id="add-goal" method="post" action="/goals"',
     );
-    expect(page).toContain('href="/goals?view=reader&amp;cycle=2026&amp;add=activity#add-goal"');
+    expect(page).toContain('href="/goals?view=reader&amp;cycle=26-27&amp;add=activity#add-goal"');
     const ids = [...page.matchAll(/ id="([^"]+)"/g)].map((match) => match[1]);
     expect(ids.length).toBe(new Set(ids).size);
     expect(page).toContain('data-copy-status="#fcp-note-x"');
   });
 
   it("returns to the unfolded timeline row after editing there", async () => {
-    ctx.vault.createGoal({ title: "Ship", cycle: "2026" });
-    const page = await html("/goals?view=timeline&cycle=2026&edit=ship");
-    expect(page).toContain('name="return_to" value="/goals?view=timeline&amp;cycle=2026&amp;open=ship#goal-ship"');
+    ctx.vault.createGoal({ title: "Ship", cycle: "26-27" });
+    const page = await html("/goals?view=timeline&cycle=26-27&edit=ship");
+    expect(page).toContain('name="return_to" value="/goals?view=timeline&amp;cycle=26-27&amp;open=ship#goal-ship"');
   });
 
   it("sends old goal edit links to the edit form on the sheet", async () => {
-    ctx.vault.createGoal({ title: "Ship", cycle: "2026" });
+    ctx.vault.createGoal({ title: "Ship", cycle: "26-27" });
     const res = await send(get("/goals/ship?edit=1"));
     expect(res.status).toBe(303);
-    expect(res.headers.get("location")).toBe("/goals?view=reader&cycle=2026&edit=ship#goal-ship");
+    expect(res.headers.get("location")).toBe("/goals?view=reader&cycle=26-27&edit=ship#goal-ship");
   });
 
   it("points to linked open todos, which aren't evidence until done", async () => {
-    ctx.vault.createGoal({ title: "Mentoring", cycle: "2026" });
+    ctx.vault.createGoal({ title: "Mentoring", cycle: "26-27" });
     await send(formPost("/todos", { task: "Pair with Sam [[mentoring]]", return_to: "/todos" }));
     expect(await html("/goals/mentoring")).toContain("1 open todo linked");
   });
@@ -1339,5 +1363,76 @@ describe("return paths", () => {
   it("does not redirect off-site via return_to", async () => {
     const res = await send(formPost("/journal", { date: "2026-09-28", content: "x", return_to: "//evil.example" }));
     expect(res.headers.get("location")).toBe("/?date=2026-09-28");
+  });
+});
+
+describe("references", () => {
+  const meta = { tags: [], goals: [], minutes: null, isHighlight: false, time: null };
+
+  it("shows an entry's references under it: web addresses open, others copy", async () => {
+    const goal = ctx.vault.createGoal({ title: "Delivery", cycle: "26-27" });
+    ctx.vault.addEntries("2026-09-28", [`Shipped it [[${goal.slug}]]`], {
+      ...meta,
+      references: [
+        { label: "ToDo thread", url: "t3-thread://v2/a/b" },
+        { label: "", url: "https://example.com/notes?a=1&b=2" },
+      ],
+    });
+    const link =
+      '<a class="ref" href="https://example.com/notes?a=1&amp;b=2" target="_blank" rel="noopener noreferrer" title="https://example.com/notes?a=1&amp;b=2">';
+    const copy =
+      '<button type="button" class="ref" data-copy-ref="t3-thread://v2/a/b" title="Copy t3-thread://v2/a/b">';
+    for (const path of ["/", "/review?preset=ytd", `/goals/${goal.slug}`]) {
+      const page = await html(path);
+      expect(page).toContain('<ul class="refs" aria-label="References">');
+      expect(page).toContain(link);
+      expect(page).toContain(copy);
+      expect(page).toContain("<span>ToDo thread</span>");
+      // The address itself shows when there's no label.
+      expect(page).toContain("<span>https://example.com/notes?a=1&amp;b=2</span>");
+    }
+  });
+});
+
+describe("references in the entry forms", () => {
+  it("adds references from the capture form, one per line, and keeps everything typed when one has no address", async () => {
+    const bad = await send(
+      formPost("/journal", { content: "Shipped it", references: "Thread t3-thread://v2/a/b\nnot an address" }),
+    );
+    const location = bad.headers.get("location")!;
+    expect(new URL(location, "http://x").searchParams.get("error")).toEndWith("Check: not an address");
+    expect(ctx.vault.getEntries("2026-09-28")).toHaveLength(0);
+    const retry = await html(location);
+    expect(retry).toContain('<details class="ref-field" open>');
+    expect(retry).toContain("Thread t3-thread://v2/a/b\nnot an address</textarea>");
+
+    await send(
+      formPost("/journal", { content: "Shipped it", references: "Thread t3-thread://v2/a/b\n\nhttps://example.com" }),
+    );
+    expect(ctx.vault.getEntries("2026-09-28")[0].references).toEqual([
+      { label: "Thread", url: "t3-thread://v2/a/b" },
+      { label: "", url: "https://example.com" },
+    ]);
+  });
+
+  it("edits an entry's references, and an empty field removes them", async () => {
+    const [entry] = ctx.vault.addEntries("2026-09-28", ["Shipped it"], {
+      tags: [],
+      goals: [],
+      minutes: null,
+      isHighlight: false,
+      time: null,
+      references: [{ label: "Thread", url: "t3-thread://v2/a/b" }],
+    });
+    const form = await html(`/?date=2026-09-28&edit=${entry.id}`);
+    expect(form).toContain(`<details class="ref-field" open>`);
+    expect(form).toContain(">[Thread](t3-thread://v2/a/b)</textarea>");
+
+    const edit = (references: string) =>
+      send(formPost(`/journal/${entry.id}`, { date: "2026-09-28", content: "Shipped it", minutes: "", references }));
+    await edit("[Thread](t3-thread://v2/a/b)\nDocs https://docs.test");
+    expect(ctx.vault.getEntries("2026-09-28")[0].references).toHaveLength(2);
+    await edit("");
+    expect(ctx.vault.getEntries("2026-09-28")[0].references).toEqual([]);
   });
 });

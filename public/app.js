@@ -10,7 +10,9 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
   // ---- Per-page setup (runs on load and after every in-place swap) --------
 
   // Elements a live update kept on the page already have their listeners.
-  const setUp = { drafts: new WeakSet(), lists: new WeakSet(), composers: new WeakSet() };
+  const setUp = { drafts: new WeakSet(), lists: new WeakSet(), composers: new WeakSet(), links: new WeakSet() };
+  // Labels showing "Copied" for a moment, with what they said before.
+  const copiedLabels = new WeakMap();
   const firstTime = (set, el) => !set.has(el) && set.add(el);
 
   function initPage(root) {
@@ -19,10 +21,26 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
       if (!firstTime(setUp.drafts, textarea)) return;
       const key = textarea.dataset.draft;
       const saved = localStorage.getItem(key);
-      if (saved && !textarea.value) textarea.value = saved;
+      if (saved && !textarea.value) {
+        textarea.value = saved;
+        // A folded field with a draft in it opens, so the draft is seen.
+        textarea.closest("details")?.setAttribute("open", "");
+      }
       textarea.addEventListener("input", () => {
         if (textarea.value.trim()) localStorage.setItem(key, textarea.value);
         else localStorage.removeItem(key);
+      });
+    });
+
+    // Links this app can't open copy their address (see the click handler), so keyboards reach them too.
+    root.querySelectorAll(".local-link[data-href]").forEach((link) => {
+      if (link.closest("[contenteditable]") || !firstTime(setUp.links, link)) return;
+      link.tabIndex = 0;
+      link.setAttribute("role", "button");
+      link.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        link.click();
       });
     });
 
@@ -1000,7 +1018,7 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
    * focus stays on the same control or row. After opening a page (`navigate`),
    * focus goes to the page and it scrolls to `scrollY`, the link's #anchor or the top.
    */
-  function swapPage(html, url, { focusCapture, draftKey, form, submitter, navigate, push = true, restoreY }) {
+  function swapPage(html, url, { focusCapture, draftKeys = [], form, submitter, navigate, push = true, restoreY }) {
     cancelTodoSearch();
     const doc = new DOMParser().parseFromString(html, "text/html");
     const nextMain = doc.querySelector("main");
@@ -1036,7 +1054,7 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
     }
     shownAddress = target.pathname + target.search;
 
-    if (draftKey && !new URL(url).searchParams.has("error")) localStorage.removeItem(draftKey);
+    if (!new URL(url).searchParams.has("error")) for (const key of draftKeys) localStorage.removeItem(key);
     initPage(nextMain);
 
     if (navigate) {
@@ -1121,7 +1139,7 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
     // A page still opening gives way to this post's result, and the result to a page opened after it.
     const ticket = ++navigation;
 
-    const draftKey = form.querySelector("textarea[data-draft]")?.dataset.draft;
+    const draftKeys = [...form.querySelectorAll("textarea[data-draft]")].map((textarea) => textarea.dataset.draft);
     try {
       const response = await fetch(form.action, { method: "POST", body: new FormData(form, event.submitter) });
       const type = response.headers.get("content-type") || "";
@@ -1131,12 +1149,12 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
       }
       const html = await response.text();
       if (ticket !== navigation) {
-        if (draftKey && !new URL(response.url).searchParams.has("error")) localStorage.removeItem(draftKey);
+        if (!new URL(response.url).searchParams.has("error")) for (const key of draftKeys) localStorage.removeItem(key);
         return;
       }
       swapPage(html, response.url, {
         focusCapture: form.hasAttribute("data-capture"),
-        draftKey,
+        draftKeys,
         form,
         submitter: event.submitter,
       });
@@ -1291,6 +1309,29 @@ import { renderEntryMarkdown, editorMarkdown, codeText } from "./rich-text.js";
         }
       } catch {
         announce(document.getElementById("change-text"), "Could not refresh. Your edits are still here. Try again.");
+      }
+      return;
+    }
+
+    // A reference or link this app can't open (such as an agent thread): copy its address
+    // to paste where it opens. Not while editing, where the link is text being written.
+    const reference = target.closest("[data-copy-ref], .local-link[data-href]");
+    if (reference && !reference.closest("[contenteditable]")) {
+      const label = reference.matches(".local-link") ? reference : reference.querySelector("span");
+      try {
+        await navigator.clipboard.writeText(reference.dataset.copyRef ?? reference.dataset.href);
+        announce(document.getElementById("live-status"), "Address copied.");
+        if (label && !copiedLabels.has(label)) {
+          // The label's own markup (a bold word, say) comes back after.
+          copiedLabels.set(label, label.innerHTML);
+          label.textContent = "Copied";
+          setTimeout(() => {
+            label.innerHTML = copiedLabels.get(label);
+            copiedLabels.delete(label);
+          }, 1500);
+        }
+      } catch {
+        announce(document.getElementById("live-status"), "Couldn't reach the clipboard.");
       }
       return;
     }

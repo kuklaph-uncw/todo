@@ -374,8 +374,8 @@ describe("goals", () => {
   const fields = { description: "", meeting: "", exceeding: "", notes: "" };
 
   it("creates goal files with unique slugs and keeps the slug when renamed", () => {
-    const first = vault.createGoal({ title: "Improve reliability", cycle: "2026", description: "Fewer pages." });
-    const second = vault.createGoal({ title: "Improve reliability", cycle: "2026" });
+    const first = vault.createGoal({ title: "Improve reliability", cycle: "26-27", description: "Fewer pages." });
+    const second = vault.createGoal({ title: "Improve reliability", cycle: "26-27" });
     expect([first.slug, second.slug]).toEqual(["improve-reliability", "improve-reliability-2"]);
 
     vault.saveGoal(first.slug, {
@@ -387,7 +387,7 @@ describe("goals", () => {
     });
     expect(vault.getGoal("improve-reliability")).toMatchObject({
       title: "Improve platform reliability",
-      cycle: "2026",
+      cycle: "26-27",
       status: "agreed",
       description: "Fewer pages.",
       meeting: "Runbooks.",
@@ -396,23 +396,33 @@ describe("goals", () => {
   });
 
   it("starts new goals as drafts, numbered after the others of their cycle and kind", () => {
-    const a = vault.createGoal({ title: "A", cycle: "2026" });
-    const b = vault.createGoal({ title: "B", cycle: "2026" });
-    const plan = vault.createGoal({ title: "Learn", cycle: "2026", kind: "activity", description: "Courses." });
-    const next = vault.createGoal({ title: "Next year", cycle: "2027" });
+    const a = vault.createGoal({ title: "A", cycle: "26-27" });
+    const b = vault.createGoal({ title: "B", cycle: "26-27" });
+    const plan = vault.createGoal({ title: "Learn", cycle: "26-27", kind: "activity", description: "Courses." });
+    const next = vault.createGoal({ title: "Next year", cycle: "27-28" });
     expect([a.order, b.order, plan.order, next.order]).toEqual([1, 2, 1, 1]);
     expect(a).toMatchObject({ status: "draft", kind: "goal", droppedOn: null });
     expect(vault.getGoal(plan.slug)).toMatchObject({ kind: "activity", description: "Courses." });
   });
 
   it("lists goals newest cycle first, goals before activities, then by order and title", () => {
-    vault.createGoal({ title: "Old", cycle: "2025" });
-    vault.createGoal({ title: "Zed", cycle: "2026" });
-    vault.createGoal({ title: "Plan", cycle: "2026", kind: "activity" });
-    vault.createGoal({ title: "Alpha", cycle: "2026" });
+    vault.createGoal({ title: "Old", cycle: "25-26" });
+    vault.createGoal({ title: "Zed", cycle: "26-27" });
+    vault.createGoal({ title: "Plan", cycle: "26-27", kind: "activity" });
+    vault.createGoal({ title: "Alpha", cycle: "26-27" });
     mkdirSync(join(root, "goals"), { recursive: true });
     writeFileSync(join(root, "goals", "hand.md"), "---\ntitle: Hand written\ncycle: 2026\n---\n");
     expect(vault.getGoals().map((goal) => goal.title)).toEqual(["Zed", "Alpha", "Hand written", "Plan", "Old"]);
+  });
+
+  it("reads a goal saved with a year as the cycle starting that April, and saves it with the new label", () => {
+    mkdirSync(join(root, "goals"), { recursive: true });
+    writeFileSync(join(root, "goals", "older.md"), "---\ntitle: Older\ncycle: 2026\nstatus: agreed\n---\n");
+    const goal = vault.getGoal("older")!;
+    expect(goal.cycle).toBe("26-27");
+    expect(read("goals", "older.md")).toContain("cycle: 2026");
+    vault.saveGoal("older", { ...goal, description: "Edited." });
+    expect(read("goals", "older.md")).toContain("cycle: 26-27");
   });
 
   describe("changing a goal's link", () => {
@@ -422,8 +432,8 @@ describe("goals", () => {
     };
 
     it("renames the file and rewrites links in entries, todos, notes and subtasks only", () => {
-      vault.createGoal({ title: "Old", cycle: "2026", description: "Kept." });
-      vault.createGoal({ title: "Old 2", cycle: "2026" });
+      vault.createGoal({ title: "Old", cycle: "26-27", description: "Kept." });
+      vault.createGoal({ title: "Old 2", cycle: "26-27" });
       day(
         "2026-09-01",
         [
@@ -492,7 +502,7 @@ describe("goals", () => {
     });
 
     it("finishes the other files and counts the ones it couldn't write", () => {
-      vault.createGoal({ title: "Old", cycle: "2026" });
+      vault.createGoal({ title: "Old", cycle: "26-27" });
       day("2026-09-01", "- One [[old]] ^aaaaaa\n");
       day("2026-09-02", "- Two [[old]] ^bbbbbb\n");
       // A folder where the atomic write puts its temp file makes that one write fail.
@@ -528,14 +538,14 @@ describe("goals", () => {
     });
 
     it("passes the checked slug through as is", () => {
-      vault.createGoal({ title: "Old", cycle: "2026" });
+      vault.createGoal({ title: "Old", cycle: "26-27" });
       expect(vault.renameGoal("old", "Hello")?.slug).toBe("Hello");
       expect(vault.getGoal("Hello")).not.toBeNull();
     });
 
     it("refuses an empty, reserved or taken link, and changes nothing", () => {
-      vault.createGoal({ title: "Old", cycle: "2026" });
-      vault.createGoal({ title: "Taken", cycle: "2026" });
+      vault.createGoal({ title: "Old", cycle: "26-27" });
+      vault.createGoal({ title: "Taken", cycle: "26-27" });
       expect(vault.goalLinkProblem("old", slugify("!!!"))).toBe("A link needs at least one letter or number.");
       expect(vault.goalLinkProblem("old", "carry")).toBe("That link is reserved. Pick another.");
       expect(vault.goalLinkProblem("old", "taken")).toBe("Another goal already uses [[taken]].");
@@ -555,17 +565,17 @@ describe("goals", () => {
   });
 
   it("moves a goal up or down among the live goals of its cycle and kind", () => {
-    const a = vault.createGoal({ title: "A", cycle: "2026" });
-    const gone = vault.createGoal({ title: "Gone", cycle: "2026" });
-    const b = vault.createGoal({ title: "B", cycle: "2026" });
-    const c = vault.createGoal({ title: "C", cycle: "2026" });
-    vault.createGoal({ title: "Plan", cycle: "2026", kind: "activity" });
-    vault.createGoal({ title: "Other year", cycle: "2025" });
+    const a = vault.createGoal({ title: "A", cycle: "26-27" });
+    const gone = vault.createGoal({ title: "Gone", cycle: "26-27" });
+    const b = vault.createGoal({ title: "B", cycle: "26-27" });
+    const c = vault.createGoal({ title: "C", cycle: "26-27" });
+    vault.createGoal({ title: "Plan", cycle: "26-27", kind: "activity" });
+    vault.createGoal({ title: "Other year", cycle: "25-26" });
     vault.saveGoal(gone.slug, { ...gone, status: "dropped" });
     const order = () =>
       vault
         .getGoals()
-        .filter((goal) => goal.cycle === "2026" && goal.kind === "goal")
+        .filter((goal) => goal.cycle === "26-27" && goal.kind === "goal")
         .map((goal) => `${goal.title}:${goal.order}`);
 
     expect(vault.moveGoal(c.slug, "up")).toBe(true);
@@ -581,7 +591,7 @@ describe("goals", () => {
   });
 
   it("stamps the drop date when dropped and clears it when restored", () => {
-    const goal = vault.createGoal({ title: "Retire the server", cycle: "2026" });
+    const goal = vault.createGoal({ title: "Retire the server", cycle: "26-27" });
     const change = { ...fields, title: goal.title };
     expect(vault.saveGoal(goal.slug, { ...change, status: "dropped" }, "2026-05-12")?.droppedOn).toBe("2026-05-12");
     expect(read("goals", `${goal.slug}.md`)).toContain("dropped: 2026-05-12\n");
@@ -610,7 +620,7 @@ describe("goals", () => {
     mkdirSync(join(root, "goals"), { recursive: true });
     writeFileSync(join(root, "goals", "zed.md"), "---\ntitle: Zed\ncycle: 2026\nstatus: active\n---\nOld body.\n");
     writeFileSync(join(root, "goals", "alpha.md"), "---\ntitle: Alpha\ncycle: 2026\nstatus: active\n---\n");
-    vault.createGoal({ title: "Brand new", cycle: "2026" });
+    vault.createGoal({ title: "Brand new", cycle: "26-27" });
     expect(vault.getGoals().map((goal) => [goal.title, goal.order])).toEqual([
       ["Alpha", 1],
       ["Zed", 2],
@@ -621,16 +631,16 @@ describe("goals", () => {
 
   it("finds a long duplicate-titled goal by its suffixed slug", () => {
     const title = "A very long goal title that runs well past the slug length limit";
-    vault.createGoal({ title, cycle: "2026" });
-    const second = vault.createGoal({ title, cycle: "2026" });
+    vault.createGoal({ title, cycle: "26-27" });
+    const second = vault.createGoal({ title, cycle: "26-27" });
     expect(second.slug.length).toBeGreaterThan(48);
     expect(vault.getGoal(second.slug)?.title).toBe(title);
   });
 
   it("turns control characters in names and cycles into spaces, as it does line breaks", () => {
     const goal = vault.createGoal({ title: "Ship\u0001it\u007f now", cycle: "\u00002026\u001f" });
-    expect(goal).toMatchObject({ title: "Ship it now", cycle: "2026" });
-    expect(vault.getGoal(goal.slug)).toMatchObject({ title: "Ship it now", cycle: "2026" });
+    expect(goal).toMatchObject({ title: "Ship it now", cycle: "26-27" });
+    expect(vault.getGoal(goal.slug)).toMatchObject({ title: "Ship it now", cycle: "26-27" });
     const saved = vault.saveGoal(goal.slug, { ...goal, title: "Ship\u0007 again" })!;
     expect(saved.title).toBe("Ship again");
     const control = (char: string) => (char < " " && char !== "\t" && char !== "\n") || char === "\u007f";
@@ -641,27 +651,27 @@ describe("goals", () => {
     expect(vault.createGoal({ title: "Spaced", cycle: "FY  2027" }).cycle).toBe("FY  2027");
     expect(vault.createGoal({ title: "Wide", cycle: "FY\u00a02027" }).cycle).toBe("FY\u00a02027");
     expect(vault.createGoal({ title: "Odd", cycle: "FY\u00852027\u2028" }).cycle).toBe("FY 2027");
-    expect(vault.createGoal({ title: "Next\u0085line", cycle: "2026" }).title).toBe("Next line");
+    expect(vault.createGoal({ title: "Next\u0085line", cycle: "26-27" }).title).toBe("Next line");
   });
 
   it("names a goal reused in a new cycle after that cycle", () => {
-    vault.createGoal({ title: "Improve reliability", cycle: "2026" });
-    expect(vault.createGoal({ title: "Improve reliability", cycle: "2027" }).slug).toBe("improve-reliability-2027");
+    vault.createGoal({ title: "Improve reliability", cycle: "26-27" });
+    expect(vault.createGoal({ title: "Improve reliability", cycle: "27-28" }).slug).toBe("improve-reliability-27-28");
   });
 
   it("keeps the cycle in the link of a long FCP-style name reused in a new cycle", () => {
     const title = "Improve Client Communication, Service Delivery, and Stakeholder Engagement Across Campus Units";
-    vault.createGoal({ title, cycle: "2026" });
-    const next = vault.createGoal({ title, cycle: "2027" }).slug;
+    vault.createGoal({ title, cycle: "26-27" });
+    const next = vault.createGoal({ title, cycle: "27-28" }).slug;
     expect(next).toStartWith("improve-client-communication-service-");
-    expect(next).toEndWith("-2027");
+    expect(next).toEndWith("-27-28");
     expect(next.length).toBeLessThanOrEqual(48);
   });
 
   it("always writes a slug the app can open, even when a long name ends in a letter outside the BMP", () => {
     const title = `${"a".repeat(47)}\u{20000}`;
-    const first = vault.createGoal({ title, cycle: "2026" });
-    const second = vault.createGoal({ title, cycle: "2026" });
+    const first = vault.createGoal({ title, cycle: "26-27" });
+    const second = vault.createGoal({ title, cycle: "26-27" });
     for (const goal of [first, second]) {
       expect(isGoalSlug(goal.slug)).toBe(true);
       expect(vault.getGoal(goal.slug)?.title).toBe(title);
@@ -671,7 +681,7 @@ describe("goals", () => {
   });
 
   it("drops the cycle suffix when a long cycle leaves no room for the name", () => {
-    vault.createGoal({ title: "Same", cycle: "2026" });
+    vault.createGoal({ title: "Same", cycle: "26-27" });
     const cycle = "b".repeat(50);
     const goal = vault.createGoal({ title: "Same", cycle });
     expect(isGoalSlug(goal.slug)).toBe(true);
@@ -690,7 +700,7 @@ describe("goals", () => {
       ["---", "title: Hand", ...extras, "cycle: 2026", "---", ""].join("\n"),
     );
     // Adding a goal to the same cycle numbers the hand-written one first, rewriting its file.
-    vault.createGoal({ title: "New", cycle: "2026" });
+    vault.createGoal({ title: "New", cycle: "26-27" });
     const lines = () => read("goals", "hand.md").split("\n");
     expect(vault.getGoal("hand")?.order).toBe(1);
     for (const extra of extras) expect(lines()).toContain(extra);
@@ -704,19 +714,19 @@ describe("goals", () => {
   });
 
   it("never names a goal after a Windows device name, which Windows won't open as a file", () => {
-    expect(vault.createGoal({ title: "Con", cycle: "2026" }).slug).toBe("con-2");
-    expect(vault.createGoal({ title: "NUL", cycle: "2026" }).slug).toBe("nul-2");
-    expect(vault.createGoal({ title: "LPT9", cycle: "2026" }).slug).toBe("lpt9-2");
+    expect(vault.createGoal({ title: "Con", cycle: "26-27" }).slug).toBe("con-2");
+    expect(vault.createGoal({ title: "NUL", cycle: "26-27" }).slug).toBe("nul-2");
+    expect(vault.createGoal({ title: "LPT9", cycle: "26-27" }).slug).toBe("lpt9-2");
     // Only the exact names: ones that merely start with them are fine.
     for (const title of ["Console", "COM10", "Auxiliary", "com0"])
-      expect(vault.createGoal({ title, cycle: "2026" }).slug).toBe(title.toLowerCase());
+      expect(vault.createGoal({ title, cycle: "26-27" }).slug).toBe(title.toLowerCase());
     expect(vault.goalLinkProblem("con-2", "aux")).toBe("That link is reserved. Pick another.");
     expect(vault.goalLinkProblem("con-2", "COM1")).toBe("That link is reserved. Pick another.");
     expect(vault.goalLinkProblem("con-2", "com10")).not.toBe("That link is reserved. Pick another.");
   });
 
   it("never names a goal after the carry-over route", () => {
-    expect(vault.createGoal({ title: "Carry", cycle: "2026" }).slug).toBe("carry-2");
+    expect(vault.createGoal({ title: "Carry", cycle: "26-27" }).slug).toBe("carry-2");
   });
 
   it("refuses slugs that aren't plain slugs", () => {
